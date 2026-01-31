@@ -430,10 +430,22 @@
         return null;
     }
 
-    // --- Processing ---
+    // --- Processing ---// @version      1.6
+
     let userDataPromise = fetchSteamUserData();
 
     async function processGameElement(element, nameSelector) {
+        // v1.6: Persistence Check - If marked 'true' but link is gone (wiped by another script), reset and retry.
+        if (element.dataset.sslProcessed === "true") {
+            if (!element.querySelector('.ssl-link')) {
+                // Console log only if debugging/verbose, or just silently fix
+                // console.log('[Steam Linker] Link wiped by external script. Re-processing:', element);
+                element.dataset.sslProcessed = "";
+            } else {
+                return; // Already processed and link exists
+            }
+        }
+
         if (element.dataset.sslProcessed) return;
 
         const nameEl = element.querySelector(nameSelector);
