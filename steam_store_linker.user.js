@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Steam Store Linker (Humble & Fanatical)
 // @namespace    http://tampermonkey.net/
-// @version      1.9
+// @version      1.10
 // @description  Adds Steam links and ownership status to Humble Bundle and Fanatical
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -38,7 +38,13 @@
                 { container: '.details-heading', title: 'h1' },
                 { container: '.product-header', title: 'h1' },
                 { container: '.product-hero', title: 'h1' },
-                { container: '[class*="product-detail"]', title: 'h1' }
+                { container: '.product-hero', title: 'h1' },
+                { container: '[class*="product-detail"]', title: 'h1' },
+                // v1.10: Carousel/Modal Support
+                { container: '.modal-content', title: 'h2' },
+                { container: '.content-choice-modal', title: 'h2' },
+                { container: 'div[role="dialog"]', title: 'h2' },
+                { container: '.details-heading', title: 'h2' }
             ],
             isValidGameElement: (element, nameEl) => {
                 const link = element.closest('a') || element.querySelector('a');
