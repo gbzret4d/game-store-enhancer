@@ -1,7 +1,9 @@
 // ==UserScript==
 // @name         Steam Store Linker (Humble & Fanatical)
 // @namespace    http://tampermonkey.net/
-// @version      1.2
+// @version      1.3
+// @updateURL    https://raw.githubusercontent.com/gbzret4d/steam-store-linker/main/steam_store_linker.user.js
+// @downloadURL  https://raw.githubusercontent.com/gbzret4d/steam-store-linker/main/steam_store_linker.user.js
 
 // ... (skipping to searchSteamGame)
 
@@ -486,6 +488,30 @@ async function searchSteamGame(gameName) {
         });
     }
 
+    function scanForSteamAssets(element) {
+        // 1. Check Links
+        const links = element.querySelectorAll('a[href*="/app/"], a[href*="/sub/"], a[href*="/bundle/"]');
+        for (const link of links) {
+            const match = link.href.match(/\/(app|sub|bundle)\/(\d+)/i);
+            if (match) {
+                return { id: parseInt(match[2]), type: match[1].toLowerCase() };
+            }
+        }
+
+        // 2. Check Images
+        const images = element.querySelectorAll('img[src*="/apps/"], img[src*="/subs/"], img[src*="/bundles/"]');
+        for (const img of images) {
+            const match = img.src.match(/\/(apps|subs|bundles)\/(\d+)/i);
+            if (match) {
+                let type = 'app';
+                if (match[1] === 'subs') type = 'sub';
+                if (match[1] === 'bundles') type = 'bundle';
+                return { id: parseInt(match[2]), type: type };
+            }
+        }
+        return null;
+    }
+
     // --- Processing ---
     let userDataPromise = fetchSteamUserData();
 
@@ -513,7 +539,24 @@ async function searchSteamGame(gameName) {
         updateStatsUI();
 
         try {
-            const result = await searchSteamGame(gameName);
+            // 1. Asset Scan (Priority)
+            let result = null;
+            const assetMatch = scanForSteamAssets(element);
+
+            if (assetMatch) {
+                result = {
+                    id: assetMatch.id,
+                    type: assetMatch.type,
+                    name: gameName, // Trust the page name
+                    tiny_image: null,
+                    price: null,
+                    discount: 0
+                };
+                console.log(`[Steam Linker] Asset match for "${gameName}": ${assetMatch.type}/${assetMatch.id}`);
+            } else {
+                // 2. Steam Search (Fallback)
+                result = await searchSteamGame(gameName);
+            }
 
             if (result) {
                 const userData = await userDataPromise;
