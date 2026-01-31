@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Steam Store Linker (Humble & Fanatical)
 // @namespace    http://tampermonkey.net/
-// @version      1.7
+// @version      1.8
 // @description  Adds Steam links and ownership status to Humble Bundle and Fanatical
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -245,6 +245,14 @@
         if (appData.cards) html += `<span>CARDS</span>`;
         if (appData.owned) html += `<span class="ssl-owned">OWNED</span>`;
         else if (appData.wishlisted) html += `<span class="ssl-wishlist">WISHLIST</span>`;
+
+        if (appData.reviews) {
+            let colorClass = 'ssl-review-mixed';
+            if (appData.reviews.percent >= 70) colorClass = 'ssl-review-positive';
+            if (appData.reviews.percent < 40) colorClass = 'ssl-review-negative';
+            html += `<span class="${colorClass}">${appData.reviews.percent}%</span>`;
+        }
+
         if (appData.ignored) html += `<span class="ssl-ignored">IGNORED</span>`;
         if (appData.proton) html += `<span>${appData.proton} PROTON</span>`;
 
@@ -279,10 +287,48 @@
     const steamQueue = new RequestQueue(300);
 
     function getStoredValue(key, defaultVal) {
-        try { return GM_getValue(key, defaultVal); } catch (e) { return defaultVal; }
+        try {
+            const wrapped = GM_getValue(key, defaultVal);
+            if (wrapped && wrapped.version === CACHE_VERSION) {
+                return wrapped.payload;
+            }
+            return defaultVal;
+        } catch (e) { return defaultVal; }
     }
     function setStoredValue(key, val) {
-        try { GM_setValue(key, val); } catch (e) { }
+        try { GM_setValue(key, { version: CACHE_VERSION, payload: val }); } catch (e) { }
+    }
+
+    async function fetchSteamReviews(appId) {
+        const cacheKey = 'steam_reviews_' + appId;
+        const cached = getStoredValue(cacheKey, null);
+        if (cached && (Date.now() - cached.timestamp < CACHE_TTL * 7)) return cached.data;
+
+        return new Promise(resolve => {
+            GM_xmlhttpRequest({
+                method: 'GET',
+                url: `${STEAM_REVIEWS_API}${appId}?json=1&num_per_page=0`, // No reviews needed, just summary
+                onload: res => {
+                    try {
+                        const data = JSON.parse(res.responseText);
+                        if (data.query_summary) {
+                            const summary = data.query_summary;
+                            const result = {
+                                percent: Math.floor((summary.total_positive / summary.total_reviews) * 100),
+                                total: summary.total_reviews,
+                                score: summary.review_score_desc // "Very Positive", etc.
+                            };
+                            setStoredValue(cacheKey, { data: result, timestamp: Date.now() });
+                            resolve(result);
+                        } else {
+                            setStoredValue(cacheKey, { data: null, timestamp: Date.now() });
+                            resolve(null);
+                        }
+                    } catch (e) { resolve(null); }
+                },
+                onerror: () => resolve(null)
+            });
+        });
     }
 
     // --- API Calls ---
@@ -558,14 +604,20 @@
             }
 
             if (result) {
+                const appId = parseInt(result.id);
                 const userData = await userDataPromise;
-                const owned = userData.ownedApps.includes(result.id);
+                const owned = userData.ownedApps.includes(appId);
                 // Simple wishlist check for ID presence
-                const wishlisted = userData.wishlist.some(w => (w.appid === result.id || w === result.id));
-                const ignored = userData.ignored && userData.ignored[result.id];
-                const proton = await fetchProtonDB(result.id);
+                const wishlisted = userData.wishlist.some(w => (w.appid === appId || w === appId));
+                const ignored = userData.ignored && userData.ignored[appId];
 
-                const appData = { ...result, owned, wishlisted, ignored, proton };
+                // Fetch extra data in parallel
+                const [proton, reviews] = await Promise.all([
+                    fetchProtonDB(appId),
+                    fetchSteamReviews(appId)
+                ]);
+
+                const appData = { ...result, id: appId, owned, wishlisted, ignored, proton, reviews };
 
                 if (owned) {
                     stats.owned++;
