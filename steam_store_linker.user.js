@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Steam Store Linker (Humble & Fanatical)
 // @namespace    http://tampermonkey.net/
-// @version      1.5
+// @version      1.7
 // @description  Adds Steam links and ownership status to Humble Bundle and Fanatical
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -16,6 +16,7 @@
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_addStyle
+// @grant        unsafeWindow
 // ==/UserScript==
 
 (function () {
@@ -62,10 +63,47 @@
                 { container: 'div[class*="ProductDetail"]', title: 'h1.product-name' },
                 { container: '.name-banner-container', title: 'h1.product-name' }
             ],
-            ignoreUrl: null
+            ignoreUrl: null,
+            interceptor: true // Enable API Interceptor
         },
 
     };
+
+    // --- Fanatical API Interceptor ---
+    const fanatical_cover_map = new Map();
+
+    function setupFanaticalInterceptor() {
+        if (typeof unsafeWindow === 'undefined' || !unsafeWindow.fetch) return;
+
+        const original_fetch = unsafeWindow.fetch;
+        unsafeWindow.fetch = async function (...args) {
+            const response = await original_fetch(...args);
+            const clone = response.clone();
+
+            clone.json().then(json => {
+                if (!json) return;
+
+                const processGame = (game) => {
+                    if (game && game.cover && game.steam) {
+                        const filename = game.cover.split('/').pop().split('?')[0]; // Extract filename
+                        fanatical_cover_map.set(filename, game.steam);
+                    }
+                };
+
+                // 1. Bundle Pages / Pick & Mix
+                if (json.bundles) json.bundles.forEach(b => b.games?.forEach(processGame));
+                if (json.products) json.products.forEach(processGame);
+
+                // 2. Search / Single Game
+                if (json.cover && json.steam) processGame(json);
+                if (json.results) json.results.forEach(r => r.hits?.forEach(processGame));
+
+            }).catch(() => { }); // Ignore json parse errors
+
+            return response;
+        };
+        console.log('[Steam Linker] Fanatical API Interceptor active.');
+    }
 
     function getCurrentSiteConfig() {
         const hostname = window.location.hostname;
@@ -84,6 +122,10 @@
     if (currentConfig.ignoreUrl && window.location.href.includes(currentConfig.ignoreUrl)) {
         console.log(`[Steam Linker] Ignoring URL pattern: ${currentConfig.ignoreUrl}`);
         return;
+    }
+
+    if (currentConfig.interceptor) {
+        setupFanaticalInterceptor();
     }
 
     // --- API & Constants ---
@@ -112,29 +154,29 @@
         .ssl-link:hover { color: #fff; background: #2a475e; }
         .ssl-link span { margin-right: 4px; padding-right: 4px; border-right: 1px solid #3c3d3e; }
         .ssl-link span:last-child { border-right: none; margin-right: 0; padding-right: 0; }
-        
+
         .ssl-owned { color: #a4d007; font-weight: bold; }
         .ssl-wishlist { color: #66c0f4; font-weight: bold; }
         .ssl-ignored { color: #d9534f; }
-        
-        .ssl-container-owned { 
-            opacity: 1 !important; 
-            filter: grayscale(0%) !important; 
-            border: 2px solid #4c6b22 !important; 
-            box-shadow: inset 0 0 15px rgba(76, 107, 34, 0.6); 
-            transition: all 0.2s; 
+
+        .ssl-container-owned {
+            opacity: 1 !important;
+            filter: grayscale(0%) !important;
+            border: 2px solid #4c6b22 !important;
+            box-shadow: inset 0 0 15px rgba(76, 107, 34, 0.6);
+            transition: all 0.2s;
         }
-        .ssl-container-owned:hover { 
-            box-shadow: inset 0 0 20px rgba(76, 107, 34, 0.8), 0 0 10px rgba(76, 107, 34, 0.4) !important; 
+        .ssl-container-owned:hover {
+            box-shadow: inset 0 0 20px rgba(76, 107, 34, 0.8), 0 0 10px rgba(76, 107, 34, 0.4) !important;
         }
-        .ssl-container-wishlist { 
-            border: 2px solid #66c0f4 !important; 
-            box-shadow: 0 0 10px rgba(102, 192, 244, 0.3) !important; 
-            border-radius: 4px; 
+        .ssl-container-wishlist {
+            border: 2px solid #66c0f4 !important;
+            box-shadow: 0 0 10px rgba(102, 192, 244, 0.3) !important;
+            border-radius: 4px;
         }
-        .ssl-container-ignored { 
-            border: 2px solid #d9534f !important; 
-            opacity: 0.5; 
+        .ssl-container-ignored {
+            border: 2px solid #d9534f !important;
+            opacity: 0.5;
         }
 
         #ssl-stats {
@@ -471,21 +513,42 @@
         try {
             // v1.3: 1. Asset Scan (Priority)
             let result = null;
-            const assetMatch = scanForSteamAssets(element);
 
-            if (assetMatch) {
-                result = {
-                    id: assetMatch.id,
-                    type: assetMatch.type,
-                    name: gameName, // Trust the page name
-                    tiny_image: null,
-                    price: null,
-                    discount: 0
-                };
-                console.log(`[Steam Linker] Asset match for "${gameName}": ${assetMatch.type}/${assetMatch.id}`);
-            } else {
-                // 2. Steam Search (Fallback)
-                result = await searchSteamGame(gameName);
+            // v1.7: Fanatical API Map Lookup (Highest Priority)
+            if (currentConfig.interceptor) {
+                const images = element.querySelectorAll('img[src]');
+                for (const img of images) {
+                    const filename = img.src.split('/').pop().split('?')[0];
+                    if (fanatical_cover_map.has(filename)) {
+                        const steamData = fanatical_cover_map.get(filename);
+                        result = {
+                            id: steamData.id,
+                            type: steamData.type || 'app',
+                            name: gameName,
+                            tiny_image: null, price: null, discount: 0
+                        };
+                        console.log(`[Steam Linker] API Intercept match for "${gameName}": ${result.type}/${result.id}`);
+                        break;
+                    }
+                }
+            }
+
+            if (!result) {
+                const assetMatch = scanForSteamAssets(element);
+                if (assetMatch) {
+                    result = {
+                        id: assetMatch.id,
+                        type: assetMatch.type,
+                        name: gameName, // Trust the page name
+                        tiny_image: null,
+                        price: null,
+                        discount: 0
+                    };
+                    console.log(`[Steam Linker] Asset match for "${gameName}": ${assetMatch.type}/${assetMatch.id}`);
+                } else {
+                    // 2. Steam Search (Fallback)
+                    result = await searchSteamGame(gameName);
+                }
             }
 
             if (result) {
