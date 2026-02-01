@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Steam Store Linker (Humble & Fanatical)
 // @namespace    http://tampermonkey.net/
-// @version      1.14
+// @version      1.15
 // @description  Adds Steam links and ownership status to Humble Bundle and Fanatical
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -173,6 +173,7 @@
             opacity: 1 !important;
             filter: grayscale(0%) !important;
             outline: 3px solid #4c6b22 !important; /* Use outline to avoid layout shifts */
+            outline-offset: -3px; /* Prevent bleeding onto adjacent elements (Carousel) */
             box-shadow: inset 0 0 20px rgba(76, 107, 34, 0.6), 0 0 10px rgba(76, 107, 34, 0.5); /* Inner and outer glow */
             transition: all 0.2s;
             z-index: 10; /* Ensure outline is valid */
@@ -182,12 +183,14 @@
         }
         .ssl-container-wishlist {
             outline: 3px solid #66c0f4 !important;
+            outline-offset: -3px;
             box-shadow: inset 0 0 20px rgba(102, 192, 244, 0.4), 0 0 10px rgba(102, 192, 244, 0.5) !important;
             border-radius: 4px; /* Optional, might conflict slightly with outline on some browsers but usually fine */
             z-index: 10;
         }
         .ssl-container-ignored {
             outline: 3px solid #d9534f !important;
+            outline-offset: -3px;
             box-shadow: inset 0 0 10px rgba(217, 83, 79, 0.4);
             opacity: 0.5;
             z-index: 10;

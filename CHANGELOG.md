@@ -2,6 +2,16 @@
 
 All notable changes to the **Steam Store Linker** userscript will be documented in this file.
 
+## [1.15] - 2026-02-01
+### Fixed
+- **UI**: Fixed color bleeding in Humble Bundle Carousel.
+  - Added `outline-offset: -3px` to draw the border *inside* the game card. This prevents the blue border of one game from overlapping the red border of the next game when they are tightly packed.
+
+## [1.14] - 2026-02-01
+### Fixed
+- **Core**: Forced Cache Reset.
+  - Bumped internal `CACHE_VERSION` to '1.9' to invalidate all stale cached data. This ensures recent user changes (Wishlist/Ignore) are immediately reflected without waiting 24 hours.
+
 ## [1.13] - 2026-02-01
 ### Fixed
 - **Humble Bundle**: Fixed carousel detection for games after the first slide (e.g., "Haste").
