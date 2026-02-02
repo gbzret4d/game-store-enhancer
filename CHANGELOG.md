@@ -4,6 +4,13 @@ All notable changes to the **Steam Store Linker** userscript will be documented 
 
 
 
+## [1.25] - 2026-02-02
+### Changed
+- **Performance**: Reduced **Cache Duration** from 24 hours to **15 minutes**.
+  - *Context*: Active deal hunters need fresher data. 24h was too stale.
+  - *Impact*: Ownership/Wishlist status updates much faster.
+  - *Note*: Static data (like review scores) is cached for ~1.75 hours (7x base TTL) to respect API limits.
+
 ## [1.24] - 2026-02-02
 ### Fixed
 - **Fanatical**: Fixed false positives in Book/Software bundle exclusion.

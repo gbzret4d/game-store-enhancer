@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Steam Store Linker (Humble & Fanatical)
 // @namespace    http://tampermonkey.net/
-// @version      1.24
+// @version      1.25
 // @description  Adds Steam links and ownership status to Humble Bundle and Fanatical
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -148,8 +148,8 @@
     const STEAM_SEARCH_API = 'https://store.steampowered.com/search/results/?json=1&term=';
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
-    const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
-    const CACHE_VERSION = '2.2'; // v1.21: Bump to force clear stalled/empty userdata caches
+    const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
+    const CACHE_VERSION = '2.3'; // v1.25: Bump to force reset with new TTL
 
     // Styles
     const css = `
