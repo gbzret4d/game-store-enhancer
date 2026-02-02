@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Steam Store Linker (Humble & Fanatical)
 // @namespace    http://tampermonkey.net/
-// @version      1.22
+// @version      1.23
 // @description  Adds Steam links and ownership status to Humble Bundle and Fanatical
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -68,7 +68,13 @@
                 { container: '.name-banner-container', title: 'h1.product-name' }
             ],
             ignoreUrl: null,
-            interceptor: true // Enable API Interceptor
+            interceptor: true, // Enable API Interceptor
+            // v1.23: Exclude non-game bundles (Books/Software) to prevent false positives
+            isExcluded: () => {
+                const breadcrumbs = Array.from(document.querySelectorAll('.breadcrumb-item, nav[aria-label="breadcrumb"] li, ol[itemtype="http://schema.org/BreadcrumbList"] li'));
+                const keywords = ['Book Bundles', 'Software Bundles'];
+                return breadcrumbs.some(b => keywords.some(k => b.innerText.includes(k)));
+            }
         },
 
     };
@@ -707,6 +713,7 @@
     }
 
     function scanPage() {
+        if (currentConfig.isExcluded && currentConfig.isExcluded()) return;
         if (!currentConfig.selectors) return;
         currentConfig.selectors.forEach(strat => {
             document.querySelectorAll(strat.container).forEach(el => {
