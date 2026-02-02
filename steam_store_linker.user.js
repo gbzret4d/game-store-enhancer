@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Steam Store Linker (Humble & Fanatical)
 // @namespace    http://tampermonkey.net/
-// @version      1.20
+// @version      1.21
 // @description  Adds Steam links and ownership status to Humble Bundle and Fanatical
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -140,9 +140,9 @@
     const STEAM_USERDATA_API = 'https://store.steampowered.com/dynamicstore/userdata/';
     const STEAM_SEARCH_API = 'https://store.steampowered.com/search/results/?json=1&term=';
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
-    const PROTONDB_API = 'https://www.protondb.com/api/v1/reports/summaries/';
+    const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
-    const CACHE_VERSION = '2.1'; // Increment to invalidate old caches
+    const CACHE_VERSION = '2.2'; // v1.21: Bump to force clear stalled/empty userdata caches
 
     // Styles
     const css = `
@@ -355,7 +355,10 @@
     // --- API Calls ---
     async function fetchSteamUserData() {
         const cached = getStoredValue('steam_userdata', null);
-        if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) return cached.data;
+        if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
+            console.log(`[Steam Linker] UserData Cache Hit (v${CACHE_VERSION}). Owned: ${cached.data.ownedApps.length}, Wishlist: ${cached.data.wishlist.length}`); // DEBUG
+            return cached.data;
+        }
 
         return steamQueue.add(() => new Promise((resolve) => {
             GM_xmlhttpRequest({
@@ -373,11 +376,13 @@
 
                         // v1.19: Detect potential cookie blocking (Firefox)
                         if (userData.ownedApps.length === 0 && userData.wishlist.length === 0) {
-                            console.warn('[Steam Linker] Wiki result is empty. Possible causes: Not logged in OR Firefox "Total Cookie Protection" active.');
+                            console.warn('[Steam Linker] Wiki result is empty. Possible causes: Not logged in OR Firefox "Total Cookie Protection" active. NOT CACHING this result.');
+                            // Do NOT cache empty results to allow immediate retry on next load/login
+                        } else {
+                            setStoredValue('steam_userdata', { data: userData, timestamp: Date.now() });
                         }
 
                         console.log(`[Steam Linker] Parsed Data - Owned: ${userData.ownedApps.length}, Wishlist: ${userData.wishlist.length}`); // DEBUG
-                        setStoredValue('steam_userdata', { data: userData, timestamp: Date.now() });
                         resolve(userData);
                     } catch (e) {
                         console.error('[Steam Linker] UserData Parse Error:', e); // DEBUG
