@@ -4,6 +4,11 @@ All notable changes to the **Steam Store Linker** userscript will be documented 
 
 
 
+## [1.26] - 2026-02-03
+### Fixed
+- **Stats**: Added "No Data" category to the stats panel.
+  - Now correctly counts items where no Steam data was found or an error occurred (e.g. invalid ID), ensuring the "Total" count matches the number of items on the page.
+
 ## [1.25] - 2026-02-02
 ### Changed
 - **Performance**: Reduced **Cache Duration** from 24 hours to **15 minutes**.

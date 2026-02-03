@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Steam Store Linker (Humble & Fanatical)
 // @namespace    http://tampermonkey.net/
-// @version      1.25
+// @version      1.26
 // @description  Adds Steam links and ownership status to Humble Bundle and Fanatical
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -231,7 +231,7 @@
     GM_addStyle(css);
 
     // --- State & UI ---
-    const stats = { total: 0, owned: 0, wishlist: 0, ignored: 0, missing: 0 };
+    const stats = { total: 0, owned: 0, wishlist: 0, ignored: 0, missing: 0, no_data: 0 };
 
     function updateStatsUI() {
         let panel = document.getElementById('ssl-stats');
@@ -249,7 +249,8 @@
             { label: 'Owned', val: stats.owned },
             { label: 'Wishlist', val: stats.wishlist },
             { label: 'Ignored', val: stats.ignored },
-            { label: 'Missing', val: stats.missing }
+            { label: 'Missing', val: stats.missing },
+            { label: 'No Data', val: stats.no_data }
         ];
         lines.forEach(l => { html += `<div>${l.label}: <span class="val">${l.val}</span></div>`; });
         panel.innerHTML = html;
@@ -663,6 +664,12 @@
                 if (!result.id || isNaN(parseInt(result.id))) {
                     console.warn(`[Steam Linker] Result found but ID is missing/invalid for "${gameName}". Marking as error.`);
                     element.dataset.sslProcessed = "error";
+                    if (isNewStats) {
+                        stats.no_data++;
+                        stats.total++;
+                        element.dataset.sslStatsCounted = "true";
+                        updateStatsUI();
+                    }
                     return;
                 }
                 const appId = parseInt(result.id);
@@ -706,10 +713,22 @@
                 element.dataset.sslProcessed = "true";
             } else {
                 element.dataset.sslProcessed = "notfound";
+                if (isNewStats) {
+                    stats.no_data++;
+                    stats.total++;
+                    element.dataset.sslStatsCounted = "true";
+                    updateStatsUI();
+                }
             }
         } catch (e) {
             console.error(e);
             element.dataset.sslProcessed = "error";
+            if (isNewStats) {
+                stats.no_data++;
+                stats.total++;
+                element.dataset.sslStatsCounted = "true";
+                updateStatsUI();
+            }
         }
     }
 
