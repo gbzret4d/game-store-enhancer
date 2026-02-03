@@ -4,6 +4,12 @@ All notable changes to the **Steam Store Linker** userscript will be documented 
 
 
 
+## [1.29] - 2026-02-03
+### Added
+- **Fanatical**: Added support for **User Pages**.
+  - The script now works on **Product Library** (`/product-library`) and **Order History** (`/orders`).
+  - Correctly detects game titles in these list views and adds Steam links/status.
+
 ## [1.28] - 2026-02-03
 ### Fixed
 - **Fanatical**: Added item deduplication for the **Stats Panel**.

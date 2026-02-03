@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Steam Store Linker (Humble & Fanatical)
 // @namespace    http://tampermonkey.net/
-// @version      1.28
+// @version      1.29
 // @description  Adds Steam links and ownership status to Humble Bundle and Fanatical
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -65,7 +65,10 @@
                 { container: '.product-det', title: 'h1.product-name' },
                 { container: '.product-container', title: 'h1.product-name' },
                 { container: 'div[class*="ProductDetail"]', title: 'h1.product-name' },
-                { container: '.name-banner-container', title: 'h1.product-name' }
+                { container: '.name-banner-container', title: 'h1.product-name' },
+                // v1.29: User Pages (Orders & Library)
+                { container: '.new-order-item', title: '.game-name' }, // Library & Order Details
+                { container: '.OrderItemsCard', title: '.order-item-name' } // Order History List
             ],
             ignoreUrl: null,
             interceptor: true, // Enable API Interceptor

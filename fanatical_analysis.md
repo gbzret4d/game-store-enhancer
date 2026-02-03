@@ -28,3 +28,16 @@ It is used to maintain the selectors in the `Steam Store Linker` userscript.
 - **Selector**: `a.HitCard__main__cover` (this is the image container)
 - **Image**: `img.img-fluid.img-full.img-force-full`
 - **Notes**: The store grid uses "HitCards" (`.HitCard`) which are structurally different from bundle cards.
+
+### 4. User Pages (Library & Orders)
+*Private user dashboard areas.*
+
+#### A. Orders List (`/en/orders`)
+- **Container**: `div.OrderItemsCard`
+- **Title**: `p.order-item-name`
+- **Notes**: A single order row can contain multiple games (titles are p-tags).
+
+#### B. Order Details & Library (`/en/orders/*` & `/en/product-library`)
+- **Container**: `article.new-order-item`
+- **Title**: `h4.game-name`
+- **Notes**: Both pages use identical structure for game cards. "Bundle" sections in Order Details use `section.bundle-section` and `h3.bundle-name`.
