@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Game Store Enhancer (formerly Steam Store Linker)
+// @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      1.36
+// @version      1.37-DEV
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -10,8 +10,8 @@
 // @match        https://www.dailyindiegame.com/*
 // @match        https://www.gog.com/*
 // @icon         https://store.steampowered.com/favicon.ico
-// @updateURL    https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/main/game_store_enhancer.user.js
-// @downloadURL  https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/main/game_store_enhancer.user.js
+// @updateURL    https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/game_store_enhancer.user.js
+// @downloadURL  https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/game_store_enhancer.user.js
 // @homepageURL  https://github.com/gbzret4d/game-store-enhancer
 // @connect      store.steampowered.com
 // @connect      www.protondb.com
