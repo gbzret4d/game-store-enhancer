@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Store Enhancer (formerly Steam Store Linker)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      1.32
+// @version      1.33
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -230,35 +230,31 @@
         .ssl-container-owned {
             opacity: 1 !important;
             filter: grayscale(0%) !important;
-            outline: 3px solid #4c6b22 !important; /* Use outline to avoid layout shifts */
-            /* outline-offset: -3px; removed globally to fix grid clipping */
-            box-shadow: inset 0 0 20px rgba(76, 107, 34, 0.6), 0 0 10px rgba(76, 107, 34, 0.5); /* Inner and outer glow */
+            border: 4px solid #a4d007 !important; /* Switch to border for visibility */
+            box-shadow: inset 0 0 20px rgba(164, 208, 7, 0.4);
+            box-sizing: border-box !important;
             transition: all 0.2s;
-            z-index: 10; /* Ensure outline is valid */
+            z-index: 10;
         }
         .ssl-container-owned:hover {
-            box-shadow: inset 0 0 30px rgba(76, 107, 34, 0.9), 0 0 15px rgba(76, 107, 34, 0.7) !important;
+            box-shadow: inset 0 0 30px rgba(164, 208, 7, 0.6) !important;
         }
         .ssl-container-wishlist {
-            outline: 3px solid #66c0f4 !important;
-            box-shadow: inset 0 0 20px rgba(102, 192, 244, 0.4), 0 0 10px rgba(102, 192, 244, 0.5) !important;
-            border-radius: 4px; /* Optional, might conflict slightly with outline on some browsers but usually fine */
+            border: 4px solid #66c0f4 !important;
+            box-shadow: inset 0 0 20px rgba(102, 192, 244, 0.4);
+            box-sizing: border-box !important;
+            border-radius: 4px;
             z-index: 10;
         }
         .ssl-container-ignored {
-            outline: 3px solid #d9534f !important;
+            border: 4px solid #d9534f !important;
             box-shadow: inset 0 0 10px rgba(217, 83, 79, 0.4);
+            box-sizing: border-box !important;
             opacity: 0.5;
             z-index: 10;
         }
 
-        /* v1.16: Apply outline-offset ONLY to Carousel items to prevent adjacent bleeding.
-           Grid items should use default offset (0) to avoid clipping text like "Keys are low". */
-        .expanded-info-view .ssl-container-owned,
-        .expanded-info-view .ssl-container-wishlist,
-        .expanded-info-view .ssl-container-ignored {
-            outline-offset: -3px !important;
-        }
+        /* v1.33: Border box handles overflow better, removing manual offsets */
 
         #ssl-stats {
             position: fixed; bottom: 10px; right: 10px;

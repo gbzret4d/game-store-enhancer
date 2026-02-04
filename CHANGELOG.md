@@ -4,6 +4,12 @@ All notable changes to the **Game Store Enhancer** userscript will be documented
 
 
 
+## [1.33] - 2026-02-04
+### Fixed
+- **UI**: Changed from `outline` to `border` for Owned/Wishlist/Ignored indicators.
+  - *Fixes*: Visibility issues on Humble Bundle where `outline` was often hidden or too subtle.
+  - Uses `box-sizing: border-box` to prevent layout shifts.
+
 ## [1.32] - 2026-02-04
 ### Changed
 - **Project Structure**: Renamed project to **Game Store Enhancer** to reflect support for multiple stores (Humble, Fanatical, DIG, GOG).
