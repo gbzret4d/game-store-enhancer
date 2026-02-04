@@ -1,7 +1,7 @@
 # GOG.com Page Layout Analysis
 
 This document serves as a reference for the DOM structure of GOG.com.
-It is used to plan the support for the `Steam Store Linker` userscript.
+It is used to plan the support for the `Game Store Enhancer` userscript.
 
 ## Key Findings: Language Consistency
 - **URL**: `https://www.gog.com/[lang]/game/[slug]` (e.g. `/en/` or `/de/`).

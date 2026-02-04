@@ -1,7 +1,7 @@
 # Humble Bundle Page Layout Analysis
 
 This document serves as a reference for the DOM structure of different page types on Humble Bundle.
-It is used to maintain the selectors in the `Steam Store Linker` userscript.
+It is used to maintain the selectors in the `Game Store Enhancer` userscript.
 
 ## Page Types
 

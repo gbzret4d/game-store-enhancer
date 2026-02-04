@@ -412,7 +412,7 @@
     async function fetchSteamUserData() {
         const cached = getStoredValue('steam_userdata', null);
         if (cached && (Date.now() - cached.timestamp < CACHE_TTL)) {
-            console.log(`[Steam Linker] UserData Cache Hit (v${CACHE_VERSION}). Owned: ${cached.data.ownedApps.length}, Wishlist: ${cached.data.wishlist.length}`); // DEBUG
+            console.log(`[Game Store Enhancer] UserData Cache Hit (v${CACHE_VERSION}). Owned: ${cached.data.ownedApps.length}, Wishlist: ${cached.data.wishlist.length}`); // DEBUG
             return cached.data;
         }
 
@@ -423,7 +423,7 @@
                 onload: (response) => {
                     try {
                         const data = JSON.parse(response.responseText);
-                        console.log('[Steam Linker] UserData Response:', data); // DEBUG
+                        console.log('[Game Store Enhancer] UserData Response:', data); // DEBUG
                         const userData = {
                             ownedApps: data.rgOwnedApps || [],
                             wishlist: data.rgWishlist || [],
@@ -432,21 +432,21 @@
 
                         // v1.19: Detect potential cookie blocking (Firefox)
                         if (userData.ownedApps.length === 0 && userData.wishlist.length === 0) {
-                            console.warn('[Steam Linker] Wiki result is empty. Possible causes: Not logged in OR Firefox "Total Cookie Protection" active. NOT CACHING this result.');
+                            console.warn('[Game Store Enhancer] Wiki result is empty. Possible causes: Not logged in OR Firefox "Total Cookie Protection" active. NOT CACHING this result.');
                             // Do NOT cache empty results to allow immediate retry on next load/login
                         } else {
                             setStoredValue('steam_userdata', { data: userData, timestamp: Date.now() });
                         }
 
-                        console.log(`[Steam Linker] Parsed Data - Owned: ${userData.ownedApps.length}, Wishlist: ${userData.wishlist.length}`); // DEBUG
+                        console.log(`[Game Store Enhancer] Parsed Data - Owned: ${userData.ownedApps.length}, Wishlist: ${userData.wishlist.length}`); // DEBUG
                         resolve(userData);
                     } catch (e) {
-                        console.error('[Steam Linker] UserData Parse Error:', e); // DEBUG
+                        console.error('[Game Store Enhancer] UserData Parse Error:', e); // DEBUG
                         resolve({ ownedApps: [], wishlist: [], ignored: {} });
                     }
                 },
                 onerror: (err) => {
-                    console.error('[Steam Linker] UserData Request Failed:', err); // DEBUG
+                    console.error('[Game Store Enhancer] UserData Request Failed:', err); // DEBUG
                     resolve({ ownedApps: [], wishlist: [], ignored: {} });
                 }
             });
@@ -515,7 +515,7 @@
                             });
 
                             if (!bestMatch || maxScore < 0.6) { // Threshold
-                                console.log(`[Steam Linker] No good match for "${cleanedName}". Best: "${bestMatch ? bestMatch.name : 'none'}" (Score: ${maxScore.toFixed(2)})`);
+                                console.log(`[Game Store Enhancer] No good match for "${cleanedName}". Best: "${bestMatch ? bestMatch.name : 'none'}" (Score: ${maxScore.toFixed(2)})`);
                                 setStoredValue(cacheKey, { data: null, timestamp: Date.now() });
                                 resolve(null);
                                 return;
@@ -632,7 +632,7 @@
         if (element.dataset.sslProcessed === "true") {
             if (!element.querySelector('.ssl-link')) {
                 // Console log only if debugging/verbose, or just silently fix
-                // console.log('[Steam Linker] Link wiped by external script. Re-processing:', element);
+                // console.log('[Game Store Enhancer] Link wiped by external script. Re-processing:', element);
                 element.dataset.sslProcessed = "";
             } else {
                 return; // Already processed and link exists
@@ -729,7 +729,7 @@
                             name: gameName,
                             tiny_image: null, price: null, discount: 0
                         };
-                        console.log(`[Steam Linker] API Intercept match for "${gameName}": ${result.type}/${result.id}`);
+                        console.log(`[Game Store Enhancer] API Intercept match for "${gameName}": ${result.type}/${result.id}`);
                         break;
                     }
                 }
@@ -746,7 +746,7 @@
                         price: null,
                         discount: 0
                     };
-                    console.log(`[Steam Linker] Asset match for "${gameName}": ${assetMatch.type}/${assetMatch.id}`);
+                    console.log(`[Game Store Enhancer] Asset match for "${gameName}": ${assetMatch.type}/${assetMatch.id}`);
                 } else {
                     // 2. Steam Search (Fallback)
                     result = await searchSteamGame(gameName);
@@ -756,7 +756,7 @@
             if (result) {
                 // v1.17: Loop Prevention - Validate ID before processing
                 if (!result.id || isNaN(parseInt(result.id))) {
-                    console.warn(`[Steam Linker] Result found but ID is missing/invalid for "${gameName}". Marking as error.`);
+                    console.warn(`[Game Store Enhancer] Result found but ID is missing/invalid for "${gameName}". Marking as error.`);
                     element.dataset.sslProcessed = "error";
                     if (isNewStats) {
                         // v1.28: Deduplication check

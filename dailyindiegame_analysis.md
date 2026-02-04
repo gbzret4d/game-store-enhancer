@@ -1,7 +1,7 @@
 # DailyIndieGame Page Layout Analysis
 
 This document serves as a reference for the DOM structure of DailyIndieGame.com.
-It is used to plan the support for the `Steam Store Linker` userscript.
+It is used to plan the support for the `Game Store Enhancer` userscript.
 
 > [!NOTE]
 > Analysis was performed using Internet Archive snapshots due to Cloudflare protection on the live site.
