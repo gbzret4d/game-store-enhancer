@@ -1,14 +1,16 @@
 // ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      1.39-DEV
-// @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
+// @version      1.40
+// @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, GOG, and IndieGala with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
 // @match        https://www.fanatical.com/*
 // @match        https://dailyindiegame.com/*
 // @match        https://www.dailyindiegame.com/*
 // @match        https://www.gog.com/*
+// @match        https://www.indiegala.com/*
+// @match        https://freebies.indiegala.com/*
 // @icon         https://store.steampowered.com/favicon.ico
 // @updateURL    https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/game_store_enhancer.user.js
 // @downloadURL  https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/game_store_enhancer.user.js
@@ -121,6 +123,50 @@
             ],
             // GOG IDs don't match Steam, so we rely on Name Search.
             // But we can filter out non-game pages if needed.
+        },
+        'indiegala.com': {
+            name: 'IndieGala',
+            selectors: [
+                // Store / Sales Grid
+                { container: '.store-main-page-items-list-item-col', title: '.store-main-page-items-list-item-details a' },
+                // Bundle Tiers (Summary Grid)
+                { container: '.bundle-page-tier-item-col', title: '.bundle-page-tier-item-title' },
+                // Homepage / Top Sellers (Generic Fallback)
+                { container: '.main-list-item', title: 'a[href^="/store/game/"]' },
+                { container: '.main-submenu-big-right-item-col', title: 'a[href^="/store/game/"]' },
+                // Library Items
+                { container: 'li.profile-private-page-library-subitem', title: '.profile-private-page-library-subitem-text' },
+                // Giveaways
+                { container: '.items-list-item', title: '.items-list-item-title a' },
+                { container: '.trading-card-header', title: '.trading-card-header-game' },
+                // Trades
+                { container: '.trades-list-card-contents', title: '.trades-list-card-title a' },
+                // Showcase
+                { container: '.showcase-main-list-item.main-list-item', title: '.showcase-title' },
+                // Freebies (subdomain)
+                { container: '.products-col-inner', title: '.product-title' }
+            ],
+            getAppId: (element) => {
+                // 1. Try to get ID from Store URL
+                const link = element.querySelector('a[href*="/store/game/"]');
+                if (link) {
+                    const match = link.href.match(/\/store\/game\/[^/]+\/(\d+)/);
+                    if (match) return match[1];
+                }
+                // 2. Fallback: Try to get ID from Bundle Image URL
+                const img = element.querySelector('img[src*="/bundle_games/"]');
+                if (img) {
+                    const match = img.src.match(/\/(\d+)\.jpg/);
+                    if (match) return match[1];
+                }
+                // 3. Library: Try to get ID from existing native Steam Link
+                const steamLink = element.querySelector('a[href*="steampowered.com/app/"]');
+                if (steamLink) {
+                    const match = steamLink.href.match(/\/app\/(\d+)/);
+                    if (match) return match[1];
+                }
+                return null;
+            }
         }
 
     };
@@ -212,7 +258,30 @@
             line-height: 1.2;
             box-shadow: 1px 1px 2px rgba(0,0,0,0.5);
             z-index: 999;
+            z-index: 999;
             position: relative;
+        }
+
+        /* IndieGala Tweaks */
+        .store-main-page-items-list-item-col .ssl-link {
+            display: block; /* Make it block level to sit nicely under title */
+            width: fit-content;
+            margin-bottom: 5px;
+        }
+        
+        .profile-private-page-library-subitem .ssl-link {
+            margin-left: 10px;
+            float: right; /* Library list is horizontal, float it or flex it */
+        }
+
+        /* Giveaways & Trades & Showcase & Freebies */
+        .items-list-item .ssl-link,
+        .trades-list-card-contents .ssl-link,
+        .showcase-main-list-item .ssl-link,
+        .product-title-cont .ssl-link {
+            display: block;
+            margin-top: 5px;
+            width: fit-content;
         }
         
         /* v1.34: Hide native Steam links on DailyIndieGame to avoid clutter */

@@ -4,6 +4,14 @@ All notable changes to the **Game Store Enhancer** userscript will be documented
 
 
 
+
+## [1.40] - 2026-02-05
+### Added
+- **IndieGala**: Added full support for **IndieGala.com**.
+  - Works on **Store**, **Bundles**, **Library**, **Giveaways**, **Trades**, **Showcase**, and **Freebies**.
+  - **Native Integration**: Uses existing Steam links/data attributes where available (Library, Giveaways Details) for 100% accuracy.
+  - **Fallback Search**: Automatically searches Steam by title for listings without direct IDs (Store grids, Trade lists).
+
 ## [1.36] - 2026-02-04
 ### Fixed
 - **DailyIndieGame**:
