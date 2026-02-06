@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      1.49
+// @version      1.52
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, GOG, and IndieGala with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -381,38 +381,34 @@
         #ssl-stats div { display: flex; justify-content: space-between; margin-bottom: 2px; }
         #ssl-stats span.val { font-weight: bold; color: #fff; margin-left: 10px; }
         
-        /* v1.49: IndieGala Hover Reveal Styles */
-        .store-main-page-items-list-item-bottom {
-             position: relative !important; /* Ensure absolute child aligns to this */
+        /* v1.51: IndieGala Image Overlay Styles */
+        .store-main-page-items-list-item-col figure,
+        .showcase-main-list-item figure,
+        .main-list-item figure { 
+             position: relative !important; 
         }
         .ssl-steam-overlay {
             position: absolute;
-            top: 0;
+            bottom: 0;
             left: 0;
             width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, #171a21 0%, #1b2838 100%);
+            height: 24px; /* Fixed height for clean look */
+            background: rgba(23, 26, 33, 0.85); /* Steam Dark Blue/Black */
             color: #c7d5e0;
             display: flex;
             align-items: center;
             justify-content: center;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.2s ease-in-out;
-            z-index: 999;
+            z-index: 10;
             cursor: pointer;
             text-decoration: none;
             font-weight: bold;
-            box-shadow: inset 0 0 10px rgba(0,0,0,0.5);
-        }
-        
-        .store-main-page-items-list-item-bottom:hover .ssl-steam-overlay {
-            opacity: 1;
-            pointer-events: auto;
+            font-size: 11px;
+            backdrop-filter: blur(2px);
+            border-top: 1px solid rgba(255,255,255,0.1);
         }
 
         .ssl-steam-overlay:hover {
-            background: linear-gradient(90deg, #2a475e 0%, #2a475e 100%);
+            background: rgba(42, 71, 94, 0.95);
             color: #ffffff;
             text-decoration: none;
         }
@@ -1011,12 +1007,18 @@
                         // Optional: Add padding to separate text from border
                         cell.style.paddingBottom = "4px";
                     }
-                } else if (currentConfig.name === 'IndieGala' && element.classList.contains('store-main-page-items-list-item-col')) {
-                    // v1.49: IndieGala Store Grid - Hover Reveal Strategy
-                    // Instead of jamming the link into the layout, we modify the stick-to-bottom bar
-                    // to reveal the Steam info on hover.
-                    const bottomRow = element.querySelector('.store-main-page-items-list-item-bottom');
-                    if (bottomRow) {
+                } else if (currentConfig.name === 'IndieGala' && (
+                    element.classList.contains('store-main-page-items-list-item-col') ||
+                    element.classList.contains('main-list-results-item-margin') ||
+                    element.classList.contains('showcase-main-list-item') ||
+                    element.classList.contains('items-list-item') ||
+                    element.dataset.sslProcessed !== "true" // Catch-all
+                )) {
+                    // v1.51: IndieGala Image Overlay Strategy
+                    // Find the Image Container (<figure>) and inject the overlay there.
+                    const figure = element.querySelector('figure');
+
+                    if (figure) {
                         // 1. Create the overlay element
                         const overlay = document.createElement('a');
                         overlay.className = 'ssl-steam-overlay';
@@ -1032,11 +1034,12 @@
                             reviewSnippet = ` <span style="color:${color}; margin-left:5px;">${appData.reviews.percent}%</span>`;
                         }
 
-                        overlay.innerHTML = `<img src="https://store.steampowered.com/favicon.ico" class="ssl-icon-img" style="width:16px;height:16px;vertical-align:text-top;"> STEAM${reviewSnippet}`;
+                        overlay.innerHTML = `<img src="https://store.steampowered.com/favicon.ico" class="ssl-icon-img" style="width:14px;height:14px;vertical-align:text-top;"> STEAM${reviewSnippet}`;
 
-                        // 3. Append to the bottom container
-                        bottomRow.appendChild(overlay);
+                        // 3. Append to figure
+                        figure.appendChild(overlay);
                     } else {
+                        // Fallback if no figure found
                         nameEl.after(link);
                     }
                 } else {
@@ -1078,6 +1081,15 @@
 
         if (DEBUG && currentConfig.name === 'IndieGala') {
             console.log('[Game Store Enhancer] [DEBUG] Scanning IndieGala page...');
+        }
+
+        // v1.52: IndieGala Age Gate Bypass
+        if (currentConfig.name === 'IndieGala') {
+            const confirmBtn = document.querySelector('a.adult-check-confirm');
+            if (confirmBtn) {
+                console.log('[Game Store Enhancer] Auto-confirming Age Gate...');
+                confirmBtn.click();
+            }
         }
 
         currentConfig.selectors.forEach(strat => {

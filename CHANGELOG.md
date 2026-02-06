@@ -5,12 +5,23 @@ All notable changes to the **Game Store Enhancer** userscript will be documented
 
 
 
-## [1.49] - 2026-02-06
+## [1.52] - 2026-02-06
 ### Added
-- **IndieGala**: Implemented **Hover Reveal** for store grid items.
-  - Hovering over the "ADD TO CART" button now creates a sleek overlay showing the **Steam Link** and **Review Score** (e.g. "STEAM | <span style="color:#66C0F4">95%</span>").
-  - Solves layout issues with long game titles and keeps the UI clean.
-- **UI**: Added `ssl-steam-overlay` styles with smooth transitions.
+- **IndieGala**: Added automatic **Age Check Bypass**.
+  - Automatically clicks the "Confirm" button on 18+ content warnings (e.g. Bundles/Freebies).
+
+## [1.51] - 2026-02-06
+### Added
+- **IndieGala**: Implemented **Image Overlay** for store grid items (v1.51).
+  - Replaced "Hover Reveal" with a permanent, cleaner overlay on the game image.
+  - Automatically targets `<figure>` elements for consistent placement.
+  - Shows Steam Link and Review Score (e.g. "STEAM | 95%") at the bottom of the image.
+  - Support for Store Grid, Showcase, and Results pages.
+
+## [1.50] - 2026-02-06
+### Fixed
+- **IndieGala**: Fixed selector logic to support new grid layout (`.main-list-results-item-margin`).
+
 
 ## [1.48] - 2026-02-06
 ### Fixed

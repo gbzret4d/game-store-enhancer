@@ -9,6 +9,7 @@
 ## Design & UI Improvements
 - [ ] **Settings Menu**: Add a configuration menu to the userscript to allow users to toggle features.
     - Toggle colored borders on/off.
+    - Toggle **Age Check Bypass** (IndieGala).
 - [ ] **Visual Tweaks**:
     - Allow customization of status colors (e.g. Owned, Wishlist, Ignored).
 
