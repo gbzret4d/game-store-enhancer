@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      1.47
+// @version      1.48
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, GOG, and IndieGala with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -134,6 +134,9 @@
                 { container: '.main-list-results-item-margin', title: 'h3 a' },
                 // v1.42: Product Detail Page (e.g. Resident Evil Requiem)
                 { container: '.store-product-header-flex', title: 'h1[itemprop="name"]' },
+                // v1.47: Fallback Product Page
+                { container: '.store-product-page-content', title: 'h1' },
+                { container: '.dev-cover-text-col', title: 'h1' }, // Another potential container
                 // Bundle Tiers (Summary Grid)
                 { container: '.bundle-page-tier-item-col', title: '.bundle-page-tier-item-title' },
                 // Homepage / Top Sellers (Generic Fallback)
@@ -175,6 +178,7 @@
         }
 
     };
+
 
     // --- Fanatical API Interceptor ---
     const fanatical_cover_map = new Map();
@@ -225,6 +229,8 @@
     }
 
     const currentConfig = getCurrentSiteConfig();
+    const DEBUG = true; // Enabled for debugging IndieGala
+
     if (!currentConfig) {
         console.log('[Game Store Enhancer] Site not supported');
         return;
@@ -758,9 +764,14 @@
             // For now, if nameEl is missing, we skip, unless we want to treat 'element' as the name source.
         }
 
-        if (!nameEl) return;
+        if (!nameEl) {
+            if (DEBUG && currentConfig.name === 'IndieGala') {
+                console.log('[Game Store Enhancer] [DEBUG] Name element NOT found in container:', element, 'Selector:', nameSelector);
+            }
+            return;
+        }
 
-        // Custom Validator
+        // CustomValidator
         if (currentConfig.isValidGameElement) {
             if (!currentConfig.isValidGameElement(element, nameEl)) {
                 element.dataset.sslProcessed = "ignored";
@@ -776,7 +787,17 @@
         if (!gameName && nameEl.getAttribute('title')) {
             gameName = nameEl.getAttribute('title').trim();
         }
-        if (!gameName) return;
+
+        if (!gameName) {
+            if (DEBUG && currentConfig.name === 'IndieGala') {
+                console.log('[Game Store Enhancer] [DEBUG] Game Name is EMPTY. Element:', nameEl);
+            }
+            return;
+        }
+
+        if (DEBUG && currentConfig.name === 'IndieGala') {
+            console.log(`[Game Store Enhancer] [DEBUG] Processing "${gameName}"...`);
+        }
 
         // v1.28: Deduplication Helper
         const getUniqueId = (el, name) => {
@@ -925,6 +946,7 @@
                     element.dataset.sslStatsCounted = "true";
                 }
 
+
                 if (currentConfig.name === 'DailyIndieGame') {
                     // v1.39-DEV: Cell-Level Styling & In-Link Badge (The "Nuclear Option")
 
@@ -950,6 +972,31 @@
                         cell.style.setProperty("border-bottom", "10px solid #1a1c1d", "important");
                         // Optional: Add padding to separate text from border
                         cell.style.paddingBottom = "4px";
+                    }
+                } else if (currentConfig.name === 'IndieGala' && element.classList.contains('store-main-page-items-list-item-col')) {
+                    // v1.48: IndieGala Store Grid - Link Placement Check
+                    // If title is too long, the link disappears. Try to move it to the bottom "ADD TO CART" row.
+                    // The structure usually is: .store-main-page-items-list-item-col -> ... -> .store-main-page-items-list-item-bottom
+                    const bottomRow = element.querySelector('.store-main-page-items-list-item-bottom');
+                    if (bottomRow) {
+                        if (DEBUG) console.log('[Game Store Enhancer] [DEBUG] Found bottom row for IndieGala item:', gameName);
+
+                        // Style the link to fit in the bottom row
+                        link.style.marginTop = '0';
+                        link.style.marginRight = '5px';
+                        link.style.display = 'inline-flex';
+                        link.style.alignItems = 'center';
+
+                        // Try to insert before the "ADD TO CART" button event if it's a form or div
+                        const cartBtn = bottomRow.querySelector('.add-to-cart-btn') || bottomRow.firstChild;
+                        if (cartBtn) {
+                            bottomRow.insertBefore(link, cartBtn);
+                        } else {
+                            bottomRow.appendChild(link);
+                        }
+                    } else {
+                        // Fallback to default behavior (after name)
+                        nameEl.after(link);
                     }
                 } else {
                     nameEl.after(link);
@@ -987,8 +1034,17 @@
     function scanPage() {
         if (currentConfig.isExcluded && currentConfig.isExcluded()) return;
         if (!currentConfig.selectors) return;
+
+        if (DEBUG && currentConfig.name === 'IndieGala') {
+            console.log('[Game Store Enhancer] [DEBUG] Scanning IndieGala page...');
+        }
+
         currentConfig.selectors.forEach(strat => {
-            document.querySelectorAll(strat.container).forEach(el => {
+            const elements = document.querySelectorAll(strat.container);
+            if (DEBUG && currentConfig.name === 'IndieGala') {
+                console.log(`[Game Store Enhancer] [DEBUG] Selector "${strat.container}" found ${elements.length} elements.`);
+            }
+            elements.forEach(el => {
                 processGameElement(el, strat.title);
             });
         });

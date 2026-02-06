@@ -5,6 +5,13 @@ All notable changes to the **Game Store Enhancer** userscript will be documented
 
 
 
+## [1.48] - 2026-02-06
+### Fixed
+- **IndieGala**: improved **Grid Layout** placement.
+  - Moved Steam link/status to the bottom "ADD TO CART" row for store items.
+  - *Fixes*: Links being hidden or pushed out of view for games with long titles (e.g. *Monster Hunter Stories 2*).
+  - Added robust fallback selectors for product pages.
+
 ## [1.47] - 2026-02-05
 ### Fixed
 - **Core / Debug**: Added granular success logs ("Search Success", "Created link") to better trace why some games might not display links despite finding data.
