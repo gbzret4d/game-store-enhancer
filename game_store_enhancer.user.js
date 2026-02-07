@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.0.3
+// @version      2.0.4
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, GOG, and IndieGala with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -1166,7 +1166,16 @@
                         figure.appendChild(overlay);
 
                     } else {
-                        // Fallback: If neither Strategy fits
+                        // Fallback: If neither Strategy fits (or forced Simple)
+                        // v2.0.3: Ensure visibility for forced simple links (Product Page)
+                        if (forceSimple) {
+                            link.style.display = 'inline-block';
+                            link.style.marginLeft = '12px';
+                            link.style.color = '#fff'; // Default to white for headers
+                            link.style.fontWeight = 'bold';
+                            link.style.fontSize = '1.2rem'; // Match H1 size roughly
+                            link.style.verticalAlign = 'middle';
+                        }
                         nameEl.after(link);
                     }
                 } else {
