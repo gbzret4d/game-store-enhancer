@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      1.60
+// @version      1.61
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, GOG, and IndieGala with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -157,12 +157,9 @@
                 { container: '.products-col-inner', title: '.product-title' }
             ],
             getAppId: (element) => {
-                // 1. Try to get ID from Store URL
-                const link = element.querySelector('a[href*="/store/game/"]');
-                if (link) {
-                    const match = link.href.match(/\/store\/game\/[^/]+\/(\d+)/);
-                    if (match) return match[1];
-                }
+                // 1. (Removed v1.61) Store URL IDs are internal IndieGala IDs, not Steam. 
+                // We MUST rely on Search or other methods for Store items.
+
                 // 2. Fallback: Try to get ID from Bundle Image URL
                 const img = element.querySelector('img[src*="/bundle_games/"]');
                 if (img) {
@@ -859,8 +856,8 @@
             // v1.3: 1. Asset Scan (Priority)
             let result = null;
 
-            // v1.30: DailyIndieGame Direct ID Lookup
-            if (currentConfig.name === 'DailyIndieGame' && currentConfig.getAppId) {
+            // v1.61: Generic Direct ID Lookup (Enable for all sites)
+            if (currentConfig.getAppId) {
                 const directId = currentConfig.getAppId(element);
                 if (directId) {
                     result = {
@@ -870,12 +867,11 @@
                         tiny_image: null, price: null, discount: 0
                     };
 
-                    // Special Handling: Hide native Steam link if present
-                    const nativeLink = element.querySelector('a[href*="store.steampowered.com"]');
-                    if (nativeLink) nativeLink.style.display = 'none';
-
-                    // If we are replacing a native link, we might want to hide the "View on Steam" text node too if it's separate?
-                    // For now, hiding the link is the main goal.
+                    // DailyIndieGame Special: Hide native Steam link
+                    if (currentConfig.name === 'DailyIndieGame') {
+                        const nativeLink = element.querySelector('a[href*="store.steampowered.com"]');
+                        if (nativeLink) nativeLink.style.display = 'none';
+                    }
                 }
             }
 

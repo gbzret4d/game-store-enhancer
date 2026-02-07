@@ -55,6 +55,12 @@ All notable changes to the **Game Store Enhancer** userscript will be documented
 - **IndieGala**: Fixed "Black Bar" artifact in Owned game highlighting (caused by global CSS bleeding).
 - **IndieGala**: Fixed Overlay vs Badge priority on Homepage items (Badge now correctly appears next to icons).
 
+## [1.61] - 2026-02-07
+### Changed
+- **Core**: Implemented **Concurrent Request Queue** (3 parallel requests) to significantly speed up page processing on stores requiring search (e.g. IndieGala Store).
+- **IndieGala**: Removed broken AppID extraction from Store URLs (which used internal IDs), forcing a cleaner Search fallback for accurate results.
+
+
 
 
 
