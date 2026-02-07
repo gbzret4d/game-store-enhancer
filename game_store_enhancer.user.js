@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      1.62
+// @version      2.0.0
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, GOG, and IndieGala with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -615,6 +615,44 @@
         }));
     }
 
+    // --- Steam API & Cache (v2.0) ---
+    const STEAM_CACHE_URL = 'https://gbzret4d.github.io/game-store-enhancer/data/steam_apps.min.json';
+    const STEAM_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 Hours
+
+    async function fetchSteamAppCache() {
+        // Allow user override (future proofing)
+        const customUrl = GM_getValue('steam_cache_url', STEAM_CACHE_URL);
+
+        const cached = getStoredValue('steam_apps_db', null);
+        if (cached && (Date.now() - cached.timestamp < STEAM_CACHE_TTL)) {
+            console.log(`[Game Store Enhancer] Steam AppDB Cache Hit (${Object.keys(cached.data).length} apps)`);
+            return cached.data;
+        }
+
+        console.log(`[Game Store Enhancer] Fetching Steam AppDB from ${customUrl}...`);
+        return new Promise(resolve => {
+            GM_xmlhttpRequest({
+                method: 'GET',
+                url: customUrl,
+                onload: (res) => {
+                    try {
+                        const db = JSON.parse(res.responseText);
+                        console.log(`[Game Store Enhancer] Steam AppDB Updated: ${Object.keys(db).length} apps`);
+                        setStoredValue('steam_apps_db', { data: db, timestamp: Date.now() });
+                        resolve(db);
+                    } catch (e) {
+                        console.error('[Game Store Enhancer] Steam AppDB Parse Error', e);
+                        resolve(null);
+                    }
+                },
+                onerror: () => {
+                    console.error('[Game Store Enhancer] Steam AppDB Fetch Error');
+                    resolve(null);
+                }
+            });
+        });
+    }
+
     async function searchSteamGame(gameName) {
         const cacheKey = `steam_search_${gameName.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
         const cached = getStoredValue(cacheKey, null);
@@ -622,6 +660,20 @@
 
         const cleanupRegex = /(:| -| –| —)?\s*(The\s+)?(Pre-Purchase|Pre-Order|Steam Key|Complete|Anthology|Collection|Definitive|Game of the Year|GOTY|Deluxe|Ultimate|Premium)(\s+(Edition|Cut|Content|Pack))?(\s+Bundle)?(\s*\.{3,})?/gi;
         const cleanedName = gameName.replace(cleanupRegex, '').trim().toLowerCase();
+
+        // v2.0: Check Offline Cache First
+        const appDb = getStoredValue('steam_apps_db', null)?.data;
+        if (appDb) {
+            const appId = appDb[cleanedName];
+            if (appId) {
+                console.log(`[Game Store Enhancer] Offline Cache Hit: "${cleanedName}" -> ID ${appId}`);
+                // Create minimal result. Price/Discount unknown, but ID is enough for links/reviews!
+                const result = { id: appId, type: 'app', name: gameName, price: null, discount: 0 };
+                setStoredValue(cacheKey, { data: result, timestamp: Date.now() });
+                return result;
+            }
+        }
+
         console.log(`[Game Store Enhancer] Cleaning name: "${gameName}" -> "${cleanedName}"`);
 
         return steamQueue.add(() => new Promise((resolve, reject) => {
@@ -1153,6 +1205,11 @@
     });
 
     observer.observe(document.body, { childList: true, subtree: true });
-    setTimeout(scanPage, 1000);
+
+    // v2.0: Init Cache then Scan
+    setTimeout(() => {
+        fetchSteamAppCache();
+        scanPage();
+    }, 1000);
 
 })();
