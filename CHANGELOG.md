@@ -1,6 +1,5 @@
 # Changelog
-
-All notable changes to the **Game Store Enhancer** userscript will be documented in this file.
+#> The `develop` branch has been updated to **v1.62**.Game Store Enhancer** userscript will be documented in this file.
 
 
 
@@ -59,6 +58,12 @@ All notable changes to the **Game Store Enhancer** userscript will be documented
 ### Changed
 - **Core**: Implemented **Concurrent Request Queue** (3 parallel requests) to significantly speed up page processing on stores requiring search (e.g. IndieGala Store).
 - **IndieGala**: Removed broken AppID extraction from Store URLs (which used internal IDs), forcing a cleaner Search fallback for accurate results.
+
+## [1.62] - 2026-02-07
+### Added
+- **Core**: Added **"Circuit Breaker"** protection. If Steam blocks requests (403/Access Denied), the script **pauses execution** and shows a red warning toast to prevent extending the ban.
+- **IndieGala**: Added styling fixes to ensure **spacing between game cards** on Bundle and Store pages, fixing the "touching borders" issue.
+
 
 
 

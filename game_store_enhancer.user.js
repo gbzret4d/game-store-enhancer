@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      1.61
+// @version      1.62
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, GOG, and IndieGala with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -358,30 +358,6 @@
             ${currentConfig.name === 'DailyIndieGame' ? 'border-bottom: 8px solid #1a1c1d !important;' : ''}
             background-color: rgba(90, 90, 90, 0.3) !important;
             box-shadow: inset 0 0 10px rgba(217, 83, 79, 0.4);
-            box-sizing: border-box !important;
-            opacity: 0.5;
-            z-index: 10;
-        }
-
-        /* v1.33: Border box handles overflow better, removing manual offsets */
-
-        #ssl-stats {
-            position: fixed; bottom: 10px; right: 10px;
-            background: rgba(23, 26, 33, 0.95);
-            color: #c7d5e0; padding: 10px; border-radius: 4px;
-            z-index: 10000; font-size: 12px;
-            box-shadow: 0 0 5px rgba(0,0,0,0.5);
-            border: 1px solid #2a475e;
-            pointer-events: none;
-            opacity: 0.8; transition: opacity 0.3s;
-        }
-        #ssl-stats:hover { opacity: 1; pointer-events: auto; }
-        #ssl-stats h4 { margin: 0 0 5px 0; color: #66c0f4; font-size: 13px; text-transform: uppercase; border-bottom: 1px solid #2a475e; padding-bottom: 2px; }
-        #ssl-stats div { display: flex; justify-content: space-between; margin-bottom: 2px; }
-        #ssl-stats span.val { font-weight: bold; color: #fff; margin-left: 10px; }
-        
-        /* v1.51: IndieGala Image Overlay Styles */
-        .store-main-page-items-list-item-col figure,
         .showcase-main-list-item figure,
         .main-list-item figure { 
              position: relative !important; 
@@ -478,26 +454,68 @@
 
     // --- Helpers ---
     class RequestQueue {
-        constructor(interval) {
+        constructor(interval, concurrency = 1) {
             this.interval = interval;
+            this.concurrency = concurrency;
+            this.active = 0;
             this.queue = [];
-            this.running = false;
+            this.stopped = false;
         }
+
         add(fn) {
+            if (this.stopped) return Promise.reject(new Error("Queue Stopped"));
             return new Promise((resolve, reject) => {
                 this.queue.push({ fn, resolve, reject });
-                this.process();
+                this.next();
             });
         }
-        async process() {
-            if (this.running || this.queue.length === 0) return;
-            this.running = true;
-            while (this.queue.length > 0) {
-                const { fn, resolve, reject } = this.queue.shift();
-                try { resolve(await fn()); } catch (e) { reject(e); }
-                await new Promise(r => setTimeout(r, this.interval));
+
+        stop() {
+            this.stopped = true;
+            this.queue = []; // Clear pending
+            console.error("Steam Request Queue STOPPED due to Rate Limit/Error.");
+            // Try to notify UI
+            const statsPanel = document.getElementById('ssl-stats-panel');
+            if (statsPanel) {
+                let errorDiv = document.getElementById('ssl-rate-limit-error');
+                if (!errorDiv) {
+                    errorDiv = document.createElement('div');
+                    errorDiv.id = 'ssl-rate-limit-error';
+                    errorDiv.className = 'ssl-error-toast';
+                    errorDiv.innerText = "⚠️ STEAM RATE LIMIT DETECTED. PAUSED.";
+                    errorDiv.style.display = 'block';
+                    statsPanel.appendChild(errorDiv);
+                    statsPanel.style.display = 'block'; // Force show
+                }
             }
-            this.running = false;
+        }
+
+        next() {
+            if (this.stopped || this.active >= this.concurrency || this.queue.length === 0) return;
+
+            this.active++;
+            const { fn, resolve, reject } = this.queue.shift();
+
+            const execute = async () => {
+                try {
+                    const result = await fn();
+                    resolve(result);
+                } catch (e) {
+                    // v1.62: Circuit Breaker Check
+                    if (e.status === 403 || (e.message && e.message.includes("Access Denied"))) {
+                        this.stop();
+                    }
+                    reject(e);
+                } finally {
+                    // Enforce interval AFTER completion to space out bursts slightly, 
+                    // or immediately? To be safe with Steam, we'll wait a bit.
+                    setTimeout(() => {
+                        this.active--;
+                        this.next();
+                    }, this.interval);
+                }
+            };
+            execute();
         }
     }
     const steamQueue = new RequestQueue(300);
@@ -560,6 +578,11 @@
                 method: 'GET',
                 url: STEAM_USERDATA_API,
                 onload: (response) => {
+                    // v1.62: Circuit Breaker for Rate Limits
+                    if (response.status === 403 || response.responseText.includes("Access Denied")) {
+                        reject({ status: 403, message: "Access Denied" });
+                        return;
+                    }
                     try {
                         const data = JSON.parse(response.responseText);
                         console.log('[Game Store Enhancer] UserData Response:', data); // DEBUG
@@ -593,7 +616,7 @@
     }
 
     async function searchSteamGame(gameName) {
-        const cacheKey = 'steam_search_' + encodeURIComponent(gameName);
+        const cacheKey = `steam_search_${gameName.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
         const cached = getStoredValue(cacheKey, null);
         if (cached && (Date.now() - cached.timestamp < CACHE_TTL * 7)) return cached.data;
 
@@ -601,85 +624,56 @@
         const cleanedName = gameName.replace(cleanupRegex, '').trim().toLowerCase();
         console.log(`[Game Store Enhancer] Cleaning name: "${gameName}" -> "${cleanedName}"`);
 
-        return steamQueue.add(() => new Promise((resolve) => {
+        return steamQueue.add(() => new Promise((resolve, reject) => {
             GM_xmlhttpRequest({
                 method: 'GET',
-                // v1.4: Add ignore_preferences=1 to bypass user content filters (adult/tags)
-                url: STEAM_SEARCH_API + encodeURIComponent(cleanedName) + '&ignore_preferences=1',
+                // v1.62: Use hardcoded URL to ensure HTML return
+                url: `https://store.steampowered.com/search/results?term=${encodeURIComponent(cleanedName)}&ignore_preferences=1`,
                 onload: (response) => {
+                    // v1.62: Circuit Breaker for Rate Limits
+                    if (response.status === 403 || response.responseText.includes("Access Denied")) {
+                        reject({ status: 403, message: "Access Denied" });
+                        return;
+                    }
                     try {
-                        const data = JSON.parse(response.responseText);
-                        if (data.items && data.items.length > 0) {
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(response.responseText, "text/html");
+                        const item = doc.querySelector('#search_resultsRows a.search_result_row');
 
-                            // Helper to extract ID from logo if missing
-                            const extractId = (item) => {
-                                if (item.id) return { id: item.id, type: item.type || 'app' };
-                                if (item.logo) {
-                                    // v1.43: More robust regex to handle various URL formats (akamai, steamstatic, etc.)
-                                    const match = item.logo.match(/\/(apps|subs|bundles)\/(\d+)/);
-                                    if (match) {
-                                        let type = 'app';
-                                        if (match[1] === 'subs') type = 'sub';
-                                        if (match[1] === 'bundles') type = 'bundle';
-                                        return { id: parseInt(match[2]), type: type };
-                                    }
-                                }
-                                return null;
-                            };
+                        if (item) {
+                            const id = item.getAttribute('data-ds-appid');
+                            // Determine type (bundle, sub, app)
+                            let type = 'app';
+                            if (item.getAttribute('data-ds-packageid')) type = 'sub';
+                            else if (item.getAttribute('data-ds-bundleid')) type = 'bundle';
 
-                            let bestMatch = null;
-                            let maxScore = -1;
+                            // Extract Name and Image
+                            const name = item.querySelector('.title').textContent;
+                            const img = item.querySelector('img')?.src;
 
-                            // v1.2: Ranking System
-                            data.items.forEach(item => {
-                                const info = extractId(item);
-                                if (!info) return;
+                            // Extract Price/Discount
+                            let price = null;
+                            let discount = 0;
+                            const discountEl = item.querySelector('.search_discount span');
+                            if (discountEl) discount = parseInt(discountEl.innerText.replace('-', ''));
 
-                                const itemName = item.name.toLowerCase();
-                                const similarity = getSimilarity(cleanedName, itemName);
-                                let score = similarity;
-
-                                // Bonuses
-                                if (itemName === cleanedName) score += 0.5; // Exact match bonus
-                                if (itemName.startsWith(cleanedName)) score += 0.2; // Prefix bonus
-
-                                // Penalties for type mismatch (unless requested)
-                                if (!cleanedName.includes('vr') && itemName.includes('vr')) score -= 0.5;
-                                if (!cleanedName.includes('soundtrack') && (itemName.includes('soundtrack') || itemName.includes('ost'))) score -= 0.5;
-                                if (!cleanedName.includes('demo') && itemName.includes('demo')) score -= 0.5;
-                                if (!cleanedName.includes('dlc') && itemName.includes('dlc')) score -= 0.3;
-
-                                if (score > maxScore) {
-                                    maxScore = score;
-                                    bestMatch = { ...item, ...info };
-                                }
-                            });
-
-                            if (!bestMatch || maxScore < 0.6) { // Threshold
-                                console.log(`[Game Store Enhancer] No good match for "${cleanedName}". Best: "${bestMatch ? bestMatch.name : 'none'}" (Score: ${maxScore.toFixed(2)})`);
-                                setStoredValue(cacheKey, { data: null, timestamp: Date.now() });
-                                resolve(null);
-                                return;
-                            }
-
-                            const result = {
-                                id: bestMatch.id,
-                                type: bestMatch.type,
-                                name: bestMatch.name,
-                                tiny_image: bestMatch.tiny_image || bestMatch.logo,
-                                price: bestMatch.price ? (bestMatch.price.final / 100) + ' ' + bestMatch.price.currency : null,
-                                discount: bestMatch.price ? bestMatch.price.discount_percent : 0,
-                            };
-                            console.log(`[Game Store Enhancer] Search Success: Found ID ${result.id} for "${cleanedName}"`);
+                            const result = { id, type, name, tiny_image: img, price, discount };
                             setStoredValue(cacheKey, { data: result, timestamp: Date.now() });
                             resolve(result);
                         } else {
+                            console.log(`[Game Store Enhancer] No results for "${cleanedName}"`);
                             setStoredValue(cacheKey, { data: null, timestamp: Date.now() });
                             resolve(null);
                         }
-                    } catch (e) { resolve(null); }
+                    } catch (e) {
+                        console.error("[Game Store Enhancer] Search Parse Error:", e);
+                        resolve(null);
+                    }
                 },
-                onerror: () => resolve(null)
+                onerror: (err) => {
+                    console.error("[Game Store Enhancer] Search Network Error:", err);
+                    resolve(null);
+                }
             });
         }));
     }
