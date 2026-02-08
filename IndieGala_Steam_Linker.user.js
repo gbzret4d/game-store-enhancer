@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         IndieGala Steam Linker
 // @namespace    https://github.com/gbzret4d/indiegala-steam-linker
-// @version      3.2.0
-// @description  The ultimate fix for IndieGala. Adds Steam links, Review Scores, and Ownership Status. (v3.2.0: RED Borders + Fix Matches)
+// @version      3.2.1
+// @description  The ultimate fix for IndieGala. Adds Steam links, Review Scores, and Ownership Status. (v3.2.1: Carousel Fix + Thicker Borders)
 // @author       gbzret4d
 // @match        https://www.indiegala.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=indiegala.com
@@ -23,7 +23,7 @@
     const CONFIG = {
         debug: true,
         cacheTime: 24 * 60 * 60 * 1000,
-        ignoredOpacity: 0.6, // Visible but dimmed
+        ignoredOpacity: 0.85, // V3.2.1: Less transparent (easier to see)
         queueInterval: 100
     };
 
@@ -77,13 +77,13 @@
         }
         
         /* OWNED = GREEN */
-        .ssl-border-box.owned { box-shadow: inset 0 0 0 4px #a4d007 !important; }
+        .ssl-border-box.owned { box-shadow: inset 0 0 0 6px #a4d007 !important; }
         
-        /* WISHLIST = BLUE */
-        .ssl-border-box.wishlist { box-shadow: inset 0 0 0 4px #66c0f4 !important; }
+        /* WISHLIST = BLUE - V3.2.1: Thicker (6px) */
+        .ssl-border-box.wishlist { box-shadow: inset 0 0 0 6px #66c0f4 !important; }
         
         /* IGNORED = RED */
-        .ssl-border-box.ignored { box-shadow: inset 0 0 0 4px #ff0000 !important; }
+        .ssl-border-box.ignored { box-shadow: inset 0 0 0 6px #ff0000 !important; }
 
         .ssl-ignored-img { 
             opacity: ${CONFIG.ignoredOpacity} !important; 
@@ -106,6 +106,15 @@
         .bundles-main-item-col { 
             min-height: 50px; 
         } 
+        
+        /* V3.2.1: Fix Carousel Text Overlap */
+        /* Only show info when the item is active or hovered, logic handled by IndieGala usually but we enforce it */
+        .carousel-item .bundle-slider-game-info {
+            display: none !important; /* Hide by default to prevent stack */
+        }
+        .carousel-item.active .bundle-slider-game-info {
+            display: block !important; /* Show only active */
+        }
         
         /* Specific Fix for Product Page Image Container */
         .store-product-image-container, 
@@ -169,7 +178,7 @@
         const ignoredCount = STATE.userData.ignored ? STATE.userData.ignored.length : 0;
 
         panel.innerHTML = `
-            <h4>Steam Linker v3.2.0</h4>
+            <h4>Steam Linker v3.2.1</h4>
             <div>Owned: <span class="ssl-status-ok">${ownedCount}</span></div>
             <div>Wishlist: <span class="ssl-status-ok">${wishlistCount}</span></div>
             <div>Ignored: <span class="ssl-status-warn">${ignoredCount}</span></div>
@@ -418,19 +427,27 @@
         `);
 
         candidates.forEach(element => {
-            if (element.dataset.sslProcessed || element.querySelector('.ssl-border-box')) return;
+            // Check if already processed OR the container already has a border box
+            if (element.dataset.sslProcessed) return;
 
+            // Find container
             const container = element.closest('.bundle-page-tier-item-col') ||
                 element.closest('.main-list-results-item') ||
                 element.closest('.carousel-cell') ||
                 element.closest('.slick-slide') ||
                 element.parentElement;
 
-            const effectiveContainer = element.classList.contains('carousel-item') ? element : container;
+            // For carousel items, sometimes the figure is inside, sometimes it IS the item.
+            // On IndieGala bundle pages, .carousel-item usually holds a .bundle-slider-game-data-item
+            // V3.2.1: Robust container check
+            const effectiveContainer = element.classList.contains('carousel-item') ? element : (container || element.parentElement);
 
             if (!effectiveContainer) return;
 
-            element.classList.add('ssl-relative');
+            // Prevent double box
+            if (effectiveContainer.querySelector('.ssl-border-box')) return;
+
+            effectiveContainer.classList.add('ssl-relative');
 
             let title = null;
 
@@ -453,7 +470,8 @@
 
             searchSteam(title).then(id => {
                 if (id && id !== '404') {
-                    injectGame(element, id);
+                    // Inject into the Container, not the figure, to ensure border surrounds whole card
+                    injectGame(effectiveContainer, id);
                 } else {
                     element.dataset.sslProcessed = "done_no_id";
                 }
@@ -491,21 +509,25 @@
         borderBox.className = 'ssl-border-box';
 
         // Strict Priority: Owned > Wishlist > Ignored
+        let hasStatus = false;
         if (isOwned) {
             borderBox.classList.add('owned');
+            hasStatus = true;
         } else if (isWishlist) {
             borderBox.classList.add('wishlist');
+            hasStatus = true;
         } else if (isIgnored) {
             borderBox.classList.add('ignored');
             const img = element.querySelector('img');
             if (img) img.classList.add('ssl-ignored-img');
+            hasStatus = true;
         }
 
-        if (isOwned || isWishlist || isIgnored) {
+        if (hasStatus) {
             element.appendChild(borderBox);
         }
 
-        // Create Overlay Bar
+        // Create Overlay Bar (Always create it for the link)
         const overlay = document.createElement('a');
         overlay.href = `https://store.steampowered.com/app/${appId}`;
         overlay.className = 'ssl-overlay-bar';
