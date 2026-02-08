@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         IndieGala Steam Linker
 // @namespace    https://github.com/gbzret4d/indiegala-steam-linker
-// @version      3.1.3
+// @version      3.1.4
 // @description  The ultimate fix for IndieGala. Adds Steam links, Review Scores, and Ownership Status. Includes visible Stats/Debug Panel.
 // @author       gbzret4d
 // @match        https://www.indiegala.com/*
@@ -66,7 +66,7 @@
         .ssl-review-negative { color: #c00; background: rgba(204, 0, 0, 0.2); }
         .ssl-review-none { display: none !important; } 
 
-        /* PHYSICAL BORDER OVERLAY (Not Pseudo-Element) */
+        /* PHYSICAL BORDER OVERLAY */
         .ssl-border-box {
             position: absolute !important;
             top: 0 !important; left: 0 !important; width: 100% !important; height: 100% !important;
@@ -147,7 +147,7 @@
         const wishlistCount = STATE.userData.wishlist ? STATE.userData.wishlist.length : 0;
 
         panel.innerHTML = `
-            <h4>Steam Linker v3.1.3</h4>
+            <h4>Steam Linker v3.1.4</h4>
             <div>Owned (Apps): <span class="ssl-status-ok">${ownedCount}</span></div>
             <div>Wishlist: <span class="ssl-status-ok">${wishlistCount}</span></div>
             <div>Queue: ${STATE.requests.length}</div>
@@ -365,32 +365,36 @@
     // --- Scanners ---
 
     function scanGrid() {
+        // Updated selector to include Bundle Carousel Items
         const candidates = document.querySelectorAll(`
             .bundle-page-tier-item-col figure, 
             .main-list-results-item figure,
             .flickity-slider figure,
             .slick-slide figure,
-            .carousel-item figure
+            .carousel-item figure,
+            .bundle-slider-game-data-item
         `);
 
-        candidates.forEach(figure => {
+        candidates.forEach(element => {
             // Check for existing processing OR existing border box
-            if (figure.dataset.sslProcessed || figure.querySelector('.ssl-border-box')) return;
+            if (element.dataset.sslProcessed || element.querySelector('.ssl-border-box')) return;
 
-            const container = figure.closest('.bundle-page-tier-item-col') ||
-                figure.closest('.main-list-results-item') ||
-                figure.closest('.carousel-cell') ||
-                figure.closest('.slick-slide') ||
-                figure.parentElement;
+            const container = element.closest('.bundle-page-tier-item-col') ||
+                element.closest('.main-list-results-item') ||
+                element.closest('.carousel-cell') ||
+                element.closest('.slick-slide') ||
+                element.closest('.carousel-item') ||
+                element.parentElement;
 
             if (!container) return;
 
-            // Ensure Figure is Relative for Absolute Children
-            figure.classList.add('ssl-relative');
+            // Ensure Element is Relative for Absolute Children
+            element.classList.add('ssl-relative');
 
             let title = null;
 
-            const titleEl = container.querySelector('h3, h2, .bundle-page-tier-item-title, .main-list-results-item-title, .title, .item-title-text');
+            // Expanded Title Selectors for Carousel
+            const titleEl = container.querySelector('h3, h2, .bundle-page-tier-item-title, .main-list-results-item-title, .title, .item-title-text, .bundle-slider-game-title');
             if (titleEl) title = titleEl.textContent.trim();
 
             if (!title) {
@@ -399,25 +403,25 @@
             }
 
             if (!title) {
-                const img = figure.querySelector('img');
+                const img = element.querySelector('img');
                 if (img && img.alt && img.alt.length > 2) title = img.alt;
             }
 
             if (!title) return;
 
-            figure.dataset.sslProcessed = "pending";
+            element.dataset.sslProcessed = "pending";
 
             searchSteam(title).then(id => {
                 if (id && id !== '404') {
-                    injectGame(figure, id);
+                    injectGame(element, id);
                 } else {
-                    figure.dataset.sslProcessed = "done_no_id";
+                    element.dataset.sslProcessed = "done_no_id";
                 }
             });
         });
     }
 
-    function injectGame(figure, appId) {
+    function injectGame(element, appId) {
         const isOwned = STATE.userData.owned.includes(parseInt(appId));
         const isWishlist = STATE.userData.wishlist.includes(String(appId));
         const isIgnored = STATE.userData.ignored.includes(String(appId));
@@ -430,14 +434,14 @@
         else if (isWishlist) borderBox.classList.add('wishlist');
 
         if (isIgnored) {
-            const img = figure.querySelector('img');
+            const img = element.querySelector('img');
             if (img) img.classList.add('ssl-ignored-img');
             borderBox.classList.add('ignored');
         }
 
         // Append Box
         if (isOwned || isWishlist || isIgnored) {
-            figure.appendChild(borderBox);
+            element.appendChild(borderBox);
         }
 
         // Create Overlay Bar
@@ -447,7 +451,7 @@
         overlay.target = '_blank';
         overlay.innerHTML = `<img src="https://store.steampowered.com/favicon.ico"> STEAM`;
 
-        figure.appendChild(overlay);
+        element.appendChild(overlay);
 
         getReviewScore(appId).then(score => {
             if (score && typeof score.percent === 'number') {
@@ -466,12 +470,11 @@
             }
         });
 
-        figure.dataset.sslProcessed = "done";
+        element.dataset.sslProcessed = "done";
     }
 
     // --- Bundle Overview Scanner ---
     function scanBundlesOverview() {
-        // Expand selector to include more container types
         const bundles = document.querySelectorAll('.container-item, .item-main-container, .main-list-item');
         bundles.forEach(bundle => {
             if (bundle.dataset.sslProcessed) return;
