@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         IndieGala Steam Linker
 // @namespace    https://github.com/gbzret4d/indiegala-steam-linker
-// @version      3.0.9
+// @version      3.1.0
 // @description  The ultimate fix for IndieGala. Adds Steam links, Review Scores, and Ownership Status. Includes visible Stats/Debug Panel.
 // @author       gbzret4d
 // @match        https://www.indiegala.com/*
@@ -31,17 +31,30 @@
     GM_addStyle(`
         /* Overlay Strip */
         .ssl-overlay {
-            position: absolute; bottom: 0; left: 0; width: 100%;
-            background: rgba(0,0,0,0.9); color: white;
-            font-size: 11px; padding: 4px 0; text-align: center;
-            display: flex; justify-content: center; align-items: center;
-            z-index: 9999; pointer-events: auto; text-decoration: none !important;
-            border-top: 1px solid rgba(255,255,255,0.2);
-            transition: opacity 0.2s;
-            line-height: normal;
+            position: absolute !important; bottom: 0 !important; left: 0 !important; width: 100% !important;
+            background: rgba(0,0,0,0.9) !important; color: white !important;
+            font-size: 11px !important; padding: 4px 0 !important; text-align: center !important;
+            display: flex !important; justify-content: center !important; align-items: center !important;
+            z-index: 900 !important; pointer-events: auto !important; text-decoration: none !important;
+            border-top: 1px solid rgba(255,255,255,0.2) !important;
+            transition: opacity 0.2s !important;
+            line-height: normal !important;
+            height: auto !important;
         }
-        .ssl-overlay:hover { opacity: 1 !important; background: #000; }
-        .ssl-overlay img { width: 14px; height: 14px; margin-right: 5px; vertical-align: middle; }
+        .ssl-overlay:hover { opacity: 1 !important; background: #000 !important; }
+        
+        /* HARDENED IMAGE SIZE to prevent 'Giant Logo' bug */
+        .ssl-overlay img { 
+            width: 14px !important; 
+            height: 14px !important; 
+            min-width: 14px !important;
+            max-width: 14px !important;
+            margin-right: 5px !important; 
+            vertical-align: middle !important;
+            display: inline-block !important;
+            border: none !important;
+            padding: 0 !important;
+        }
         
         .ssl-review { margin-left: 8px; padding: 1px 4px; border-radius: 3px; font-weight: bold; font-size: 10px; }
         .ssl-review-positive { color: #66C0F4; background: rgba(102, 192, 244, 0.2); }
@@ -49,12 +62,18 @@
         .ssl-review-negative { color: #c00; background: rgba(204, 0, 0, 0.2); }
         .ssl-review-none { color: #888; background: rgba(128, 128, 128, 0.2); }
 
-        /* Status Borders - Now targets IMG with Outline for better visibility */
-        .ssl-border-owned img { outline: 3px solid #a4d007 !important; outline-offset: -3px; }
-        .ssl-border-wishlist img { outline: 3px solid #66c0f4 !important; outline-offset: -3px; }
+        /* Status Borders - Reverted to Box-Shadow Inset on Container for reliability */
+        .ssl-border-owned { 
+            box-shadow: inset 0 0 0 4px #a4d007 !important; 
+            z-index: 800 !important;
+        }
+        .ssl-border-wishlist { 
+            box-shadow: inset 0 0 0 4px #66c0f4 !important; 
+            z-index: 800 !important;
+        }
         
         .ssl-ignored-img { opacity: 0.4 !important; filter: grayscale(100%) !important; }
-        .ssl-border-ignored img { outline: 3px solid #555 !important; outline-offset: -3px; }
+        .ssl-border-ignored { box-shadow: inset 0 0 0 4px #555 !important; }
 
         .ssl-bundle-owned { border: 2px solid #a4d007 !important; }
         .ssl-bundle-wishlist { border: 2px solid #66c0f4 !important; }
@@ -69,6 +88,7 @@
             font-family: monospace; font-size: 12px;
             z-index: 100000; border: 1px solid #444;
             min-width: 200px;
+            max-width: 300px;
         }
         #ssl-debug-panel h4 { margin: 0 0 5px 0; color: #a4d007; font-size: 13px; }
         #ssl-debug-panel div { margin-bottom: 2px; }
@@ -115,7 +135,7 @@
         const wishlistCount = STATE.userData.wishlist ? STATE.userData.wishlist.length : 0;
 
         panel.innerHTML = `
-            <h4>Steam Linker v3.0.9</h4>
+            <h4>Steam Linker v3.1.0</h4>
             <div>Owned (Apps): <span class="ssl-status-ok">${ownedCount}</span></div>
             <div>Wishlist: <span class="ssl-status-ok">${wishlistCount}</span></div>
             <div>Queue: ${STATE.requests.length}</div>
@@ -190,7 +210,6 @@
         STATE.activeRequest = "Fetching User Data...";
         updateDebugPanel();
 
-        // 1. Owned/Ignored - FIX: Usage of rgOwnedApps instead of rgOwnedPackages
         queueRequest("UserData", () => new Promise(resolve => {
             GM_xmlhttpRequest({
                 method: "GET",
@@ -198,7 +217,6 @@
                 onload: (res) => {
                     try {
                         const data = JSON.parse(res.responseText);
-                        // v3.0.9 FIX: rgOwnedApps is the correct list for AppIDs
                         STATE.userData.owned = data.rgOwnedApps || [];
                         STATE.userData.ignored = Object.keys(data.rgIgnoredApps || {});
                         updateDebugPanel();
@@ -210,7 +228,6 @@
             });
         }));
 
-        // 2. Wishlist
         queueRequest("Wishlist", () => new Promise(resolve => {
             GM_xmlhttpRequest({
                 method: "GET",
@@ -355,6 +372,9 @@
 
             if (!container) return;
 
+            // Ensure Relative Positioning for Overlay
+            if (window.getComputedStyle(figure).position === 'static') figure.classList.add('ssl-relative');
+
             let title = null;
 
             const titleEl = container.querySelector('h3, h2, .bundle-page-tier-item-title, .main-list-results-item-title, .title, .item-title-text');
@@ -397,8 +417,6 @@
             if (img) img.classList.add('ssl-ignored-img');
             figure.classList.add('ssl-border-ignored');
         }
-
-        if (window.getComputedStyle(figure).position === 'static') figure.classList.add('ssl-relative');
 
         const overlay = document.createElement('a');
         overlay.href = `https://store.steampowered.com/app/${appId}`;
