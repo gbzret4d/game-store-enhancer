@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         IndieGala Steam Linker
 // @namespace    https://github.com/gbzret4d/indiegala-steam-linker
-// @version      3.1.4
+// @version      3.1.5
 // @description  The ultimate fix for IndieGala. Adds Steam links, Review Scores, and Ownership Status. Includes visible Stats/Debug Panel.
 // @author       gbzret4d
 // @match        https://www.indiegala.com/*
@@ -23,7 +23,7 @@
     const CONFIG = {
         debug: true,
         cacheTime: 24 * 60 * 60 * 1000,
-        ignoredOpacity: 0.7,
+        ignoredOpacity: 0.85, // Even less grayed out
         queueInterval: 100
     };
 
@@ -89,8 +89,13 @@
         .ssl-bundle-wishlist { border: 2px solid #66c0f4 !important; }
 
         .ssl-relative { position: relative !important; display: block !important; }
-        /* Fix for collapsed figures */
-        .main-list-item figure { height: 100%; min-height: 50px; } 
+        
+        /* Fix for collapsed figures and specific containers */
+        .main-list-item figure, 
+        .carousel-item, 
+        .bundles-main-item-col { 
+            min-height: 50px; 
+        } 
 
         /* DEBUG PANEL */
         #ssl-debug-panel {
@@ -147,7 +152,7 @@
         const wishlistCount = STATE.userData.wishlist ? STATE.userData.wishlist.length : 0;
 
         panel.innerHTML = `
-            <h4>Steam Linker v3.1.4</h4>
+            <h4>Steam Linker v3.1.5</h4>
             <div>Owned (Apps): <span class="ssl-status-ok">${ownedCount}</span></div>
             <div>Wishlist: <span class="ssl-status-ok">${wishlistCount}</span></div>
             <div>Queue: ${STATE.requests.length}</div>
@@ -365,13 +370,12 @@
     // --- Scanners ---
 
     function scanGrid() {
-        // Updated selector to include Bundle Carousel Items
         const candidates = document.querySelectorAll(`
             .bundle-page-tier-item-col figure, 
             .main-list-results-item figure,
             .flickity-slider figure,
             .slick-slide figure,
-            .carousel-item figure,
+            .carousel-item,
             .bundle-slider-game-data-item
         `);
 
@@ -383,10 +387,12 @@
                 element.closest('.main-list-results-item') ||
                 element.closest('.carousel-cell') ||
                 element.closest('.slick-slide') ||
-                element.closest('.carousel-item') ||
                 element.parentElement;
 
-            if (!container) return;
+            // For carousel items, the element itself is the container
+            const effectiveContainer = element.classList.contains('carousel-item') ? element : container;
+
+            if (!effectiveContainer) return;
 
             // Ensure Element is Relative for Absolute Children
             element.classList.add('ssl-relative');
@@ -394,11 +400,11 @@
             let title = null;
 
             // Expanded Title Selectors for Carousel
-            const titleEl = container.querySelector('h3, h2, .bundle-page-tier-item-title, .main-list-results-item-title, .title, .item-title-text, .bundle-slider-game-title');
+            const titleEl = effectiveContainer.querySelector('h3, h2, .bundle-page-tier-item-title, .main-list-results-item-title, .title, .item-title-text, .bundle-slider-game-title');
             if (titleEl) title = titleEl.textContent.trim();
 
             if (!title) {
-                const fig = container.querySelector('figcaption');
+                const fig = effectiveContainer.querySelector('figcaption');
                 if (fig) title = fig.textContent.trim();
             }
 
@@ -475,7 +481,7 @@
 
     // --- Bundle Overview Scanner ---
     function scanBundlesOverview() {
-        const bundles = document.querySelectorAll('.container-item, .item-main-container, .main-list-item');
+        const bundles = document.querySelectorAll('.container-item, .item-main-container, .main-list-item, .bundles-main-item-col');
         bundles.forEach(bundle => {
             if (bundle.dataset.sslProcessed) return;
 
@@ -483,6 +489,7 @@
             if (!link) return;
 
             bundle.dataset.sslProcessed = "pending";
+            bundle.classList.add('ssl-relative');
 
             queueRequest(`Scan Bundle: ${link.href.split('/').pop()}`, () => new Promise(resolve => {
                 GM_xmlhttpRequest({
@@ -508,8 +515,14 @@
                                 if (STATE.userData.owned.includes(idInt)) hasOwned = true;
                             }
 
-                            if (hasWishlist) bundle.querySelector('a').classList.add('ssl-bundle-wishlist');
-                            if (hasOwned) bundle.querySelector('a').classList.add('ssl-bundle-owned');
+                            // Add PHYSICAL border box for Bundles too
+                            if (hasOwned || hasWishlist) {
+                                const bundleBox = document.createElement('div');
+                                bundleBox.className = 'ssl-border-box';
+                                if (hasOwned) bundleBox.classList.add('owned');
+                                if (hasWishlist) bundleBox.classList.add('wishlist');
+                                bundle.appendChild(bundleBox);
+                            }
 
                         } catch (e) { }
                         resolve();
@@ -529,7 +542,7 @@
     // Main Loop
     setInterval(() => {
         scanGrid();
-        if (location.href.includes('/')) scanBundlesOverview(); // Run on homepage too
+        if (location.href.includes('/') || location.href.includes('/bundles')) scanBundlesOverview();
     }, 2000);
 
 })();
