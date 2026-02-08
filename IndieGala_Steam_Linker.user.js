@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         IndieGala Steam Linker
 // @namespace    https://github.com/gbzret4d/indiegala-steam-linker
-// @version      3.0.6
-// @description  The ultimate fix for IndieGala. Adds Steam links, Review Scores, and Ownership Status (Owned/Wishlist) to Store, Bundles, and Bundle Overview. Fixed Age Gate issues.
+// @version      3.0.7
+// @description  The ultimate fix for IndieGala. Adds Steam links, Review Scores, and Ownership Status. Includes visible Stats/Debug Panel.
 // @author       gbzret4d
 // @match        https://www.indiegala.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=indiegala.com
@@ -22,7 +22,7 @@
     // --- Configuration ---
     const CONFIG = {
         debug: true,
-        cacheTime: 24 * 60 * 60 * 1000, // 24 Hours
+        cacheTime: 24 * 60 * 60 * 1000,
         ignoredOpacity: 0.4
     };
 
@@ -42,29 +42,43 @@
         .ssl-overlay:hover { opacity: 1 !important; background: #000; }
         .ssl-overlay img { width: 14px; height: 14px; margin-right: 5px; vertical-align: middle; }
         
-        /* Review Badges */
-        .ssl-review {
-            margin-left: 8px; padding: 1px 4px; border-radius: 3px; font-weight: bold; font-size: 10px;
-        }
+        .ssl-review { margin-left: 8px; padding: 1px 4px; border-radius: 3px; font-weight: bold; font-size: 10px; }
         .ssl-review-positive { color: #66C0F4; background: rgba(102, 192, 244, 0.2); }
         .ssl-review-mixed { color: #a89468; background: rgba(168, 148, 104, 0.2); }
         .ssl-review-negative { color: #c00; background: rgba(204, 0, 0, 0.2); }
         .ssl-review-none { color: #888; background: rgba(128, 128, 128, 0.2); }
 
-        /* Status Borders */
         .ssl-border-owned { box-shadow: inset 0 0 0 3px #a4d007 !important; }
         .ssl-border-wishlist { box-shadow: inset 0 0 0 3px #66c0f4 !important; }
         
-        /* Ignored Status */
         .ssl-ignored-img { opacity: 0.4 !important; filter: grayscale(100%) !important; }
         .ssl-border-ignored { box-shadow: inset 0 0 0 3px #555 !important; }
 
-        /* Bundle Overview Borders */
         .ssl-bundle-owned { border: 2px solid #a4d007 !important; }
         .ssl-bundle-wishlist { border: 2px solid #66c0f4 !important; }
 
-        /* Utils */
         .ssl-relative { position: relative !important; }
+
+        /* DEBUG PANEL */
+        #ssl-debug-panel {
+            position: fixed; bottom: 10px; right: 10px;
+            background: rgba(0,0,0,0.85); color: #fff;
+            padding: 10px; border-radius: 5px;
+            font-family: monospace; font-size: 12px;
+            z-index: 100000; border: 1px solid #444;
+            min-width: 200px;
+        }
+        #ssl-debug-panel h4 { margin: 0 0 5px 0; color: #a4d007; font-size: 13px; }
+        #ssl-debug-panel div { margin-bottom: 2px; }
+        #ssl-debug-panel button {
+            background: #444; color: white; border: none;
+            padding: 3px 8px; cursor: pointer; margin-top: 5px; width: 100%;
+            font-size: 11px;
+        }
+        #ssl-debug-panel button:hover { background: #666; }
+        .ssl-status-ok { color: #a4d007; }
+        .ssl-status-warn { color: #f0ad4e; }
+        .ssl-status-err { color: #d9534f; }
     `);
 
     // --- State & Cache ---
@@ -85,22 +99,48 @@
         processing: false
     };
 
-    // --- API Helpers ---
+    // --- UI Helpers ---
+    function updateDebugPanel() {
+        let panel = document.getElementById('ssl-debug-panel');
+        if (!panel) {
+            panel = document.createElement('div');
+            panel.id = 'ssl-debug-panel';
+            document.body.appendChild(panel);
+        }
 
-    // AGE GATE BYPASS HEADERS
-    // We inject these cookies to force Steam to treat us as an adult
+        const ownedCount = STATE.userData.owned ? STATE.userData.owned.length : 0;
+        const wishlistCount = STATE.userData.wishlist ? STATE.userData.wishlist.length : 0;
+
+        panel.innerHTML = `
+            <h4>Steam Linker v3.0.7</h4>
+            <div>Owned: <span class="ssl-status-ok">${ownedCount}</span></div>
+            <div>Wishlist: <span class="ssl-status-ok">${wishlistCount}</span></div>
+            <div>Queue: ${STATE.requests.length}</div>
+            <button id="ssl-force-refresh">Refresh Data</button>
+        `;
+
+        const btn = document.getElementById('ssl-force-refresh');
+        if (btn) btn.onclick = () => {
+            CACHE.set('ssl_userdata', null);
+            fetchUserData();
+        };
+    }
+
+    // --- API Helpers ---
     const MATURE_HEADERS = {
         "Cookie": "birthtime=0; lastagecheckage=1-0-1900; wants_mature_content=1"
     };
 
     function queueRequest(fn) {
         STATE.requests.push(fn);
+        updateDebugPanel(); // Update UI
         if (!STATE.processing) processQueue();
     }
 
     function processQueue() {
         if (STATE.requests.length === 0) {
             STATE.processing = false;
+            updateDebugPanel();
             return;
         }
         STATE.processing = true;
@@ -112,7 +152,8 @@
             if (handled) return;
             handled = true;
             STATE.requests.shift();
-            setTimeout(processQueue, 250); // Slightly slower to be safe
+            updateDebugPanel();
+            setTimeout(processQueue, 250);
         };
 
         setTimeout(() => {
@@ -128,20 +169,21 @@
     }
 
     function fetchUserData() {
-        if (CACHE.get('ssl_userdata')) return;
         console.log('[SSL] Fetching User Data...');
+        updateDebugPanel();
 
         // 1. Owned/Ignored
         queueRequest(() => new Promise(resolve => {
             GM_xmlhttpRequest({
                 method: "GET",
                 url: "https://store.steampowered.com/dynamicstore/userdata/",
-                headers: MATURE_HEADERS, // Inject Age Cookie
+                headers: MATURE_HEADERS,
                 onload: (res) => {
                     try {
                         const data = JSON.parse(res.responseText);
                         STATE.userData.owned = data.rgOwnedPackages || [];
                         STATE.userData.ignored = Object.keys(data.rgIgnoredApps || {});
+                        updateDebugPanel();
                     } catch (e) { }
                     resolve();
                 },
@@ -161,6 +203,7 @@
                         const data = JSON.parse(res.responseText);
                         STATE.userData.wishlist = Object.keys(data || {});
                         CACHE.set('ssl_userdata', STATE.userData);
+                        updateDebugPanel();
                         console.log('[SSL] User Data Updated:', STATE.userData);
                     } catch (e) { }
                     resolve();
@@ -178,11 +221,10 @@
 
         return new Promise(resolve => {
             queueRequest(() => new Promise(subResolve => {
-                // STRATEGY 1: Official Store Search API
                 GM_xmlhttpRequest({
                     method: "GET",
                     url: `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(term)}&l=english&cc=us`,
-                    headers: MATURE_HEADERS, // Try to force mature results
+                    headers: MATURE_HEADERS,
                     timeout: 5000,
                     onload: (res) => {
                         let foundId = null;
@@ -198,8 +240,6 @@
                             subResolve();
                             resolve(foundId);
                         } else {
-                            // STRATEGY 2: Fallback to HTML Search (For Adult Games hidden from API)
-                            // We search specifically with infinite scrolling disabled and preferences ignored
                             searchSteamFallback(term, subResolve, resolve, cacheKey);
                         }
                     },
@@ -221,7 +261,6 @@
             onload: (res) => {
                 let id = null;
                 try {
-                    // Match the first search result link
                     const match = res.responseText.match(/href="https:\/\/store\.steampowered\.com\/app\/(\d+)/);
                     if (match) id = match[1];
                 } catch (e) { }
@@ -304,11 +343,20 @@
 
             if (!container) return;
 
-            // 2. Extract Title
+            // 2. Extract Title (Updated v3.0.7 with specific selectors for Store/Bundle)
             let title = null;
-            const titleEl = container.querySelector('.bundle-page-tier-item-title, .main-list-results-item-title, .title, .item-title-text');
+
+            // Priority 1: H3 (Store) or H2 or Title Classes
+            const titleEl = container.querySelector('h3, h2, .bundle-page-tier-item-title, .main-list-results-item-title, .title, .item-title-text');
             if (titleEl) title = titleEl.textContent.trim();
 
+            // Priority 2: Figcaption (Bundle)
+            if (!title) {
+                const fig = container.querySelector('figcaption');
+                if (fig) title = fig.textContent.trim();
+            }
+
+            // Priority 3: Image Alt
             if (!title) {
                 const img = figure.querySelector('img');
                 if (img && img.alt && img.alt.length > 2) title = img.alt;
@@ -388,16 +436,11 @@
                 GM_xmlhttpRequest({
                     method: "GET",
                     url: link.href,
-                    headers: MATURE_HEADERS, // Force Age Cookie even on IndieGala (might fallback to Steam)
+                    headers: MATURE_HEADERS,
                     onload: (res) => {
                         try {
                             const text = res.responseText;
                             const pageIds = new Set();
-
-                            // Log unexpected responses
-                            if (text.includes('indiegala.com/login')) {
-                                if (CONFIG.debug) console.warn('[SSL] Bundle Scan redirected to login - Check Setup');
-                            }
 
                             const matchesApp = text.matchAll(/store\.steampowered\.com\/app\/(\d+)/g);
                             const matchesSub = text.matchAll(/store\.steampowered\.com\/sub\/(\d+)/g);
@@ -405,7 +448,8 @@
                             for (const m of matchesApp) pageIds.add(m[1]);
                             for (const m of matchesSub) pageIds.add(m[1]);
 
-                            if (CONFIG.debug && pageIds.size > 0) console.log(`[SSL] Bundle ${link.href}: Found ${pageIds.size} IDs`);
+                            // Log ID count for Debug
+                            console.log(`[SSL] Bundle ${link.href}: Found ${pageIds.size} IDs`);
 
                             let hasOwned = false;
                             let hasWishlist = false;
@@ -432,6 +476,7 @@
     }
 
     // --- Init ---
+    updateDebugPanel(); // Show initial Empty Panel
     setTimeout(fetchUserData, 1000);
 
     // Main Loop

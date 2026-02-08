@@ -12,7 +12,8 @@ A Tampermonkey Userscript that enhances **Humble Bundle**, **Fanatical**, **Dail
 
 
 
-> **Update (v3.0.4)**: IndieGala support is now handled by the **[Standalone Script](https://github.com/gbzret4d/game-store-enhancer/raw/develop/IndieGala_Steam_Linker.user.js)**. Install this alongside the main script to fix all issues (visual tweaks + sub ID support).
+
+> **Update (v3.0.7)**: IndieGala Standalone Script now includes a **Stats/Debug Panel** (bottom right) to confirm if Steam data is loaded properly. Also fixes "null%" and Store/Bundle selectors.
 
 
 
