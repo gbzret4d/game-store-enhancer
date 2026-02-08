@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         IndieGala Steam Linker
 // @namespace    https://github.com/gbzret4d/indiegala-steam-linker
-// @version      3.1.0
+// @version      3.1.1
 // @description  The ultimate fix for IndieGala. Adds Steam links, Review Scores, and Ownership Status. Includes visible Stats/Debug Panel.
 // @author       gbzret4d
 // @match        https://www.indiegala.com/*
@@ -23,7 +23,7 @@
     const CONFIG = {
         debug: true,
         cacheTime: 24 * 60 * 60 * 1000,
-        ignoredOpacity: 0.4,
+        ignoredOpacity: 0.7, // Changed from 0.4 to 0.7 to be less "grayed out"
         queueInterval: 100
     };
 
@@ -32,14 +32,16 @@
         /* Overlay Strip */
         .ssl-overlay {
             position: absolute !important; bottom: 0 !important; left: 0 !important; width: 100% !important;
+            height: 24px !important; /* Force height to prevent "Giant Logo" bug */
             background: rgba(0,0,0,0.9) !important; color: white !important;
-            font-size: 11px !important; padding: 4px 0 !important; text-align: center !important;
+            font-size: 11px !important; padding: 0 !important; text-align: center !important;
             display: flex !important; justify-content: center !important; align-items: center !important;
             z-index: 900 !important; pointer-events: auto !important; text-decoration: none !important;
             border-top: 1px solid rgba(255,255,255,0.2) !important;
             transition: opacity 0.2s !important;
             line-height: normal !important;
-            height: auto !important;
+            border-radius: 0 !important;
+            max-width: 100% !important;
         }
         .ssl-overlay:hover { opacity: 1 !important; background: #000 !important; }
         
@@ -54,13 +56,16 @@
             display: inline-block !important;
             border: none !important;
             padding: 0 !important;
+            background: transparent !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
         }
         
         .ssl-review { margin-left: 8px; padding: 1px 4px; border-radius: 3px; font-weight: bold; font-size: 10px; }
         .ssl-review-positive { color: #66C0F4; background: rgba(102, 192, 244, 0.2); }
         .ssl-review-mixed { color: #a89468; background: rgba(168, 148, 104, 0.2); }
         .ssl-review-negative { color: #c00; background: rgba(204, 0, 0, 0.2); }
-        .ssl-review-none { color: #888; background: rgba(128, 128, 128, 0.2); }
+        .ssl-review-none { display: none !important; } /* Hidden by default */
 
         /* Status Borders - Reverted to Box-Shadow Inset on Container for reliability */
         .ssl-border-owned { 
@@ -72,7 +77,10 @@
             z-index: 800 !important;
         }
         
-        .ssl-ignored-img { opacity: 0.4 !important; filter: grayscale(100%) !important; }
+        .ssl-ignored-img { 
+            opacity: ${CONFIG.ignoredOpacity} !important; 
+            filter: grayscale(100%) !important; 
+        }
         .ssl-border-ignored { box-shadow: inset 0 0 0 4px #555 !important; }
 
         .ssl-bundle-owned { border: 2px solid #a4d007 !important; }
@@ -135,7 +143,7 @@
         const wishlistCount = STATE.userData.wishlist ? STATE.userData.wishlist.length : 0;
 
         panel.innerHTML = `
-            <h4>Steam Linker v3.1.0</h4>
+            <h4>Steam Linker v3.1.1</h4>
             <div>Owned (Apps): <span class="ssl-status-ok">${ownedCount}</span></div>
             <div>Wishlist: <span class="ssl-status-ok">${wishlistCount}</span></div>
             <div>Queue: ${STATE.requests.length}</div>
@@ -431,16 +439,18 @@
                 const badge = document.createElement('span');
                 badge.className = 'ssl-review';
 
+                // FIXED: Do not display anything if score is invalid or -1
                 if (score.percent === -1 || score.total === 0) {
-                    badge.textContent = "-";
-                    badge.classList.add('ssl-review-none');
+                    // Do nothing, badge remains empty or we don't append it
+                    // Actually, user wants NOTHING displayed.
+                    // So we don't append badge at all.
                 } else {
                     badge.textContent = `${score.percent}%`;
                     if (score.percent >= 70) badge.classList.add('ssl-review-positive');
                     else if (score.percent >= 40) badge.classList.add('ssl-review-mixed');
                     else badge.classList.add('ssl-review-negative');
+                    overlay.appendChild(badge); // Only append if valid
                 }
-                overlay.appendChild(badge);
             }
         });
 
