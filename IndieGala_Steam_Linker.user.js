@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         IndieGala Steam Linker
 // @namespace    https://github.com/gbzret4d/indiegala-steam-linker
-// @version      3.1.6
-// @description  The ultimate fix for IndieGala. Adds Steam links, Review Scores, and Ownership Status. Includes visible Stats/Debug Panel.
+// @version      3.1.7
+// @description  The ultimate fix for IndieGala. Adds Steam links, Review Scores, and Ownership Status. (v3.1.7: Single Page Support + Fixes)
 // @author       gbzret4d
 // @match        https://www.indiegala.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=indiegala.com
@@ -23,7 +23,7 @@
     const CONFIG = {
         debug: true,
         cacheTime: 24 * 60 * 60 * 1000,
-        ignoredOpacity: 0.85,
+        ignoredOpacity: 0.8, // Slightly more opaque
         queueInterval: 100
     };
 
@@ -70,7 +70,7 @@
         .ssl-border-box {
             position: absolute !important;
             top: 0 !important; left: 0 !important; width: 100% !important; height: 100% !important;
-            z-index: 800 !important;
+            z-index: 850 !important; /* Higher than images, lower than overlay bar */
             pointer-events: none !important;
             background: transparent !important;
             box-sizing: border-box !important;
@@ -82,7 +82,12 @@
 
         .ssl-ignored-img { 
             opacity: ${CONFIG.ignoredOpacity} !important; 
-            filter: grayscale(100%) !important; 
+            filter: grayscale(90%) !important; 
+            transition: all 0.3s ease !important;
+        }
+        .ssl-ignored-img:hover {
+            filter: grayscale(0%) !important;
+            opacity: 1 !important;
         }
 
         .ssl-bundle-owned { border: 2px solid #a4d007 !important; }
@@ -90,11 +95,18 @@
 
         .ssl-relative { position: relative !important; display: block !important; }
         
+        /* Layout Fixes */
         .main-list-item figure, 
         .carousel-item, 
         .bundles-main-item-col { 
             min-height: 50px; 
         } 
+        
+        /* Specific Fix for Product Page Image Container */
+        .store-product-image-container, 
+        .store-product-main-image {
+             position: relative !important;
+        }
 
         /* DEBUG PANEL */
         #ssl-debug-panel {
@@ -151,7 +163,7 @@
         const wishlistCount = STATE.userData.wishlist ? STATE.userData.wishlist.length : 0;
 
         panel.innerHTML = `
-            <h4>Steam Linker v3.1.6</h4>
+            <h4>Steam Linker v3.1.7</h4>
             <div>Owned (Apps): <span class="ssl-status-ok">${ownedCount}</span></div>
             <div>Wishlist: <span class="ssl-status-ok">${wishlistCount}</span></div>
             <div>Queue: ${STATE.requests.length}</div>
@@ -271,23 +283,19 @@
             /Deluxe Edition/gi,
             /with Early Purchase Bonus/gi,
             /Steam Key/gi,
-            /\s-\s.*/, // Remove anything after a hyphen if it looks like a suffix
+            /\s-\s.*/,
             /Season Pass/gi
         ];
 
         removePatterns.forEach(regex => {
             cleaned = cleaned.replace(regex, "");
         });
-
-        // Cleanup overlapping spaces
         return cleaned.trim().replace(/\s\s+/g, ' ');
     }
 
     function searchSteam(term) {
-        // CLEAN THE TITLE FIRST
         const cleanedTerm = cleanTitle(term);
         const cacheKey = `ssl_id_${cleanedTerm}`;
-
         const cached = CACHE.get(cacheKey);
         if (cached) return Promise.resolve(cached);
 
@@ -302,9 +310,7 @@
                         let foundId = null;
                         try {
                             const data = JSON.parse(res.responseText);
-                            if (data.items && data.items.length > 0) {
-                                foundId = data.items[0].id;
-                            }
+                            if (data.items && data.items.length > 0) currentId = data.items[0].id;
                         } catch (e) { }
 
                         if (foundId) {
@@ -312,7 +318,6 @@
                             subResolve();
                             resolve(foundId);
                         } else {
-                            // If API fails, try HTML search with the CLEAN term
                             searchSteamFallback(cleanedTerm, subResolve, resolve, cacheKey);
                         }
                     },
@@ -436,7 +441,6 @@
 
             element.dataset.sslProcessed = "pending";
 
-            // Search Steam using the CLEANED title (logic inside searchSteam)
             searchSteam(title).then(id => {
                 if (id && id !== '404') {
                     injectGame(element, id);
@@ -444,6 +448,26 @@
                     element.dataset.sslProcessed = "done_no_id";
                 }
             });
+        });
+    }
+
+    // NEW: Scan Single Product Page
+    function scanProductPage() {
+        if (!location.href.includes('/store/game/')) return;
+
+        const header = document.querySelector('.store-product-header-flex h1.font-kanit, h1');
+        const imgContainer = document.querySelector('.store-product-image-container, .store-product-main-image, .media-caption-medium');
+
+        if (!header || !imgContainer || imgContainer.dataset.sslProcessed) return;
+
+        const title = header.textContent.trim();
+        imgContainer.dataset.sslProcessed = "pending";
+        imgContainer.classList.add('ssl-relative');
+
+        searchSteam(title).then(id => {
+            if (id && id !== '404') {
+                injectGame(imgContainer, id);
+            }
         });
     }
 
@@ -500,7 +524,9 @@
 
     // --- Bundle Overview Scanner ---
     function scanBundlesOverview() {
-        const bundles = document.querySelectorAll('.container-item, .item-main-container, .main-list-item, .bundles-main-item-col');
+        // Target specifically the bundle cards in the overview
+        const bundles = document.querySelectorAll('.bundles-main-item-col, .container-item, .item-main-container, .main-list-item');
+
         bundles.forEach(bundle => {
             if (bundle.dataset.sslProcessed) return;
 
@@ -536,16 +562,14 @@
                                 if (STATE.userData.ignored.includes(idStr)) hasIgnored = true;
                             }
 
-                            // Add PHYSICAL border box for Bundles with correct priority
+                            // Add PHYSICAL border box with Priority: Owned > Wishlist > Ignored
                             if (hasOwned || hasWishlist || hasIgnored) {
                                 const bundleBox = document.createElement('div');
                                 bundleBox.className = 'ssl-border-box';
 
-                                // Priority: Owned > Wishlist > Ignored
-                                // (Or should Ignored be prioritized? Usually Wishlist > Ignored for bundles)
                                 if (hasOwned) bundleBox.classList.add('owned');
-                                else if (hasWishlist) bundleBox.classList.add('wishlist');
-                                else if (hasIgnored) bundleBox.classList.add('ignored');
+                                else if (hasWishlist) bundleBox.classList.add('wishlist'); // Blue wins if no Owned
+                                else if (hasIgnored) bundleBox.classList.add('ignored');   // Gray only if nothing else
 
                                 bundle.appendChild(bundleBox);
                             }
@@ -568,6 +592,7 @@
     // Main Loop
     setInterval(() => {
         scanGrid();
+        if (location.href.includes('/store/game/')) scanProductPage();
         if (location.href.includes('/') || location.href.includes('/bundles')) scanBundlesOverview();
     }, 2000);
 
