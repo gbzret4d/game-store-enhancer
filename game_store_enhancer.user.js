@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.0.27
+// @version      2.0.28
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, GOG, and IndieGala with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -1383,137 +1383,280 @@
         });
 
         // v2.0.12: Scan Bundle Overview & Tier Items
+        // v2.0.28: IndieGalaHandler Init
         if (currentConfig.name === 'IndieGala') {
-            scanBundlesOverview(); // Handles both Overview Cards and Tier Items
-            scanStoreGrid();       // Handles Store Grid explicitly
-            if (typeof scanBundleGames === 'function') scanBundleGames(); // v2.0.25: New Scanner
-            if (typeof forceVisuals === 'function') forceVisuals();       // v2.0.25: Force CSS
+            IndieGalaHandler.init();
         }
     }
 
-    // v2.0.24: Store Grid Fix
-    function scanStoreGrid() {
-        // Consolidate Store grid logic here for clarity and better targeting
-        const items = document.querySelectorAll(SITE_CONFIG.selectors[0].container); // .main-list-results-item
 
-        items.forEach(container => {
-            // Target the image container for overlay
-            let imageContainer = container.querySelector('figure') ||
-                container.querySelector('.main-list-item-col-image') ||
-                container.querySelector('.main-list-results-item-img');
-
-            if (!imageContainer) {
-                imageContainer = container; // Fallback
+    // v2.0.28: IndieGalaHandler - Unified Logic
+    const IndieGalaHandler = {
+        config: {
+            homepage: {
+                urlRegex: /^https?:\/\/www\.indiegala\.com\/?$/,
+                selectors: [
+                    { container: '.main-list-item-col', title: '.main-list-item-col-title', img: '.main-list-item-col-image' }
+                ]
+            },
+            store: {
+                urlRegex: /\/store/,
+                selectors: [
+                    { container: '.main-list-results-item', title: '.main-list-results-item-title a', img: '.main-list-results-item-img' }
+                ]
+            },
+            bundlesOverview: {
+                urlRegex: /\/bundles/,
+                selectors: [
+                    { container: '.container-item', title: null, link: 'a.container-item-click-cover' }
+                ]
+            },
+            bundleDetail: {
+                urlRegex: /\/bundle\/(?!s\/)/,
+                selectors: [
+                    { container: '.bundle-page-tier-item-col', title: '.bundle-page-tier-item-title', img: '.bundle-page-tier-item-image' },
+                    { container: '.bundle-page-tier-item-inner', title: '.title', img: 'figure' }, // PowerShock/Hentai
+                    { container: '.bundle-page-tier-item-inner', title: '.bundle-page-tier-item-title', img: '.bundle-page-tier-item-image' } // Generic Grid
+                ]
             }
+        },
 
-            // Ensure relative positioning
-            if (window.getComputedStyle(imageContainer).position === 'static') {
-                imageContainer.style.position = 'relative';
-            }
+        init: function () {
+            const path = window.location.href;
+            if (this.config.homepage.urlRegex.test(path)) this.handleHomePage();
+            else if (this.config.store.urlRegex.test(path)) this.handleStorePage();
+            else if (this.config.bundlesOverview.urlRegex.test(path)) this.handleBundlesOverview();
+            else if (this.config.bundleDetail.urlRegex.test(path)) this.handleBundleDetail();
 
-            if (imageContainer.querySelector('.ssl-steam-overlay')) return;
+            // Global Styles
+            this.injectStyles();
+        },
 
-            const titleEl = container.querySelector(SITE_CONFIG.selectors[0].title);
-            if (!titleEl) return;
+        injectStyles: function () {
+            if (document.getElementById('ssl-ig-styles')) return;
+            GM_addStyle(`
+                .ssl-border-owned { border: 3px solid #a4d007 !important; border-radius: 4px !important; box-shadow: 0 0 5px rgba(164, 208, 7, 0.5); }
+                .ssl-border-wishlisted { border: 3px solid #66c0f4 !important; border-radius: 4px !important; box-shadow: 0 0 5px rgba(102, 192, 244, 0.5); }
+                .ssl-border-ignored { border: 3px solid #d9534f !important; border-radius: 4px !important; opacity: 0.6; }
+                
+                .ssl-steam-overlay {
+                    position: absolute; bottom: 0; left: 0; width: 100%;
+                    background: rgba(0,0,0,0.85); color: white; font-size: 11px;
+                    padding: 3px 0; text-align: center; display: flex !important;
+                    justify-content: center; align-items: center; z-index: 50;
+                    pointer-events: auto; text-decoration: none !important;
+                }
+                .ssl-steam-overlay img { width: 14px; height: 14px; vertical-align: middle; margin-right: 4px; }
+            `);
+            const s = document.createElement('style'); s.id = 'ssl-ig-styles'; document.head.appendChild(s);
+        },
 
-            const title = titleEl.textContent.trim();
-            const appId = getAppId(container, title); // Scan parent for ID
+        handleHomePage: function () { this.scanGrid(this.config.homepage.selectors); },
+        handleStorePage: function () { this.scanGrid(this.config.store.selectors); },
 
-            if (appId) {
-                handleSteamApp(appId, imageContainer, title, 'store_grid'); // Inject into image container
-            } else {
-                searchSteam(title, imageContainer, 'store_grid');
-            }
-        });
-    }
-    // v2.0.24: Improved Stats Logic - Count Games Inside Bundles
-    function scanBundlesOverview() {
-        // 1. Grid/Tier Bundles (Power Shock, Hentai Pair)
+        handleBundleDetail: function () {
+            this.config.bundleDetail.selectors.forEach(strat => this.scanGrid([strat], true));
+        },
 
+        handleBundlesOverview: function () {
+            const strat = this.config.bundlesOverview.selectors[0];
+            document.querySelectorAll(strat.container).forEach(container => {
+                if (container.dataset.sslProcessed) return;
 
-        // 2. Overview Channel Cards (Legacy logic for "Blue Dot")
-        const bundleCards = document.querySelectorAll('.container-item');
-        bundleCards.forEach(cardContainer => {
-            if (cardContainer.dataset.sslProcessed) return;
+                // Find Link
+                const link = container.querySelector(strat.link) || container.querySelector('a[href^="/bundle/"]');
+                if (!link) return;
 
-            // Find the link
-            const link = cardContainer.querySelector('a.container-item-click-cover') || cardContainer.querySelector('a[href^="/bundle/"]');
-            if (!link) return;
+                container.dataset.sslProcessed = "fetching";
+                const bundleUrl = link.href;
+                const bundleId = bundleUrl.split('/').pop();
+                const cacheKey = `ssl_bundle_wishlist_${bundleId}`;
 
-            // Mark as processed (fetching)
-            cardContainer.dataset.sslProcessed = "fetching";
+                // Cache Check
+                const cached = getStoredValue(cacheKey, null);
+                if (cached && (Date.now() - cached.timestamp < CACHE_TTL * 4)) {
+                    if (cached.hasWishlist) this.applyStyles(container, 'wishlisted');
+                    container.dataset.sslProcessed = "true";
+                    return;
+                }
 
-            const bundleUrl = link.href;
-            if (!bundleUrl) return;
+                // Fetch
+                steamQueue.add(() => new Promise(resolve => {
+                    GM_xmlhttpRequest({
+                        method: 'GET', url: bundleUrl,
+                        onload: (res) => {
+                            try {
+                                const html = res.responseText;
+                                const allIds = new Set();
+                                const matches = html.matchAll(/store\.steampowered\.com\/app\/(\d+)/g);
+                                for (const m of matches) allIds.add(m[1]);
 
-            // Use the existing cache/store logic? 
-            // We'll use a simple GM cache for "BundleID -> HasWishlist" to avoid re-scraping too often.
-            const bundleId = bundleUrl.split('/').pop();
-            const cacheKey = `ssl_bundle_wishlist_${bundleId}`;
-            const cached = getStoredValue(cacheKey, null);
+                                // Also check image logic if needed (backup)
+                                const imgMatches = html.matchAll(/\/bundle_games\/(\d+\/)?(\d+)\.jpg/g);
+                                for (const m of imgMatches) allIds.add(m[2] || m[1]);
 
-            if (cached && (Date.now() - cached.timestamp < CACHE_TTL * 4)) { // 1 Hour Cache
-                if (cached.hasWishlist) markBundleAsWishlisted(cardContainer);
-                cardContainer.dataset.sslProcessed = "true";
-                return;
-            }
+                                fetchSteamUserData().then(userData => {
+                                    const wishlist = userData?.wishlist || [];
+                                    const hasWishlist = Array.from(allIds).some(id => wishlist.some(w => (w.appid == id || w == id)));
 
-            // Add to queue
-            steamQueue.add(() => new Promise(resolve => {
-                GM_xmlhttpRequest({
-                    method: 'GET',
-                    url: bundleUrl,
-                    onload: (res) => {
-                        try {
-                            // v2.0.12: Improved extraction (RegEx on raw text is more robust than DOMParser for scraping)
-                            const html = res.responseText;
-                            const allIds = new Set();
+                                    if (hasWishlist) this.applyStyles(container, 'wishlisted');
+                                    setStoredValue(cacheKey, { hasWishlist, timestamp: Date.now() });
+                                    container.dataset.sslProcessed = "true";
+                                    resolve();
+                                });
+                            } catch (e) { resolve(); }
+                        },
+                        onerror: () => resolve()
+                    });
+                }));
+            });
+        },
 
-                            // Pattern 1: IndieGala Bundle Images (e.g. /bundle_games/yyyymmdd/12345.jpg)
-                            const imageMatches = html.matchAll(/\/bundle_games\/(\d+\/)?(\d+)\.jpg/g); // v2.0.18 fix
-                            for (const m of imageMatches) allIds.add(m[2] || m[1]);
+        scanGrid: function (selectors, isBundleDetail = false) {
+            selectors.forEach(strat => {
+                document.querySelectorAll(strat.container).forEach(container => {
+                    if (container.dataset.sslProcessed) return;
 
-                            // Pattern 2: Steam Store Links (e.g. /app/12345)
-                            const linkMatches = html.matchAll(/store\.steampowered\.com\/(app|sub)\/(\d+)/g);
-                            for (const m of linkMatches) allIds.add(m[2]);
+                    // Ensure Position
+                    if (window.getComputedStyle(container).position === 'static') container.style.position = 'relative';
 
-                            // Pattern 3: Steam Capsule/Header Images (often used in carousels)
-                            // Matches: /apps/12345/ or /apps/12345.jpg
-                            const capMatches = html.matchAll(/steam\/apps\/(\d+)/g); // Simplified
-                            for (const m of capMatches) allIds.add(m[1]);
+                    const titleEl = container.querySelector(strat.title);
+                    if (!titleEl) return; // Must have title
 
-                            // Pattern 4: Generic AppID matches in data attributes (v2.0.18)
-                            const dataMatches = html.matchAll(/data-app-id="(\d+)"/g);
-                            for (const m of dataMatches) allIds.add(m[1]);
+                    const title = titleEl.textContent.trim();
+                    const imgContainer = (strat.img === 'figure' ? container.querySelector('figure') : container.querySelector(strat.img)) || container;
 
-                            // Check Wishlist
-                            fetchSteamUserData().then(userData => {
-                                const wishlist = userData?.wishlist || [];
-                                const hasWishlist = Array.from(allIds).some(id => wishlist.includes(parseInt(id)) || wishlist.includes(String(id)));
+                    if (!imgContainer) return;
 
-                                if (hasWishlist) markBundleAsWishlisted(cardContainer);
+                    // Ensure Img Context
+                    if (window.getComputedStyle(imgContainer).position === 'static') imgContainer.style.position = 'relative';
 
-                                setStoredValue(cacheKey, { hasWishlist, timestamp: Date.now() });
-                                cardContainer.dataset.sslProcessed = "true";
-                                resolve();
-                            });
+                    // Scan ID
+                    const appId = getAppId(container, title);
 
-                        } catch (e) { console.error("Bundle Parse Error", e); resolve(); }
-                    },
-                    onerror: () => resolve()
+                    if (appId) {
+                        this.processGame(appId, title, container, imgContainer, isBundleDetail);
+                    } else {
+                        // Search
+                        searchSteam(title, container, 'ig_grid', isBundleDetail).then(res => {
+                            // handled by linkSteamApp/searchSteam internals
+                        });
+                    }
+                    container.dataset.sslProcessed = "pending";
                 });
-            }));
-        });
+            });
+        },
+
+        processGame: async function (appId, title, container, imgContainer, isBundleDetail) {
+            // Reuse generic data fetcher, but apply IG specific styles
+            linkSteamApp(appId, imgContainer, title, isBundleDetail, container);
+        },
+
+        applyStyles: function (container, status) {
+            container.classList.remove('ssl-border-owned', 'ssl-border-wishlisted', 'ssl-border-ignored');
+            if (status !== 'none') container.classList.add(`ssl-border-${status}`);
+
+            // Handle Bundle Detail "Ignored" Opacity special case
+            if (status === 'ignored') {
+                const img = container.querySelector('img');
+                if (img) img.style.opacity = '0.6';
+            }
+        }
+    };
+    // --- Helper Functions (Restored & Updated) ---
+
+    // v2.0.28: Updated Linker with Standardized CSS
+    async function linkSteamApp(appId, container, title, isBundleDetail) {
+        if (!appId) return;
+
+        // 1. Fetch Data
+        const userData = await userDataPromise;
+        const owned = userData.ownedApps.includes(parseInt(appId));
+        const wishlisted = userData.wishlist.some(w => (w.appid === parseInt(appId) || w === parseInt(appId)));
+        const ignored = userData.ignored && userData.ignored[appId];
+
+        const [proton, reviews] = await Promise.all([
+            fetchProtonDB(appId),
+            fetchSteamReviews(appId)
+        ]);
+
+        // 2. Target Image
+        let figure = container.querySelector('figure') ||
+            container.querySelector('.bundle-page-tier-item-image') ||
+            container.querySelector('.main-list-item-col-image') ||
+            container.querySelector('.main-list-results-item-img') ||
+            container;
+
+        if (window.getComputedStyle(figure).position === 'static') figure.style.position = 'relative';
+
+        // 3. Create Overlay IF not exists
+        if (!figure.querySelector('.ssl-steam-overlay')) {
+            const overlay = document.createElement('a');
+            overlay.className = 'ssl-steam-overlay';
+            overlay.href = `https://store.steampowered.com/app/${appId}/`;
+            overlay.target = '_blank';
+
+            let statusHtml = '<span style="color:#fff; font-weight:bold;">STEAM</span>';
+            if (owned) statusHtml = '<span style="color:#a4d007; font-weight:bold;">OWNED</span>';
+            else if (wishlisted) statusHtml = '<span style="color:#66c0f4; font-weight:bold;">WISHLIST</span>';
+            else if (ignored) statusHtml = '<span style="color:#d9534f; font-weight:bold;">IGNORED</span>';
+
+            let reviewSnippet = '';
+            if (reviews && reviews.percent) {
+                let color = '#a8926a';
+                if (parseInt(reviews.percent) >= 70) color = '#66C0F4';
+                if (parseInt(reviews.percent) < 40) color = '#c15755';
+                reviewSnippet = ` <span style="color:${color}; margin-left:5px; font-weight:bold;">${reviews.percent}%</span>`;
+            }
+
+            // Using flex style from CSS
+            overlay.innerHTML = `<img src="https://store.steampowered.com/favicon.ico"> ${statusHtml}${reviewSnippet}`;
+            figure.appendChild(overlay);
+        }
+
+        // 4. Updates Styles (Classes)
+        container.classList.remove('ssl-border-owned', 'ssl-border-wishlisted', 'ssl-border-ignored');
+
+        if (owned) container.classList.add('ssl-border-owned');
+        else if (wishlisted) container.classList.add('ssl-border-wishlisted');
+        else if (ignored) {
+            container.classList.add('ssl-border-ignored');
+            // Dim image for ignored
+            if (isBundleDetail) {
+                const img = container.querySelector('img');
+                if (img) img.style.opacity = '0.6';
+            }
+        }
+
+        // 5. Stats
+        const uniqueId = title + '_' + appId;
+        if (!stats.countedSet.has(uniqueId)) {
+            if (owned) stats.owned++;
+            else if (wishlisted) stats.wishlist++;
+            else if (ignored) stats.ignored++;
+            else stats.missing++;
+            stats.total++;
+            stats.countedSet.add(uniqueId);
+            updateStatsUI();
+        }
+        container.dataset.sslStatsCounted = "true";
     }
 
-    function markBundleAsWishlisted(cardContainer) {
-        // v2.0.14: Apply blue border to the inner card container
-        const inner = cardContainer.querySelector('.container-item-inner');
-        if (inner) {
-            inner.classList.add('ssl-bundle-wishlisted');
-        } else {
-            // Fallback to container if inner not found
-            cardContainer.classList.add('ssl-bundle-wishlisted');
+    // v2.0.28: Search Helper
+    async function searchSteam(title, container, type, isBundleDetail) {
+        try {
+            const result = await searchSteamGame(title);
+            if (result && result.id) {
+                linkSteamApp(result.id, container, title, isBundleDetail);
+            } else {
+                stats.no_data++;
+                stats.total++;
+                updateStatsUI();
+                container.dataset.sslProcessed = "no_data";
+            }
+        } catch (e) {
+            console.error(e);
+            container.dataset.sslProcessed = "error";
         }
     }
 
@@ -1529,291 +1672,10 @@
 
     observer.observe(document.body, { childList: true, subtree: true });
 
-    // v2.0.25: Dedicated Bundle Scanner (Replacement)
-    // v2.0.27: Duplicate searchSteam removed.
-    // v2.0.26: Dedicated Linker for Bundle Items (Bypasses handleSteamApp ambiguity)
-
-    // v2.0.25: Dedicated Bundle Scanner (Replacement)
-    // v2.0.26: Dedicated Linker for Bundle Items (Bypasses handleSteamApp ambiguity)
-    async function linkSteamApp(appId, container, title, isNewStatsOverride) {
-        if (!appId) return;
-
-        // 1. Fetch Data
-        const userData = await userDataPromise;
-        const owned = userData.ownedApps.includes(parseInt(appId));
-        const wishlisted = userData.wishlist.some(w => (w.appid === parseInt(appId) || w === parseInt(appId)));
-        const ignored = userData.ignored && userData.ignored[appId];
-
-        const [proton, reviews] = await Promise.all([
-            fetchProtonDB(appId),
-            fetchSteamReviews(appId)
-        ]);
-
-        const appData = { id: appId, type: 'app', name: title, owned, wishlisted, ignored, proton, reviews };
-
-        // 2. Create Overlay/Link
-        // Bundle Overlay Logic (Strategy B equivalent)
-        // Find existing image or use container
-        let figure = container.querySelector('figure') || container.querySelector('.bundle-page-tier-item-image') || container;
-        if (window.getComputedStyle(figure).position === 'static') figure.style.position = 'relative';
-
-        // Check for existing
-        if (figure.querySelector('.ssl-steam-overlay')) return;
-
-        const overlay = document.createElement('a');
-        overlay.className = 'ssl-steam-overlay';
-        overlay.href = `https://store.steampowered.com/app/${appId}/`;
-        overlay.target = '_blank';
-
-        let statusHtml = '<span style="color:#fff; font-size:11px; font-weight:bold;">STEAM</span>';
-        let overlayBg = 'rgba(0, 0, 0, 0.7)';
-        if (owned) statusHtml = '<span style="color:#a4d007; font-weight:bold; font-size:11px;">OWNED</span>';
-        else if (wishlisted) statusHtml = '<span style="color:#66c0f4; font-weight:bold; font-size:11px;">WISHLIST</span>';
-        else if (ignored) {
-            statusHtml = '<span style="color:#d9534f; font-weight:bold; font-size:11px;">IGNORED</span>';
-            overlayBg = 'rgba(0, 0, 0, 0.85)';
-        }
-
-        let reviewSnippet = '';
-        if (reviews && reviews.percent) {
-            let color = '#a8926a';
-            if (parseInt(reviews.percent) >= 70) color = '#66C0F4';
-            if (parseInt(reviews.percent) < 40) color = '#c15755';
-            reviewSnippet = ` <span style="color:${color}; margin-left:5px; font-weight:bold; font-size:11px;">${reviews.percent}%</span>`;
-        }
-
-        overlay.innerHTML = `<div style="width:100%; height:100%; display:flex; align-items:center; justify-content:center; white-space:nowrap;"><img src="https://store.steampowered.com/favicon.ico" style="width:14px;height:14px;vertical-align:middle; margin-right:4px;"> ${statusHtml}${reviewSnippet}</div>`;
-
-        // Styles - Force Bottom Strip
-        Object.assign(overlay.style, {
-            position: 'absolute', bottom: '0', left: '0', width: '100%', height: 'auto', top: 'auto',
-            padding: '2px 0', backgroundColor: overlayBg, zIndex: '60',
-            display: 'block', // Block strip
-            pointerEvents: 'auto', textDecoration: 'none'
-        });
-
-        figure.appendChild(overlay);
-
-        // 3. Update Stats
-        if (isNewStatsOverride && !container.dataset.sslStatsCounted) {
-            const uniqueId = title + '_' + appId; // Unique by Title+ID
-            if (!stats.countedSet.has(uniqueId)) {
-                if (owned) stats.owned++;
-                else if (wishlisted) stats.wishlist++;
-                else if (ignored) stats.ignored++;
-                else stats.missing++;
-
-                stats.total++;
-                stats.countedSet.add(uniqueId);
-                updateStatsUI();
-            }
-            container.dataset.sslStatsCounted = "true";
-        }
-
-        // 4. Update Container Visuals (Border)
-        if (owned) container.classList.add('ssl-container-owned');
-        else if (wishlisted) container.classList.add('ssl-container-wishlist');
-        else if (ignored) {
-            container.classList.add('ssl-container-ignored');
-            const titleEl = container.querySelector('.bundle-page-tier-item-title');
-            if (titleEl) titleEl.classList.add('ssl-title-ignored');
-        }
-    }
-
-    // v2.0.25: Search Wrapper
-    async function searchSteam(title, container, type, isNewStatsOverride) {
-        try {
-            // Race against 5s timeout
-            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5000));
-            const result = await Promise.race([searchSteamGame(title), timeoutPromise]);
-
-            if (result && result.id) {
-                linkSteamApp(result.id, container, title, isNewStatsOverride);
-            } else if (isNewStatsOverride) {
-                stats.no_data++;
-                stats.total++;
-                updateStatsUI();
-                container.dataset.sslProcessed = "no_data";
-            }
-        } catch (e) {
-            console.error('[Game Store Enhancer] Search Failed or Timed Out for ' + title, e);
-            if (isNewStatsOverride) {
-                stats.no_data++;
-                stats.total++;
-                updateStatsUI();
-                container.dataset.sslProcessed = "error";
-            }
-        }
-    }
-
-    // v2.0.25: Dedicated Bundle Scanner (Replacement)
-    function scanBundleGames() {
-        if (!window.location.href.includes('/bundle/')) return;
-
-        const items = document.querySelectorAll('.bundle-page-tier-item-inner');
-        if (items.length === 0) return;
-
-        items.forEach(container => {
-            if (window.getComputedStyle(container).position === 'static') container.style.position = 'relative';
-            if (container.dataset.sslScanned) return;
-
-            const titleEl = container.querySelector('.bundle-page-tier-item-title');
-            if (!titleEl) return;
-
-            const title = titleEl.textContent.trim();
-            const appId = getAppId(container, title);
-
-            // Mark scanned immediately to prevent double submission
-            container.dataset.sslScanned = "true";
-
-            if (appId) {
-                linkSteamApp(appId, container, title, true);
-            } else {
-                searchSteam(title, container, 'bundle_grid', true);
-            }
-        });
-    }
-
-    // v2.0.25: Force Visuals (Append to end of scanned loop)
-    function forceVisuals() {
-        // 1. Inject Force CSS if not already present
-        if (!document.getElementById('ssl-force-styles')) {
-            const style = document.createElement('style');
-            style.id = 'ssl-force-styles';
-            style.innerHTML = `
-                .ssl-steam-overlay {
-                    bottom: 0 !important;
-                    height: auto !important;
-                    top: auto !important;
-                    left: 0 !important;
-                    width: 100% !important;
-                    padding-bottom: 2px !important;
-                    display: block !important;
-                }
-                .ssl-bundle-wishlisted-border {
-                    position: absolute;
-                    top: 0; left: 0; right: 0; bottom: 0;
-                    border: 4px solid #66c0f4 !important;
-                    pointer-events: none;
-                    z-index: 50;
-                    box-shadow: inset 0 0 15px rgba(102, 192, 244, 0.6);
-                }
-            `;
-            document.head.appendChild(style);
-        }
-
-        // 2. Apply Wishlist Borders
-        document.querySelectorAll('.ssl-container-wishlist').forEach(container => {
-            if (window.getComputedStyle(container).position === 'static') {
-                container.style.position = 'relative';
-            }
-            if (!container.querySelector('.ssl-bundle-wishlisted-border')) {
-                const borderDiv = document.createElement('div');
-                borderDiv.className = 'ssl-bundle-wishlisted-border';
-                container.appendChild(borderDiv);
-            }
-        });
-
-        // 3. Force Overlays to Bottom
-        document.querySelectorAll('.ssl-steam-overlay').forEach(el => {
-            el.style.justifyContent = 'flex-end';
-        });
-    }
-
-    /* Old functions overwritten by this block */
-    //
-    function scanBundleGames() {
-        if (!window.location.href.includes('/bundle/')) return;
-
-        // Target: Grid Items (Power Shock, Hentai Pair, etc.)
-        const items = document.querySelectorAll('.bundle-page-tier-item-inner');
-        if (items.length === 0) return;
-
-        items.forEach(container => {
-            // 1. Ensure Layout Context
-            if (window.getComputedStyle(container).position === 'static') {
-                container.style.position = 'relative';
-            }
-
-            // 2. Prevent Double Scan (or re-scan if needed)
-            if (container.dataset.sslScanned) return;
-
-            // 3. Find Title containing element
-            const titleEl = container.querySelector('.bundle-page-tier-item-title');
-            if (!titleEl) return;
-
-            const title = titleEl.textContent.trim();
-            const appId = getAppId(container, title);
-
-            if (appId) {
-                // Force stats count = true
-                handleSteamApp(appId, container, title, 'bundle_grid', true);
-                container.dataset.sslScanned = "true";
-            } else {
-                searchSteam(title, container, 'bundle_grid');
-                container.dataset.sslScanned = "true";
-            }
-        });
-    }
-
-    // v2.0.25: Force Visuals (Append to end of scanned loop)
-    function forceVisuals() {
-        // 1. Inject Force CSS if not already present
-        if (!document.getElementById('ssl-force-styles')) {
-            const style = document.createElement('style');
-            style.id = 'ssl-force-styles';
-            style.innerHTML = `
-                .ssl-steam-overlay {
-                    justify-content: flex-end !important;
-                    align-items: center !important;
-                    bottom: 0 !important;
-                    padding-bottom: 5px !important;
-                    display: flex !important;
-                }
-                .ssl-bundle-wishlisted-border {
-                    position: absolute;
-                    top: 0; left: 0; right: 0; bottom: 0;
-                    border: 4px solid #66c0f4 !important;
-                    pointer-events: none;
-                    z-index: 50;
-                    box-shadow: inset 0 0 15px rgba(102, 192, 244, 0.6);
-                }
-            `;
-            document.head.appendChild(style);
-        }
-
-        // 2. Apply Wishlist Borders
-        document.querySelectorAll('.ssl-container-wishlist').forEach(container => {
-            if (window.getComputedStyle(container).position === 'static') {
-                container.style.position = 'relative';
-            }
-            if (!container.querySelector('.ssl-bundle-wishlisted-border')) {
-                const borderDiv = document.createElement('div');
-                borderDiv.className = 'ssl-bundle-wishlisted-border';
-                container.appendChild(borderDiv);
-            }
-        });
-
-        // 3. Force Overlays to Bottom
-        document.querySelectorAll('.ssl-steam-overlay').forEach(el => {
-            el.style.justifyContent = 'flex-end';
-        });
-    }
-
 
     // v2.0: Init Cache then Scan
     setTimeout(() => {
         fetchSteamAppCache();
         scanPage();
-        // Initial Bundle Scan force
-        scanBundleGames();
     }, 1000);
-
-    // Add to Observer loop logic via hook or just poll? Default observer calls scanPage.
-    // We need to bake it into scanPage or just let it run.
-    // Let's hook into the global scanPage wrapper or just re-assign it?
-    // Safer: Just Add to the MutationObserver callback
-    const originalScanPage = scanPage;
-    // We can't overwrite easily inside IIFE without access. 
-    // But we can ADD it to the observer loop:
 })();
