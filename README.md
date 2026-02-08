@@ -7,6 +7,9 @@
 > Stick to the `main` branch for the stable experience.
 
 A Tampermonkey Userscript that enhances **Humble Bundle**, **Fanatical**, **DailyIndieGame**, and **GOG.com** with Steam data.
+
+> **Update v2.0.31**: IndieGala support has been moved to a separate standalone script for better stability. Please install **[`IndieGala_Steam_Linker_Standalone_v2.user.js`](https://github.com/gbzret4d/game-store-enhancer/raw/develop/IndieGala_Steam_Linker_Standalone_v2.user.js)** alongside the main script if you use IndieGala.
+
 It displays your **Ownership Status**, **Wishlist**, **Steam User Reviews**, **Deck Compatibility**, and links directly to the Steam store.
 
 ## Features
