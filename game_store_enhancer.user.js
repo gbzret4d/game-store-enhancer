@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.0.30
+// @version      2.0.31
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, GOG, and IndieGala with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -127,7 +127,8 @@
             // GOG IDs don't match Steam, so we rely on Name Search.
             // But we can filter out non-game pages if needed.
         },
-        'indiegala.com': {
+        /*
+            indiegala: {
             name: 'IndieGala',
             selectors: [
                 // Store / Sales Grid (Updated v1.56)
@@ -189,6 +190,7 @@
                 return null;
             }
         }
+        */
 
     };
 
@@ -1372,6 +1374,16 @@
     `);
 
 
+        // v2.0.12: Scan Bundle Overview & Tier Items
+        // v2.0.28: IndieGalaHandler Init
+        // v2.0.31: IndieGala is now handled by a separate script as per user request.
+        /*
+        if (currentConfig.name === 'IndieGala') {
+            IndieGalaHandler.init();
+            return;
+        }
+        */
+
         currentConfig.selectors.forEach(strat => {
             const elements = document.querySelectorAll(strat.container);
             if (DEBUG && currentConfig.name === 'IndieGala') {
@@ -1381,16 +1393,11 @@
                 processGameElement(el, strat.title, strat.forceSimple, strat.externalTitle);
             });
         });
-
-        // v2.0.12: Scan Bundle Overview & Tier Items
-        // v2.0.28: IndieGalaHandler Init
-        if (currentConfig.name === 'IndieGala') {
-            IndieGalaHandler.init();
-        }
     }
 
 
     // v2.0.28: IndieGalaHandler - Unified Logic
+    /*
     const IndieGalaHandler = {
         config: {
             homepage: {
@@ -1443,10 +1450,10 @@
                     background: rgba(0,0,0,0.85); color: white; font-size: 11px;
                     padding: 3px 0; text-align: center; display: flex !important;
                     justify-content: center; align-items: center; z-index: 9999 !important; /* v2.0.30: Max Z-Index */
-                    pointer-events: auto; text-decoration: none !important;
-                }
-                .ssl-steam-overlay img { width: 14px; height: 14px; vertical-align: middle; margin-right: 4px; }
-            `);
+    pointer - events: auto; text - decoration: none!important;
+}
+    .ssl - steam - overlay img { width: 14px; height: 14px; vertical - align: middle; margin - right: 4px; }
+`);
             const s = document.createElement('style'); s.id = 'ssl-ig-styles'; document.head.appendChild(s);
         },
 
@@ -1469,7 +1476,7 @@
                 container.dataset.sslProcessed = "fetching";
                 const bundleUrl = link.href;
                 const bundleId = bundleUrl.split('/').pop();
-                const cacheKey = `ssl_bundle_wishlist_${bundleId}`;
+                const cacheKey = `ssl_bundle_wishlist_${ bundleId } `;
 
                 // Cache Check
                 const cached = getStoredValue(cacheKey, null);
@@ -1553,7 +1560,7 @@
 
         applyStyles: function (container, status) {
             container.classList.remove('ssl-border-owned', 'ssl-border-wishlisted', 'ssl-border-ignored');
-            if (status !== 'none') container.classList.add(`ssl-border-${status}`);
+            if (status !== 'none') container.classList.add(`ssl - border - ${ status } `);
 
             // Handle Bundle Detail "Ignored" Opacity special case
             if (status === 'ignored') {
@@ -1593,88 +1600,88 @@
             const overlay = document.createElement('a');
             overlay.className = 'ssl-steam-overlay';
             overlay.href = `https://store.steampowered.com/app/${appId}/`;
-            overlay.target = '_blank';
+overlay.target = '_blank';
 
-            let statusHtml = '<span style="color:#fff; font-weight:bold;">STEAM</span>';
-            if (owned) statusHtml = '<span style="color:#a4d007; font-weight:bold;">OWNED</span>';
-            else if (wishlisted) statusHtml = '<span style="color:#66c0f4; font-weight:bold;">WISHLIST</span>';
-            else if (ignored) statusHtml = '<span style="color:#d9534f; font-weight:bold;">IGNORED</span>';
+let statusHtml = '<span style="color:#fff; font-weight:bold;">STEAM</span>';
+if (owned) statusHtml = '<span style="color:#a4d007; font-weight:bold;">OWNED</span>';
+else if (wishlisted) statusHtml = '<span style="color:#66c0f4; font-weight:bold;">WISHLIST</span>';
+else if (ignored) statusHtml = '<span style="color:#d9534f; font-weight:bold;">IGNORED</span>';
 
-            let reviewSnippet = '';
-            if (reviews && reviews.percent) {
-                let color = '#a8926a';
-                if (parseInt(reviews.percent) >= 70) color = '#66C0F4';
-                if (parseInt(reviews.percent) < 40) color = '#c15755';
-                reviewSnippet = ` <span style="color:${color}; margin-left:5px; font-weight:bold;">${reviews.percent}%</span>`;
-            }
+let reviewSnippet = '';
+if (reviews && reviews.percent) {
+    let color = '#a8926a';
+    if (parseInt(reviews.percent) >= 70) color = '#66C0F4';
+    if (parseInt(reviews.percent) < 40) color = '#c15755';
+    reviewSnippet = ` <span style="color:${color}; margin-left:5px; font-weight:bold;">${reviews.percent}%</span>`;
+}
 
-            // Using flex style from CSS
-            overlay.innerHTML = `<img src="https://store.steampowered.com/favicon.ico"> ${statusHtml}${reviewSnippet}`;
-            figure.appendChild(overlay);
+// Using flex style from CSS
+overlay.innerHTML = `<img src="https://store.steampowered.com/favicon.ico"> ${statusHtml}${reviewSnippet}`;
+figure.appendChild(overlay);
         }
 
-        // 4. Updates Styles (Classes)
-        container.classList.remove('ssl-border-owned', 'ssl-border-wishlisted', 'ssl-border-ignored');
+// 4. Updates Styles (Classes)
+container.classList.remove('ssl-border-owned', 'ssl-border-wishlisted', 'ssl-border-ignored');
 
-        if (owned) container.classList.add('ssl-border-owned');
-        else if (wishlisted) container.classList.add('ssl-border-wishlisted');
-        else if (ignored) {
-            container.classList.add('ssl-border-ignored');
-            // Dim image for ignored
-            if (isBundleDetail) {
-                const img = container.querySelector('img');
-                if (img) img.style.opacity = '0.6';
-            }
-        }
+if (owned) container.classList.add('ssl-border-owned');
+else if (wishlisted) container.classList.add('ssl-border-wishlisted');
+else if (ignored) {
+    container.classList.add('ssl-border-ignored');
+    // Dim image for ignored
+    if (isBundleDetail) {
+        const img = container.querySelector('img');
+        if (img) img.style.opacity = '0.6';
+    }
+}
 
-        // 5. Stats
-        const uniqueId = title + '_' + appId;
-        if (!stats.countedSet.has(uniqueId)) {
-            if (owned) stats.owned++;
-            else if (wishlisted) stats.wishlist++;
-            else if (ignored) stats.ignored++;
-            else stats.missing++;
+// 5. Stats
+const uniqueId = title + '_' + appId;
+if (!stats.countedSet.has(uniqueId)) {
+    if (owned) stats.owned++;
+    else if (wishlisted) stats.wishlist++;
+    else if (ignored) stats.ignored++;
+    else stats.missing++;
+    stats.total++;
+    stats.countedSet.add(uniqueId);
+    updateStatsUI();
+}
+container.dataset.sslStatsCounted = "true";
+    }
+
+// v2.0.28: Search Helper
+async function searchSteam(title, container, type, isBundleDetail) {
+    try {
+        const result = await searchSteamGame(title);
+        if (result && result.id) {
+            linkSteamApp(result.id, container, title, isBundleDetail);
+        } else {
+            stats.no_data++;
             stats.total++;
-            stats.countedSet.add(uniqueId);
             updateStatsUI();
+            container.dataset.sslProcessed = "no_data";
         }
-        container.dataset.sslStatsCounted = "true";
+    } catch (e) {
+        console.error(e);
+        container.dataset.sslProcessed = "error";
     }
+}
 
-    // v2.0.28: Search Helper
-    async function searchSteam(title, container, type, isBundleDetail) {
-        try {
-            const result = await searchSteamGame(title);
-            if (result && result.id) {
-                linkSteamApp(result.id, container, title, isBundleDetail);
-            } else {
-                stats.no_data++;
-                stats.total++;
-                updateStatsUI();
-                container.dataset.sslProcessed = "no_data";
-            }
-        } catch (e) {
-            console.error(e);
-            container.dataset.sslProcessed = "error";
-        }
+// --- Observer ---
+const observer = new MutationObserver((mutations) => {
+    let shouldScan = false;
+    mutations.forEach(m => { if (m.addedNodes.length > 0) shouldScan = true; });
+    if (shouldScan) {
+        if (window.sslScanTimeout) clearTimeout(window.sslScanTimeout);
+        window.sslScanTimeout = setTimeout(scanPage, 500);
     }
+});
 
-    // --- Observer ---
-    const observer = new MutationObserver((mutations) => {
-        let shouldScan = false;
-        mutations.forEach(m => { if (m.addedNodes.length > 0) shouldScan = true; });
-        if (shouldScan) {
-            if (window.sslScanTimeout) clearTimeout(window.sslScanTimeout);
-            window.sslScanTimeout = setTimeout(scanPage, 500);
-        }
-    });
-
-    observer.observe(document.body, { childList: true, subtree: true });
+observer.observe(document.body, { childList: true, subtree: true });
 
 
-    // v2.0: Init Cache then Scan
-    setTimeout(() => {
-        fetchSteamAppCache();
-        scanPage();
-    }, 1000);
-})();
+// v2.0: Init Cache then Scan
+setTimeout(() => {
+    fetchSteamAppCache();
+    scanPage();
+}, 1000);
+}) ();
