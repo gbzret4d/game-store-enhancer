@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         IndieGala Steam Linker
 // @namespace    https://github.com/gbzret4d/indiegala-steam-linker
-// @version      3.0.7
+// @version      3.0.8
 // @description  The ultimate fix for IndieGala. Adds Steam links, Review Scores, and Ownership Status. Includes visible Stats/Debug Panel.
 // @author       gbzret4d
 // @match        https://www.indiegala.com/*
@@ -23,7 +23,8 @@
     const CONFIG = {
         debug: true,
         cacheTime: 24 * 60 * 60 * 1000,
-        ignoredOpacity: 0.4
+        ignoredOpacity: 0.4,
+        queueInterval: 100 // ms between requests
     };
 
     // --- CSS ---
@@ -79,6 +80,7 @@
         .ssl-status-ok { color: #a4d007; }
         .ssl-status-warn { color: #f0ad4e; }
         .ssl-status-err { color: #d9534f; }
+        .ssl-searching { color: #66c0f4; font-style: italic; }
     `);
 
     // --- State & Cache ---
@@ -96,7 +98,8 @@
     const STATE = {
         userData: CACHE.get('ssl_userdata') || { owned: [], wishlist: [], ignored: [] },
         requests: [],
-        processing: false
+        processing: false,
+        activeRequest: 'None' // Debug info
     };
 
     // --- UI Helpers ---
@@ -112,72 +115,89 @@
         const wishlistCount = STATE.userData.wishlist ? STATE.userData.wishlist.length : 0;
 
         panel.innerHTML = `
-            <h4>Steam Linker v3.0.7</h4>
+            <h4>Steam Linker v3.0.8</h4>
             <div>Owned: <span class="ssl-status-ok">${ownedCount}</span></div>
             <div>Wishlist: <span class="ssl-status-ok">${wishlistCount}</span></div>
             <div>Queue: ${STATE.requests.length}</div>
+            <div style="font-size:10px; color:#aaa; white-space:nowrap; overflow:hidden;">Active: ${STATE.activeRequest}</div>
             <button id="ssl-force-refresh">Refresh Data</button>
+            <button id="ssl-clear-cache">Clear Cache</button>
         `;
 
-        const btn = document.getElementById('ssl-force-refresh');
-        if (btn) btn.onclick = () => {
-            CACHE.set('ssl_userdata', null);
+        const btnRefresh = document.getElementById('ssl-force-refresh');
+        if (btnRefresh) btnRefresh.onclick = () => {
             fetchUserData();
+        };
+
+        const btnClear = document.getElementById('ssl-clear-cache');
+        if (btnClear) btnClear.onclick = () => {
+            const keys = GM_listValues();
+            keys.forEach(k => GM_deleteValue(k));
+            location.reload();
         };
     }
 
     // --- API Helpers ---
     const MATURE_HEADERS = {
+        // Only use this for Public Pages (Store, App) to bypass Age Gate
         "Cookie": "birthtime=0; lastagecheckage=1-0-1900; wants_mature_content=1"
     };
 
-    function queueRequest(fn) {
-        STATE.requests.push(fn);
-        updateDebugPanel(); // Update UI
+    function queueRequest(name, fn) {
+        STATE.requests.push({ name, fn });
+        updateDebugPanel();
         if (!STATE.processing) processQueue();
     }
 
     function processQueue() {
         if (STATE.requests.length === 0) {
             STATE.processing = false;
+            STATE.activeRequest = "Idle";
             updateDebugPanel();
             return;
         }
         STATE.processing = true;
 
-        const fn = STATE.requests[0];
+        const req = STATE.requests[0];
+        STATE.activeRequest = req.name;
+        updateDebugPanel();
+
         let handled = false;
 
         const next = () => {
             if (handled) return;
             handled = true;
             STATE.requests.shift();
-            updateDebugPanel();
-            setTimeout(processQueue, 250);
+            setTimeout(processQueue, CONFIG.queueInterval);
         };
 
+        // Watchdog - 5 seconds max per request
         setTimeout(() => {
             if (!handled) {
-                console.warn('[SSL] Request timed out - Forcing next');
+                console.warn(`[SSL] Request '${req.name}' timed out - Forcing next`);
                 next();
             }
         }, 5000);
 
         try {
-            fn().finally(next);
-        } catch (e) { next(); }
+            req.fn().finally(next);
+        } catch (e) {
+            console.error(e);
+            next();
+        }
     }
 
     function fetchUserData() {
         console.log('[SSL] Fetching User Data...');
+        STATE.activeRequest = "Fetching User Data...";
         updateDebugPanel();
 
-        // 1. Owned/Ignored
-        queueRequest(() => new Promise(resolve => {
+        // 1. Owned/Ignored - NO HEADERS (Use Browser Cookies)
+        queueRequest("UserData", () => new Promise(resolve => {
             GM_xmlhttpRequest({
                 method: "GET",
                 url: "https://store.steampowered.com/dynamicstore/userdata/",
-                headers: MATURE_HEADERS,
+                // DO NOT INJECT HEADERS HERE - It breaks Auth
                 onload: (res) => {
                     try {
                         const data = JSON.parse(res.responseText);
@@ -192,12 +212,12 @@
             });
         }));
 
-        // 2. Wishlist
-        queueRequest(() => new Promise(resolve => {
+        // 2. Wishlist - NO HEADERS (Use Browser Cookies)
+        queueRequest("Wishlist", () => new Promise(resolve => {
             GM_xmlhttpRequest({
                 method: "GET",
                 url: "https://steamcommunity.com/my/wishlistdata/?p=0",
-                headers: MATURE_HEADERS,
+                // DO NOT INJECT HEADERS HERE - It breaks Auth
                 onload: (res) => {
                     try {
                         const data = JSON.parse(res.responseText);
@@ -220,12 +240,12 @@
         if (cached) return Promise.resolve(cached);
 
         return new Promise(resolve => {
-            queueRequest(() => new Promise(subResolve => {
+            queueRequest(`Search: ${term.substring(0, 10)}...`, () => new Promise(subResolve => {
                 GM_xmlhttpRequest({
                     method: "GET",
                     url: `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(term)}&l=english&cc=us`,
-                    headers: MATURE_HEADERS,
-                    timeout: 5000,
+                    headers: MATURE_HEADERS, // USE Safe Headers for Public Search
+                    timeout: 4000,
                     onload: (res) => {
                         let foundId = null;
                         try {
@@ -240,6 +260,7 @@
                             subResolve();
                             resolve(foundId);
                         } else {
+                            // Chain to fallback in same promise
                             searchSteamFallback(term, subResolve, resolve, cacheKey);
                         }
                     },
@@ -251,13 +272,11 @@
     }
 
     function searchSteamFallback(term, subResolve, resolve, cacheKey) {
-        if (CONFIG.debug) console.log(`[SSL] Fallback Search for: ${term}`);
         GM_xmlhttpRequest({
             method: "GET",
-            // ignore_preferences=1 shows ignored/adult content
             url: `https://store.steampowered.com/search/?term=${encodeURIComponent(term)}&ignore_preferences=1&category1=998`,
-            headers: MATURE_HEADERS,
-            timeout: 5000,
+            headers: MATURE_HEADERS, // USE Safe Headers
+            timeout: 4000,
             onload: (res) => {
                 let id = null;
                 try {
@@ -267,7 +286,6 @@
 
                 if (id) {
                     CACHE.set(cacheKey, id);
-                    if (CONFIG.debug) console.log(`[SSL] Fallback Success: ${term} -> ${id}`);
                 } else {
                     CACHE.set(cacheKey, '404');
                 }
@@ -285,12 +303,12 @@
         if (cached) return Promise.resolve(cached);
 
         return new Promise(resolve => {
-            queueRequest(() => new Promise(subResolve => {
+            queueRequest(`Review: ${appId}`, () => new Promise(subResolve => {
                 GM_xmlhttpRequest({
                     method: "GET",
                     url: `https://store.steampowered.com/appreviews/${appId}?json=1&day_range=365&language=all`,
-                    headers: MATURE_HEADERS,
-                    timeout: 5000,
+                    headers: MATURE_HEADERS, // USE Safe Headers
+                    timeout: 4000,
                     onload: (res) => {
                         try {
                             const data = JSON.parse(res.responseText);
@@ -334,7 +352,6 @@
         candidates.forEach(figure => {
             if (figure.dataset.sslProcessed) return;
 
-            // 1. Identify Container
             const container = figure.closest('.bundle-page-tier-item-col') ||
                 figure.closest('.main-list-results-item') ||
                 figure.closest('.carousel-cell') ||
@@ -343,7 +360,6 @@
 
             if (!container) return;
 
-            // 2. Extract Title (Updated v3.0.7 with specific selectors for Store/Bundle)
             let title = null;
 
             // Priority 1: H3 (Store) or H2 or Title Classes
@@ -382,7 +398,7 @@
         const isIgnored = STATE.userData.ignored.includes(String(appId));
 
         if (isOwned) figure.classList.add('ssl-border-owned');
-        if (isWishlist) figure.classList.add('ssl-border-wishlist');
+        else if (isWishlist) figure.classList.add('ssl-border-wishlist'); // Only wishlist if NOT owned
 
         if (isIgnored) {
             const img = figure.querySelector('img');
@@ -432,7 +448,7 @@
 
             bundle.dataset.sslProcessed = "pending";
 
-            queueRequest(() => new Promise(resolve => {
+            queueRequest(`Scan Bundle: ${link.href.split('/').pop()}`, () => new Promise(resolve => {
                 GM_xmlhttpRequest({
                     method: "GET",
                     url: link.href,
@@ -447,9 +463,6 @@
 
                             for (const m of matchesApp) pageIds.add(m[1]);
                             for (const m of matchesSub) pageIds.add(m[1]);
-
-                            // Log ID count for Debug
-                            console.log(`[SSL] Bundle ${link.href}: Found ${pageIds.size} IDs`);
 
                             let hasOwned = false;
                             let hasWishlist = false;
