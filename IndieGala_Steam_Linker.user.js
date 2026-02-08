@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         IndieGala Steam Linker
 // @namespace    https://github.com/gbzret4d/indiegala-steam-linker
-// @version      3.0.1
+// @version      3.0.4
 // @description  The ultimate fix for IndieGala. Adds Steam links, Review Scores, and Ownership Status (Owned/Wishlist) to Store, Bundles, and Bundle Overview.
 // @author       gbzret4d
 // @match        https://www.indiegala.com/*
@@ -79,24 +79,50 @@
 
     const STATE = {
         userData: CACHE.get('ssl_userdata') || { owned: [], wishlist: [], ignored: [] },
-        requests: []
+        requests: [],
+        processing: false
     };
 
     // --- API Helpers ---
 
-    // Queue System to be nice to Steam
+    // Queue System w/ Watchdog (v3.0.3 logic)
     function queueRequest(fn) {
         STATE.requests.push(fn);
-        if (STATE.requests.length === 1) processQueue();
+        if (!STATE.processing) processQueue();
     }
 
     function processQueue() {
-        if (STATE.requests.length === 0) return;
+        if (STATE.requests.length === 0) {
+            STATE.processing = false;
+            return;
+        }
+        STATE.processing = true;
+
         const fn = STATE.requests[0];
-        fn().finally(() => {
+
+        // Safety: If fn() takes too long or hangs, we proceed anyway
+        let handled = false;
+        const next = () => {
+            if (handled) return;
+            handled = true;
             STATE.requests.shift();
-            setTimeout(processQueue, 200); // 200ms delay between requests
-        });
+            setTimeout(processQueue, 200);
+        };
+
+        // Watchdog: Force next after 4 seconds
+        setTimeout(() => {
+            if (!handled) {
+                console.warn('[SSL] Request timed out (Watchdog) - Forcing next');
+                next();
+            }
+        }, 4000);
+
+        try {
+            fn().finally(next);
+        } catch (e) {
+            console.error('[SSL] Queue Execution Error:', e);
+            next();
+        }
     }
 
     function fetchUserData() {
@@ -113,10 +139,11 @@
                         const data = JSON.parse(res.responseText);
                         STATE.userData.owned = data.rgOwnedPackages || [];
                         STATE.userData.ignored = Object.keys(data.rgIgnoredApps || {});
-                        // Wishlist from this endpoint is unreliable, fetch separate
-                    } catch (e) { }
+                    } catch (e) { console.error('[SSL] UserData Parse Error:', e); }
                     resolve();
-                }
+                },
+                onerror: (e) => { console.error('[SSL] UserData Request Failed:', e); resolve(); },
+                ontimeout: (e) => { console.error('[SSL] UserData Request Timeout:', e); resolve(); }
             });
         }));
 
@@ -131,9 +158,11 @@
                         STATE.userData.wishlist = Object.keys(data || {});
                         CACHE.set('ssl_userdata', STATE.userData);
                         console.log('[SSL] User Data Updated:', STATE.userData);
-                    } catch (e) { }
+                    } catch (e) { console.error('[SSL] Wishlist Parse Error:', e); }
                     resolve();
-                }
+                },
+                onerror: (e) => { console.error('[SSL] Wishlist Request Failed:', e); resolve(); },
+                ontimeout: (e) => { console.error('[SSL] Wishlist Request Timeout:', e); resolve(); }
             });
         }));
     }
@@ -148,6 +177,7 @@
                 GM_xmlhttpRequest({
                     method: "GET",
                     url: `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(term)}&l=english&cc=us`,
+                    timeout: 5000,
                     onload: (res) => {
                         try {
                             const data = JSON.parse(res.responseText);
@@ -163,7 +193,8 @@
                             }
                         } catch (e) { subResolve(); resolve(null); }
                     },
-                    onerror: () => { subResolve(); resolve(null); }
+                    onerror: () => { subResolve(); resolve(null); },
+                    ontimeout: () => { subResolve(); resolve(null); }
                 });
             }));
         });
@@ -179,6 +210,7 @@
                 GM_xmlhttpRequest({
                     method: "GET",
                     url: `https://store.steampowered.com/appreviews/${appId}?json=1&day_range=365&language=all`,
+                    timeout: 5000,
                     onload: (res) => {
                         try {
                             const data = JSON.parse(res.responseText);
@@ -191,7 +223,9 @@
                             subResolve();
                             resolve(score);
                         } catch (e) { subResolve(); resolve(null); }
-                    }
+                    },
+                    onerror: () => { subResolve(); resolve(null); },
+                    ontimeout: () => { subResolve(); resolve(null); }
                 });
             }));
         });
@@ -277,7 +311,7 @@
             if (score && !Number.isNaN(score.percent)) {
                 const badge = document.createElement('span');
                 badge.className = 'ssl-review';
-                badge.textContent = `[ ${score.percent}% ]`;
+                badge.textContent = `${score.percent}%`; // No brackets (v3.0.4)
 
                 // Color Logic
                 if (score.percent >= 70) badge.classList.add('ssl-review-positive');
@@ -313,12 +347,20 @@
                             let hasWishlist = false;
 
                             const pageIds = new Set();
-                            const matches = text.matchAll(/store\.steampowered\.com\/app\/(\d+)/g);
-                            for (const m of matches) pageIds.add(parseInt(m[1]));
+                            // Match Apps AND Subs (Packages) (v3.0.4)
+                            const matchesApp = text.matchAll(/store\.steampowered\.com\/app\/(\d+)/g);
+                            const matchesSub = text.matchAll(/store\.steampowered\.com\/sub\/(\d+)/g);
+
+                            for (const m of matchesApp) pageIds.add(m[1]);
+                            for (const m of matchesSub) pageIds.add(m[1]);
+
+                            console.log(`[SSL] Scanned Bundle ${link.href}: Found ${pageIds.size} IDs`);
 
                             for (const id of pageIds) {
-                                if (STATE.userData.wishlist.includes(String(id))) hasWishlist = true;
-                                if (STATE.userData.owned.includes(id)) hasOwned = true;
+                                const idStr = String(id);
+                                const idInt = parseInt(id);
+                                if (STATE.userData.wishlist.includes(idStr)) hasWishlist = true;
+                                if (STATE.userData.owned.includes(idInt)) hasOwned = true;
                             }
 
                             if (hasWishlist) bundle.classList.add('ssl-bundle-wishlist');
@@ -326,7 +368,9 @@
 
                         } catch (e) { }
                         resolve();
-                    }
+                    },
+                    onerror: (e) => { resolve(); },
+                    ontimeout: (e) => { resolve(); }
                 });
             }));
             bundle.dataset.sslProcessed = "done";
