@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         IndieGala Steam Linker
 // @namespace    https://github.com/gbzret4d/indiegala-steam-linker
-// @version      3.1.5
+// @version      3.1.6
 // @description  The ultimate fix for IndieGala. Adds Steam links, Review Scores, and Ownership Status. Includes visible Stats/Debug Panel.
 // @author       gbzret4d
 // @match        https://www.indiegala.com/*
@@ -23,7 +23,7 @@
     const CONFIG = {
         debug: true,
         cacheTime: 24 * 60 * 60 * 1000,
-        ignoredOpacity: 0.85, // Even less grayed out
+        ignoredOpacity: 0.85,
         queueInterval: 100
     };
 
@@ -90,7 +90,6 @@
 
         .ssl-relative { position: relative !important; display: block !important; }
         
-        /* Fix for collapsed figures and specific containers */
         .main-list-item figure, 
         .carousel-item, 
         .bundles-main-item-col { 
@@ -152,7 +151,7 @@
         const wishlistCount = STATE.userData.wishlist ? STATE.userData.wishlist.length : 0;
 
         panel.innerHTML = `
-            <h4>Steam Linker v3.1.5</h4>
+            <h4>Steam Linker v3.1.6</h4>
             <div>Owned (Apps): <span class="ssl-status-ok">${ownedCount}</span></div>
             <div>Wishlist: <span class="ssl-status-ok">${wishlistCount}</span></div>
             <div>Queue: ${STATE.requests.length}</div>
@@ -264,16 +263,39 @@
         }));
     }
 
+    // --- Title Cleaner ---
+    function cleanTitle(title) {
+        let cleaned = title;
+        const removePatterns = [
+            /Pre-Purchase/gi,
+            /Deluxe Edition/gi,
+            /with Early Purchase Bonus/gi,
+            /Steam Key/gi,
+            /\s-\s.*/, // Remove anything after a hyphen if it looks like a suffix
+            /Season Pass/gi
+        ];
+
+        removePatterns.forEach(regex => {
+            cleaned = cleaned.replace(regex, "");
+        });
+
+        // Cleanup overlapping spaces
+        return cleaned.trim().replace(/\s\s+/g, ' ');
+    }
+
     function searchSteam(term) {
-        const cacheKey = `ssl_id_${term}`;
+        // CLEAN THE TITLE FIRST
+        const cleanedTerm = cleanTitle(term);
+        const cacheKey = `ssl_id_${cleanedTerm}`;
+
         const cached = CACHE.get(cacheKey);
         if (cached) return Promise.resolve(cached);
 
         return new Promise(resolve => {
-            queueRequest(`Search: ${term.substring(0, 10)}...`, () => new Promise(subResolve => {
+            queueRequest(`Search: ${cleanedTerm.substring(0, 10)}...`, () => new Promise(subResolve => {
                 GM_xmlhttpRequest({
                     method: "GET",
-                    url: `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(term)}&l=english&cc=us`,
+                    url: `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(cleanedTerm)}&l=english&cc=us`,
                     headers: MATURE_HEADERS,
                     timeout: 4000,
                     onload: (res) => {
@@ -290,11 +312,12 @@
                             subResolve();
                             resolve(foundId);
                         } else {
-                            searchSteamFallback(term, subResolve, resolve, cacheKey);
+                            // If API fails, try HTML search with the CLEAN term
+                            searchSteamFallback(cleanedTerm, subResolve, resolve, cacheKey);
                         }
                     },
-                    onerror: () => { searchSteamFallback(term, subResolve, resolve, cacheKey); },
-                    ontimeout: () => { searchSteamFallback(term, subResolve, resolve, cacheKey); }
+                    onerror: () => { searchSteamFallback(cleanedTerm, subResolve, resolve, cacheKey); },
+                    ontimeout: () => { searchSteamFallback(cleanedTerm, subResolve, resolve, cacheKey); }
                 });
             }));
         });
@@ -380,7 +403,6 @@
         `);
 
         candidates.forEach(element => {
-            // Check for existing processing OR existing border box
             if (element.dataset.sslProcessed || element.querySelector('.ssl-border-box')) return;
 
             const container = element.closest('.bundle-page-tier-item-col') ||
@@ -389,17 +411,14 @@
                 element.closest('.slick-slide') ||
                 element.parentElement;
 
-            // For carousel items, the element itself is the container
             const effectiveContainer = element.classList.contains('carousel-item') ? element : container;
 
             if (!effectiveContainer) return;
 
-            // Ensure Element is Relative for Absolute Children
             element.classList.add('ssl-relative');
 
             let title = null;
 
-            // Expanded Title Selectors for Carousel
             const titleEl = effectiveContainer.querySelector('h3, h2, .bundle-page-tier-item-title, .main-list-results-item-title, .title, .item-title-text, .bundle-slider-game-title');
             if (titleEl) title = titleEl.textContent.trim();
 
@@ -417,6 +436,7 @@
 
             element.dataset.sslProcessed = "pending";
 
+            // Search Steam using the CLEANED title (logic inside searchSteam)
             searchSteam(title).then(id => {
                 if (id && id !== '404') {
                     injectGame(element, id);
@@ -445,7 +465,6 @@
             borderBox.classList.add('ignored');
         }
 
-        // Append Box
         if (isOwned || isWishlist || isIgnored) {
             element.appendChild(borderBox);
         }
@@ -507,24 +526,31 @@
 
                             let hasOwned = false;
                             let hasWishlist = false;
+                            let hasIgnored = false;
 
                             for (const id of pageIds) {
                                 const idStr = String(id);
                                 const idInt = parseInt(id);
                                 if (STATE.userData.wishlist.includes(idStr)) hasWishlist = true;
                                 if (STATE.userData.owned.includes(idInt)) hasOwned = true;
+                                if (STATE.userData.ignored.includes(idStr)) hasIgnored = true;
                             }
 
-                            // Add PHYSICAL border box for Bundles too
-                            if (hasOwned || hasWishlist) {
+                            // Add PHYSICAL border box for Bundles with correct priority
+                            if (hasOwned || hasWishlist || hasIgnored) {
                                 const bundleBox = document.createElement('div');
                                 bundleBox.className = 'ssl-border-box';
+
+                                // Priority: Owned > Wishlist > Ignored
+                                // (Or should Ignored be prioritized? Usually Wishlist > Ignored for bundles)
                                 if (hasOwned) bundleBox.classList.add('owned');
-                                if (hasWishlist) bundleBox.classList.add('wishlist');
+                                else if (hasWishlist) bundleBox.classList.add('wishlist');
+                                else if (hasIgnored) bundleBox.classList.add('ignored');
+
                                 bundle.appendChild(bundleBox);
                             }
 
-                        } catch (e) { }
+                        } catch (e) { console.error(e); }
                         resolve();
                     },
                     onerror: resolve,
