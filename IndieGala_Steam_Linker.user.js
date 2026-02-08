@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         IndieGala Steam Linker
 // @namespace    https://github.com/gbzret4d/indiegala-steam-linker
-// @version      3.0.4
+// @version      3.0.5
 // @description  The ultimate fix for IndieGala. Adds Steam links, Review Scores, and Ownership Status (Owned/Wishlist) to Store, Bundles, and Bundle Overview.
 // @author       gbzret4d
 // @match        https://www.indiegala.com/*
@@ -85,7 +85,7 @@
 
     // --- API Helpers ---
 
-    // Queue System w/ Watchdog (v3.0.3 logic)
+    // Queue System w/ Watchdog
     function queueRequest(fn) {
         STATE.requests.push(fn);
         if (!STATE.processing) processQueue();
@@ -215,8 +215,18 @@
                         try {
                             const data = JSON.parse(res.responseText);
                             const summary = data.query_summary;
+
+                            let percent = 0;
+                            // STRICT NULL CHECK 3.0.5
+                            if (summary.total_reviews > 0) {
+                                percent = Math.floor((summary.total_positive / summary.total_reviews) * 100);
+                            } else {
+                                percent = -1; // Flag for no reviews
+                            }
+
                             const score = {
-                                percent: Math.floor((summary.total_positive / summary.total_reviews) * 100),
+                                percent: percent,
+                                total: summary.total_reviews,
                                 desc: summary.review_score_desc
                             };
                             CACHE.set(cacheKey, score);
@@ -234,28 +244,33 @@
     // --- Scanners ---
 
     function scanGrid() {
-        // Robust Scanner for Store & Bundle Details (Hentai/Power Shock)
-        // TARGET: Any figure element in a results container
-        const candidates = document.querySelectorAll('.bundle-page-tier-item-col figure, .main-list-results-item figure');
+        // Robust Scanner 3.0.5
+        // Added: .flickity-slider figure, .slick-slide figure, .carousel-item figure
+        const candidates = document.querySelectorAll(`
+            .bundle-page-tier-item-col figure, 
+            .main-list-results-item figure,
+            .flickity-slider figure,
+            .slick-slide figure,
+            .carousel-item figure
+        `);
 
         candidates.forEach(figure => {
             if (figure.dataset.sslProcessed) return;
 
             // 1. Identify Container
-            const container = figure.closest('.bundle-page-tier-item-col') || figure.closest('.main-list-results-item');
+            const container = figure.closest('.bundle-page-tier-item-col') ||
+                figure.closest('.main-list-results-item') ||
+                figure.closest('.carousel-cell') ||
+                figure.closest('.slick-slide') ||
+                figure.parentElement;
+
             if (!container) return;
 
             // 2. Extract Title
             let title = null;
-            // Bundle Title
-            const bundleTitle = container.querySelector('.bundle-page-tier-item-title');
-            if (bundleTitle) title = bundleTitle.textContent.trim();
-
-            // Store Title
-            if (!title) {
-                const storeTitle = container.querySelector('.main-list-results-item-title');
-                if (storeTitle) title = storeTitle.textContent.trim();
-            }
+            // Try known title classes
+            const titleEl = container.querySelector('.bundle-page-tier-item-title, .main-list-results-item-title, .title, .item-title-text');
+            if (titleEl) title = titleEl.textContent.trim();
 
             // Fallback: Image Alt
             if (!title) {
@@ -308,15 +323,21 @@
 
         // 5. Review Score
         getReviewScore(appId).then(score => {
-            if (score && !Number.isNaN(score.percent)) {
+            // STRICT CHECK 3.0.5
+            if (score && typeof score.percent === 'number') {
                 const badge = document.createElement('span');
                 badge.className = 'ssl-review';
-                badge.textContent = `${score.percent}%`; // No brackets (v3.0.4)
 
-                // Color Logic
-                if (score.percent >= 70) badge.classList.add('ssl-review-positive');
-                else if (score.percent >= 40) badge.classList.add('ssl-review-mixed');
-                else badge.classList.add('ssl-review-negative');
+                if (score.percent === -1 || score.total === 0) {
+                    badge.textContent = "-";
+                    badge.style.opacity = "0.7";
+                } else {
+                    badge.textContent = `${score.percent}%`;
+                    // Color Logic
+                    if (score.percent >= 70) badge.classList.add('ssl-review-positive');
+                    else if (score.percent >= 40) badge.classList.add('ssl-review-mixed');
+                    else badge.classList.add('ssl-review-negative');
+                }
 
                 overlay.appendChild(badge);
             }
@@ -343,11 +364,13 @@
                     onload: (res) => {
                         try {
                             const text = res.responseText;
-                            let hasOwned = false;
-                            let hasWishlist = false;
+
+                            // Check for Age Gate detected in title?
+                            if (text.includes('<title>Age Check</title>')) {
+                                console.warn(`[SSL] Age Gate Hit for ${link.href}`);
+                            }
 
                             const pageIds = new Set();
-                            // Match Apps AND Subs (Packages) (v3.0.4)
                             const matchesApp = text.matchAll(/store\.steampowered\.com\/app\/(\d+)/g);
                             const matchesSub = text.matchAll(/store\.steampowered\.com\/sub\/(\d+)/g);
 
@@ -355,6 +378,9 @@
                             for (const m of matchesSub) pageIds.add(m[1]);
 
                             console.log(`[SSL] Scanned Bundle ${link.href}: Found ${pageIds.size} IDs`);
+
+                            let hasOwned = false;
+                            let hasWishlist = false;
 
                             for (const id of pageIds) {
                                 const idStr = String(id);
