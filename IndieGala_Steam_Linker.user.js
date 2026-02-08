@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         IndieGala Steam Linker
 // @namespace    https://github.com/gbzret4d/indiegala-steam-linker
-// @version      3.0.5
-// @description  The ultimate fix for IndieGala. Adds Steam links, Review Scores, and Ownership Status (Owned/Wishlist) to Store, Bundles, and Bundle Overview.
+// @version      3.0.6
+// @description  The ultimate fix for IndieGala. Adds Steam links, Review Scores, and Ownership Status (Owned/Wishlist) to Store, Bundles, and Bundle Overview. Fixed Age Gate issues.
 // @author       gbzret4d
 // @match        https://www.indiegala.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=indiegala.com
@@ -23,7 +23,7 @@
     const CONFIG = {
         debug: true,
         cacheTime: 24 * 60 * 60 * 1000, // 24 Hours
-        ignoredOpacity: 0.4 // Opacity for ignored games (image only)
+        ignoredOpacity: 0.4
     };
 
     // --- CSS ---
@@ -49,13 +49,15 @@
         .ssl-review-positive { color: #66C0F4; background: rgba(102, 192, 244, 0.2); }
         .ssl-review-mixed { color: #a89468; background: rgba(168, 148, 104, 0.2); }
         .ssl-review-negative { color: #c00; background: rgba(204, 0, 0, 0.2); }
+        .ssl-review-none { color: #888; background: rgba(128, 128, 128, 0.2); }
 
-        /* Status Borders (Inset to prevent layout shift) */
+        /* Status Borders */
         .ssl-border-owned { box-shadow: inset 0 0 0 3px #a4d007 !important; }
         .ssl-border-wishlist { box-shadow: inset 0 0 0 3px #66c0f4 !important; }
         
-        /* Ignored Status: Only dim the image, not the overlay */
+        /* Ignored Status */
         .ssl-ignored-img { opacity: 0.4 !important; filter: grayscale(100%) !important; }
+        .ssl-border-ignored { box-shadow: inset 0 0 0 3px #555 !important; }
 
         /* Bundle Overview Borders */
         .ssl-bundle-owned { border: 2px solid #a4d007 !important; }
@@ -85,7 +87,12 @@
 
     // --- API Helpers ---
 
-    // Queue System w/ Watchdog
+    // AGE GATE BYPASS HEADERS
+    // We inject these cookies to force Steam to treat us as an adult
+    const MATURE_HEADERS = {
+        "Cookie": "birthtime=0; lastagecheckage=1-0-1900; wants_mature_content=1"
+    };
+
     function queueRequest(fn) {
         STATE.requests.push(fn);
         if (!STATE.processing) processQueue();
@@ -99,34 +106,29 @@
         STATE.processing = true;
 
         const fn = STATE.requests[0];
-
-        // Safety: If fn() takes too long or hangs, we proceed anyway
         let handled = false;
+
         const next = () => {
             if (handled) return;
             handled = true;
             STATE.requests.shift();
-            setTimeout(processQueue, 200);
+            setTimeout(processQueue, 250); // Slightly slower to be safe
         };
 
-        // Watchdog: Force next after 4 seconds
         setTimeout(() => {
             if (!handled) {
-                console.warn('[SSL] Request timed out (Watchdog) - Forcing next');
+                console.warn('[SSL] Request timed out - Forcing next');
                 next();
             }
-        }, 4000);
+        }, 5000);
 
         try {
             fn().finally(next);
-        } catch (e) {
-            console.error('[SSL] Queue Execution Error:', e);
-            next();
-        }
+        } catch (e) { next(); }
     }
 
     function fetchUserData() {
-        if (CACHE.get('ssl_userdata')) return; // Already cached
+        if (CACHE.get('ssl_userdata')) return;
         console.log('[SSL] Fetching User Data...');
 
         // 1. Owned/Ignored
@@ -134,16 +136,17 @@
             GM_xmlhttpRequest({
                 method: "GET",
                 url: "https://store.steampowered.com/dynamicstore/userdata/",
+                headers: MATURE_HEADERS, // Inject Age Cookie
                 onload: (res) => {
                     try {
                         const data = JSON.parse(res.responseText);
                         STATE.userData.owned = data.rgOwnedPackages || [];
                         STATE.userData.ignored = Object.keys(data.rgIgnoredApps || {});
-                    } catch (e) { console.error('[SSL] UserData Parse Error:', e); }
+                    } catch (e) { }
                     resolve();
                 },
-                onerror: (e) => { console.error('[SSL] UserData Request Failed:', e); resolve(); },
-                ontimeout: (e) => { console.error('[SSL] UserData Request Timeout:', e); resolve(); }
+                onerror: resolve,
+                ontimeout: resolve
             });
         }));
 
@@ -152,17 +155,18 @@
             GM_xmlhttpRequest({
                 method: "GET",
                 url: "https://steamcommunity.com/my/wishlistdata/?p=0",
+                headers: MATURE_HEADERS,
                 onload: (res) => {
                     try {
                         const data = JSON.parse(res.responseText);
                         STATE.userData.wishlist = Object.keys(data || {});
                         CACHE.set('ssl_userdata', STATE.userData);
                         console.log('[SSL] User Data Updated:', STATE.userData);
-                    } catch (e) { console.error('[SSL] Wishlist Parse Error:', e); }
+                    } catch (e) { }
                     resolve();
                 },
-                onerror: (e) => { console.error('[SSL] Wishlist Request Failed:', e); resolve(); },
-                ontimeout: (e) => { console.error('[SSL] Wishlist Request Timeout:', e); resolve(); }
+                onerror: resolve,
+                ontimeout: resolve
             });
         }));
     }
@@ -174,29 +178,65 @@
 
         return new Promise(resolve => {
             queueRequest(() => new Promise(subResolve => {
+                // STRATEGY 1: Official Store Search API
                 GM_xmlhttpRequest({
                     method: "GET",
                     url: `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(term)}&l=english&cc=us`,
+                    headers: MATURE_HEADERS, // Try to force mature results
                     timeout: 5000,
                     onload: (res) => {
+                        let foundId = null;
                         try {
                             const data = JSON.parse(res.responseText);
                             if (data.items && data.items.length > 0) {
-                                const id = data.items[0].id;
-                                CACHE.set(cacheKey, id);
-                                subResolve();
-                                resolve(id);
-                            } else {
-                                CACHE.set(cacheKey, '404'); // Cache not found
-                                subResolve();
-                                resolve(null);
+                                foundId = data.items[0].id;
                             }
-                        } catch (e) { subResolve(); resolve(null); }
+                        } catch (e) { }
+
+                        if (foundId) {
+                            CACHE.set(cacheKey, foundId);
+                            subResolve();
+                            resolve(foundId);
+                        } else {
+                            // STRATEGY 2: Fallback to HTML Search (For Adult Games hidden from API)
+                            // We search specifically with infinite scrolling disabled and preferences ignored
+                            searchSteamFallback(term, subResolve, resolve, cacheKey);
+                        }
                     },
-                    onerror: () => { subResolve(); resolve(null); },
-                    ontimeout: () => { subResolve(); resolve(null); }
+                    onerror: () => { searchSteamFallback(term, subResolve, resolve, cacheKey); },
+                    ontimeout: () => { searchSteamFallback(term, subResolve, resolve, cacheKey); }
                 });
             }));
+        });
+    }
+
+    function searchSteamFallback(term, subResolve, resolve, cacheKey) {
+        if (CONFIG.debug) console.log(`[SSL] Fallback Search for: ${term}`);
+        GM_xmlhttpRequest({
+            method: "GET",
+            // ignore_preferences=1 shows ignored/adult content
+            url: `https://store.steampowered.com/search/?term=${encodeURIComponent(term)}&ignore_preferences=1&category1=998`,
+            headers: MATURE_HEADERS,
+            timeout: 5000,
+            onload: (res) => {
+                let id = null;
+                try {
+                    // Match the first search result link
+                    const match = res.responseText.match(/href="https:\/\/store\.steampowered\.com\/app\/(\d+)/);
+                    if (match) id = match[1];
+                } catch (e) { }
+
+                if (id) {
+                    CACHE.set(cacheKey, id);
+                    if (CONFIG.debug) console.log(`[SSL] Fallback Success: ${term} -> ${id}`);
+                } else {
+                    CACHE.set(cacheKey, '404');
+                }
+                subResolve();
+                resolve(id);
+            },
+            onerror: () => { subResolve(); resolve(null); },
+            ontimeout: () => { subResolve(); resolve(null); }
         });
     }
 
@@ -210,6 +250,7 @@
                 GM_xmlhttpRequest({
                     method: "GET",
                     url: `https://store.steampowered.com/appreviews/${appId}?json=1&day_range=365&language=all`,
+                    headers: MATURE_HEADERS,
                     timeout: 5000,
                     onload: (res) => {
                         try {
@@ -217,11 +258,10 @@
                             const summary = data.query_summary;
 
                             let percent = 0;
-                            // STRICT NULL CHECK 3.0.5
                             if (summary.total_reviews > 0) {
                                 percent = Math.floor((summary.total_positive / summary.total_reviews) * 100);
                             } else {
-                                percent = -1; // Flag for no reviews
+                                percent = -1; // No reviews
                             }
 
                             const score = {
@@ -244,8 +284,6 @@
     // --- Scanners ---
 
     function scanGrid() {
-        // Robust Scanner 3.0.5
-        // Added: .flickity-slider figure, .slick-slide figure, .carousel-item figure
         const candidates = document.querySelectorAll(`
             .bundle-page-tier-item-col figure, 
             .main-list-results-item figure,
@@ -268,21 +306,18 @@
 
             // 2. Extract Title
             let title = null;
-            // Try known title classes
             const titleEl = container.querySelector('.bundle-page-tier-item-title, .main-list-results-item-title, .title, .item-title-text');
             if (titleEl) title = titleEl.textContent.trim();
 
-            // Fallback: Image Alt
             if (!title) {
                 const img = figure.querySelector('img');
                 if (img && img.alt && img.alt.length > 2) title = img.alt;
             }
 
-            if (!title) return; // Skip if no title found
+            if (!title) return;
 
             figure.dataset.sslProcessed = "pending";
 
-            // 3. Process
             searchSteam(title).then(id => {
                 if (id && id !== '404') {
                     injectGame(figure, id);
@@ -294,23 +329,19 @@
     }
 
     function injectGame(figure, appId) {
-        // 1. Status Check
         const isOwned = STATE.userData.owned.includes(parseInt(appId));
         const isWishlist = STATE.userData.wishlist.includes(String(appId));
         const isIgnored = STATE.userData.ignored.includes(String(appId));
 
-        // 2. Visuals - Borders
         if (isOwned) figure.classList.add('ssl-border-owned');
         if (isWishlist) figure.classList.add('ssl-border-wishlist');
 
-        // 3. Visuals - Ignored (Grey out Image ONLY)
         if (isIgnored) {
             const img = figure.querySelector('img');
             if (img) img.classList.add('ssl-ignored-img');
             figure.classList.add('ssl-border-ignored');
         }
 
-        // 4. Overlay
         if (window.getComputedStyle(figure).position === 'static') figure.classList.add('ssl-relative');
 
         const overlay = document.createElement('a');
@@ -321,24 +352,20 @@
 
         figure.appendChild(overlay);
 
-        // 5. Review Score
         getReviewScore(appId).then(score => {
-            // STRICT CHECK 3.0.5
             if (score && typeof score.percent === 'number') {
                 const badge = document.createElement('span');
                 badge.className = 'ssl-review';
 
                 if (score.percent === -1 || score.total === 0) {
                     badge.textContent = "-";
-                    badge.style.opacity = "0.7";
+                    badge.classList.add('ssl-review-none');
                 } else {
                     badge.textContent = `${score.percent}%`;
-                    // Color Logic
                     if (score.percent >= 70) badge.classList.add('ssl-review-positive');
                     else if (score.percent >= 40) badge.classList.add('ssl-review-mixed');
                     else badge.classList.add('ssl-review-negative');
                 }
-
                 overlay.appendChild(badge);
             }
         });
@@ -356,28 +383,29 @@
             if (!link) return;
 
             bundle.dataset.sslProcessed = "pending";
-            // Background Fetch Bundle Page to check contents
+
             queueRequest(() => new Promise(resolve => {
                 GM_xmlhttpRequest({
                     method: "GET",
                     url: link.href,
+                    headers: MATURE_HEADERS, // Force Age Cookie even on IndieGala (might fallback to Steam)
                     onload: (res) => {
                         try {
                             const text = res.responseText;
+                            const pageIds = new Set();
 
-                            // Check for Age Gate detected in title?
-                            if (text.includes('<title>Age Check</title>')) {
-                                console.warn(`[SSL] Age Gate Hit for ${link.href}`);
+                            // Log unexpected responses
+                            if (text.includes('indiegala.com/login')) {
+                                if (CONFIG.debug) console.warn('[SSL] Bundle Scan redirected to login - Check Setup');
                             }
 
-                            const pageIds = new Set();
                             const matchesApp = text.matchAll(/store\.steampowered\.com\/app\/(\d+)/g);
                             const matchesSub = text.matchAll(/store\.steampowered\.com\/sub\/(\d+)/g);
 
                             for (const m of matchesApp) pageIds.add(m[1]);
                             for (const m of matchesSub) pageIds.add(m[1]);
 
-                            console.log(`[SSL] Scanned Bundle ${link.href}: Found ${pageIds.size} IDs`);
+                            if (CONFIG.debug && pageIds.size > 0) console.log(`[SSL] Bundle ${link.href}: Found ${pageIds.size} IDs`);
 
                             let hasOwned = false;
                             let hasWishlist = false;
@@ -395,8 +423,8 @@
                         } catch (e) { }
                         resolve();
                     },
-                    onerror: (e) => { resolve(); },
-                    ontimeout: (e) => { resolve(); }
+                    onerror: resolve,
+                    ontimeout: resolve
                 });
             }));
             bundle.dataset.sslProcessed = "done";
@@ -404,7 +432,7 @@
     }
 
     // --- Init ---
-    setTimeout(fetchUserData, 1000); // Fetch data on load
+    setTimeout(fetchUserData, 1000);
 
     // Main Loop
     setInterval(() => {
