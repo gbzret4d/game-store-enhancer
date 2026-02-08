@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         IndieGala Steam Linker
 // @namespace    https://github.com/gbzret4d/indiegala-steam-linker
-// @version      3.1.2
+// @version      3.1.3
 // @description  The ultimate fix for IndieGala. Adds Steam links, Review Scores, and Ownership Status. Includes visible Stats/Debug Panel.
 // @author       gbzret4d
 // @match        https://www.indiegala.com/*
@@ -29,8 +29,8 @@
 
     // --- CSS ---
     GM_addStyle(`
-        /* Overlay Strip */
-        .ssl-overlay {
+        /* Overlay Strip (Bottom Bar) */
+        .ssl-overlay-bar {
             position: absolute !important; bottom: 0 !important; left: 0 !important; width: 100% !important;
             height: 24px !important;
             background: rgba(0,0,0,0.9) !important; color: white !important;
@@ -43,9 +43,9 @@
             border-radius: 0 !important;
             max-width: 100% !important;
         }
-        .ssl-overlay:hover { opacity: 1 !important; background: #000 !important; }
+        .ssl-overlay-bar:hover { opacity: 1 !important; background: #000 !important; }
         
-        .ssl-overlay img { 
+        .ssl-overlay-bar img { 
             width: 14px !important; 
             height: 14px !important; 
             min-width: 14px !important;
@@ -66,39 +66,31 @@
         .ssl-review-negative { color: #c00; background: rgba(204, 0, 0, 0.2); }
         .ssl-review-none { display: none !important; } 
 
-        /* Status Borders - FIXED using Pseudo-Elements to sit ON TOP of images */
-        .ssl-relative { position: relative !important; }
-
-        .ssl-border-owned::after,
-        .ssl-border-wishlist::after,
-        .ssl-border-ignored::after {
-            content: "";
+        /* PHYSICAL BORDER OVERLAY (Not Pseudo-Element) */
+        .ssl-border-box {
             position: absolute !important;
-            top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important;
+            top: 0 !important; left: 0 !important; width: 100% !important; height: 100% !important;
             z-index: 800 !important;
             pointer-events: none !important;
             background: transparent !important;
-        }
-
-        .ssl-border-owned::after {
-            box-shadow: inset 0 0 0 4px #a4d007 !important;
-        }
-        .ssl-border-wishlist::after {
-            box-shadow: inset 0 0 0 4px #66c0f4 !important;
-        }
-        .ssl-border-ignored::after {
-            box-shadow: inset 0 0 0 4px #555 !important;
+            box-sizing: border-box !important;
         }
         
+        .ssl-border-box.owned { box-shadow: inset 0 0 0 4px #a4d007 !important; }
+        .ssl-border-box.wishlist { box-shadow: inset 0 0 0 4px #66c0f4 !important; }
+        .ssl-border-box.ignored { box-shadow: inset 0 0 0 4px #555 !important; }
+
         .ssl-ignored-img { 
             opacity: ${CONFIG.ignoredOpacity} !important; 
             filter: grayscale(100%) !important; 
         }
 
-        /* Bundle Overview Specifics */
         .ssl-bundle-owned { border: 2px solid #a4d007 !important; }
         .ssl-bundle-wishlist { border: 2px solid #66c0f4 !important; }
 
+        .ssl-relative { position: relative !important; display: block !important; }
+        /* Fix for collapsed figures */
+        .main-list-item figure { height: 100%; min-height: 50px; } 
 
         /* DEBUG PANEL */
         #ssl-debug-panel {
@@ -155,7 +147,7 @@
         const wishlistCount = STATE.userData.wishlist ? STATE.userData.wishlist.length : 0;
 
         panel.innerHTML = `
-            <h4>Steam Linker v3.1.2</h4>
+            <h4>Steam Linker v3.1.3</h4>
             <div>Owned (Apps): <span class="ssl-status-ok">${ownedCount}</span></div>
             <div>Wishlist: <span class="ssl-status-ok">${wishlistCount}</span></div>
             <div>Queue: ${STATE.requests.length}</div>
@@ -382,7 +374,8 @@
         `);
 
         candidates.forEach(figure => {
-            if (figure.dataset.sslProcessed) return;
+            // Check for existing processing OR existing border box
+            if (figure.dataset.sslProcessed || figure.querySelector('.ssl-border-box')) return;
 
             const container = figure.closest('.bundle-page-tier-item-col') ||
                 figure.closest('.main-list-results-item') ||
@@ -392,8 +385,8 @@
 
             if (!container) return;
 
-            // Ensure Relative Positioning for Overlay
-            if (window.getComputedStyle(figure).position === 'static') figure.classList.add('ssl-relative');
+            // Ensure Figure is Relative for Absolute Children
+            figure.classList.add('ssl-relative');
 
             let title = null;
 
@@ -429,18 +422,28 @@
         const isWishlist = STATE.userData.wishlist.includes(String(appId));
         const isIgnored = STATE.userData.ignored.includes(String(appId));
 
-        if (isOwned) figure.classList.add('ssl-border-owned');
-        else if (isWishlist) figure.classList.add('ssl-border-wishlist');
+        // Create Physical Border Box
+        const borderBox = document.createElement('div');
+        borderBox.className = 'ssl-border-box';
+
+        if (isOwned) borderBox.classList.add('owned');
+        else if (isWishlist) borderBox.classList.add('wishlist');
 
         if (isIgnored) {
             const img = figure.querySelector('img');
             if (img) img.classList.add('ssl-ignored-img');
-            figure.classList.add('ssl-border-ignored');
+            borderBox.classList.add('ignored');
         }
 
+        // Append Box
+        if (isOwned || isWishlist || isIgnored) {
+            figure.appendChild(borderBox);
+        }
+
+        // Create Overlay Bar
         const overlay = document.createElement('a');
         overlay.href = `https://store.steampowered.com/app/${appId}`;
-        overlay.className = 'ssl-overlay';
+        overlay.className = 'ssl-overlay-bar';
         overlay.target = '_blank';
         overlay.innerHTML = `<img src="https://store.steampowered.com/favicon.ico"> STEAM`;
 
@@ -468,11 +471,12 @@
 
     // --- Bundle Overview Scanner ---
     function scanBundlesOverview() {
-        const bundles = document.querySelectorAll('.container-item');
+        // Expand selector to include more container types
+        const bundles = document.querySelectorAll('.container-item, .item-main-container, .main-list-item');
         bundles.forEach(bundle => {
             if (bundle.dataset.sslProcessed) return;
 
-            const link = bundle.querySelector('a.fit-click');
+            const link = bundle.querySelector('a[href*="/bundle/"]');
             if (!link) return;
 
             bundle.dataset.sslProcessed = "pending";
@@ -488,10 +492,8 @@
                             const pageIds = new Set();
 
                             const matchesApp = text.matchAll(/store\.steampowered\.com\/app\/(\d+)/g);
-                            const matchesSub = text.matchAll(/store\.steampowered\.com\/sub\/(\d+)/g);
 
                             for (const m of matchesApp) pageIds.add(m[1]);
-                            for (const m of matchesSub) pageIds.add(m[1]);
 
                             let hasOwned = false;
                             let hasWishlist = false;
@@ -503,8 +505,8 @@
                                 if (STATE.userData.owned.includes(idInt)) hasOwned = true;
                             }
 
-                            if (hasWishlist) bundle.classList.add('ssl-bundle-wishlist');
-                            if (hasOwned) bundle.classList.add('ssl-bundle-owned');
+                            if (hasWishlist) bundle.querySelector('a').classList.add('ssl-bundle-wishlist');
+                            if (hasOwned) bundle.querySelector('a').classList.add('ssl-bundle-owned');
 
                         } catch (e) { }
                         resolve();
@@ -524,7 +526,7 @@
     // Main Loop
     setInterval(() => {
         scanGrid();
-        if (location.href.includes('/bundles')) scanBundlesOverview();
+        if (location.href.includes('/')) scanBundlesOverview(); // Run on homepage too
     }, 2000);
 
 })();
