@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.0.20
+// @version      2.0.21
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, GOG, and IndieGala with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -157,8 +157,13 @@
                 { container: '.main-submenu-big-right-item-col', title: 'a[href^="/store/game/"]' },
                 // v1.59: Homepage "Top Sellers" List
                 { container: '.item-inner', title: '.item-title-span' },
-                // Library Items
+                // Library
                 { container: 'li.profile-private-page-library-subitem', title: '.profile-private-page-library-subitem-text' },
+                { container: '.profile-private-page-library-product-item', title: '.profile-private-page-library-product-item-title' }, // New Guess
+                { container: 'div[class*="library-bundle-item"]', title: 'h3, h4, .title' }, // Generic
+
+                // Bundle Page (Carousel)
+                { container: '.bundle-slider-game-info', title: '.bundle-slider-game-info-title' },
                 // Giveaways
                 { container: '.items-list-item', title: '.items-list-item-title a' },
                 { container: '.trading-card-header', title: '.trading-card-header-game' },
@@ -1365,7 +1370,7 @@
         .ssl-container-ignored img.img-fit {
             border: 4px solid #d9534f !important;
             border-radius: 6px;
-            opacity: 0.6; /* Dim the ignored game image */
+            /* opacity: 0.6; - Removed per user request (too dark) */
         }
         .ssl-title-ignored {
              color: #d9534f !important;
@@ -1440,6 +1445,7 @@
                     url: bundleUrl,
                     onload: (res) => {
                         try {
+                            if (DEBUG) console.log(`[Game Store Enhancer] Fetched Bundle: ${bundleUrl}`);
                             // v2.0.12: Improved extraction (RegEx on raw text is more robust than DOMParser for scraping)
                             const html = res.responseText;
                             const allIds = new Set();
@@ -1460,6 +1466,8 @@
                             // Pattern 4: Generic AppID matches in data attributes (v2.0.18)
                             const dataMatches = html.matchAll(/data-app-id="(\d+)"/g);
                             for (const m of dataMatches) allIds.add(m[1]);
+
+                            if (DEBUG) console.log(`[Game Store Enhancer] Bundle IDs found:`, Array.from(allIds));
 
                             // Check Wishlist
                             fetchSteamUserData().then(userData => {
