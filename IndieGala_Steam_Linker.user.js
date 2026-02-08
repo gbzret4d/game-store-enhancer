@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         IndieGala Steam Linker
 // @namespace    https://github.com/gbzret4d/indiegala-steam-linker
-// @version      3.2.2
-// @description  The ultimate fix for IndieGala. Adds Steam links, Review Scores, and Ownership Status. (v3.2.2: FIX LAYOUT BREAKAGE)
+// @version      3.2.3
+// @description  The ultimate fix for IndieGala. Adds Steam links, Review Scores, and Ownership Status. (v3.2.3: Round Borders & Visual Polish)
 // @author       gbzret4d
 // @match        https://www.indiegala.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=indiegala.com
@@ -40,7 +40,9 @@
             border-top: 1px solid rgba(255,255,255,0.2) !important;
             transition: opacity 0.2s !important;
             line-height: normal !important;
-            border-radius: 0 !important;
+            /* Match IndieGala's rounded look if useful, but bar is usually straight at bottom */
+            border-bottom-left-radius: inherit !important;
+            border-bottom-right-radius: inherit !important;
             max-width: 100% !important;
         }
         .ssl-overlay-bar:hover { opacity: 1 !important; background: #000 !important; }
@@ -70,20 +72,22 @@
         .ssl-border-box {
             position: absolute !important;
             top: 0 !important; left: 0 !important; width: 100% !important; height: 100% !important;
-            z-index: 850 !important; /* Higher than images, lower than overlay bar */
+            z-index: 850 !important;
             pointer-events: none !important;
             background: transparent !important;
             box-sizing: border-box !important;
+            /* V3.2.3: Match IndieGala's 25px rounded corners */
+            border-radius: 25px !important; 
         }
         
         /* OWNED = GREEN */
-        .ssl-border-box.owned { box-shadow: inset 0 0 0 6px #a4d007 !important; }
+        .ssl-border-box.owned { box-shadow: inset 0 0 0 4px #a4d007 !important; }
         
-        /* WISHLIST = BLUE - Thicker (6px) */
-        .ssl-border-box.wishlist { box-shadow: inset 0 0 0 6px #66c0f4 !important; }
+        /* WISHLIST = BLUE - V3.2.3: Reduced to 4px */
+        .ssl-border-box.wishlist { box-shadow: inset 0 0 0 4px #66c0f4 !important; }
         
         /* IGNORED = RED */
-        .ssl-border-box.ignored { box-shadow: inset 0 0 0 6px #ff0000 !important; }
+        .ssl-border-box.ignored { box-shadow: inset 0 0 0 4px #ff0000 !important; }
 
         .ssl-ignored-img { 
             opacity: ${CONFIG.ignoredOpacity} !important; 
@@ -98,7 +102,7 @@
         .ssl-bundle-owned { border: 2px solid #a4d007 !important; }
         .ssl-bundle-wishlist { border: 2px solid #66c0f4 !important; }
 
-        /* V3.2.2: REMOVED display: block to prevent breaking Grid/Flex layouts! */
+        /* V3.2.2+ Fix: No display block */
         .ssl-relative { position: relative !important; }
         
         /* Layout Fixes */
@@ -108,7 +112,6 @@
             min-height: 50px; 
         } 
         
-         /* Carousel Text Fix */
         .carousel-item .bundle-slider-game-info {
             display: none !important; 
         }
@@ -121,6 +124,9 @@
         .store-product-main-image {
              position: relative !important;
         }
+        
+        /* Some containers have different radius, try to inherit or valid fallback */
+        .main-list-results-item figure { border-radius: 25px !important; }
 
         /* DEBUG PANEL */
         #ssl-debug-panel {
@@ -178,7 +184,7 @@
         const ignoredCount = STATE.userData.ignored ? STATE.userData.ignored.length : 0;
 
         panel.innerHTML = `
-            <h4>Steam Linker v3.2.2</h4>
+            <h4>Steam Linker v3.2.3</h4>
             <div>Owned: <span class="ssl-status-ok">${ownedCount}</span></div>
             <div>Wishlist: <span class="ssl-status-ok">${wishlistCount}</span></div>
             <div>Ignored: <span class="ssl-status-warn">${ignoredCount}</span></div>
