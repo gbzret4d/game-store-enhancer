@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.0.29
+// @version      2.0.30
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, GOG, and IndieGala with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -1414,9 +1414,7 @@
             bundleDetail: {
                 urlRegex: /\/bundle\/(?!s\/)/,
                 selectors: [
-                    // v2.0.29: Generic "figure" is safer than specific image classes which vary
-                    { container: '.bundle-page-tier-item-col', title: '.bundle-page-tier-item-title', img: 'figure' },
-                    { container: '.bundle-page-tier-item-inner', title: '.title', img: 'figure' },
+                    // v2.0.30: Simplified to target inner card for correct border placement
                     { container: '.bundle-page-tier-item-inner', title: '.bundle-page-tier-item-title', img: 'figure' }
                 ]
             }
@@ -1444,7 +1442,7 @@
                     position: absolute; bottom: 0; left: 0; width: 100%;
                     background: rgba(0,0,0,0.85); color: white; font-size: 11px;
                     padding: 3px 0; text-align: center; display: flex !important;
-                    justify-content: center; align-items: center; z-index: 100; /* v2.0.29: Boost Z-Index */
+                    justify-content: center; align-items: center; z-index: 9999 !important; /* v2.0.30: Max Z-Index */
                     pointer-events: auto; text-decoration: none !important;
                 }
                 .ssl-steam-overlay img { width: 14px; height: 14px; vertical-align: middle; margin-right: 4px; }
