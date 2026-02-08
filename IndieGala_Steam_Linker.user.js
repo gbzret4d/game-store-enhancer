@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         IndieGala Steam Linker
 // @namespace    https://github.com/gbzret4d/indiegala-steam-linker
-// @version      3.1.9
-// @description  The ultimate fix for IndieGala. Adds Steam links, Review Scores, and Ownership Status. (v3.1.9: REALLY Fix DLC Matching)
+// @version      3.2.0
+// @description  The ultimate fix for IndieGala. Adds Steam links, Review Scores, and Ownership Status. (v3.2.0: RED Borders + Fix Matches)
 // @author       gbzret4d
 // @match        https://www.indiegala.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=indiegala.com
@@ -23,7 +23,7 @@
     const CONFIG = {
         debug: true,
         cacheTime: 24 * 60 * 60 * 1000,
-        ignoredOpacity: 0.8, // Slightly more opaque
+        ignoredOpacity: 0.6, // Visible but dimmed
         queueInterval: 100
     };
 
@@ -76,13 +76,18 @@
             box-sizing: border-box !important;
         }
         
+        /* OWNED = GREEN */
         .ssl-border-box.owned { box-shadow: inset 0 0 0 4px #a4d007 !important; }
+        
+        /* WISHLIST = BLUE */
         .ssl-border-box.wishlist { box-shadow: inset 0 0 0 4px #66c0f4 !important; }
-        .ssl-border-box.ignored { box-shadow: inset 0 0 0 4px #555 !important; }
+        
+        /* IGNORED = RED */
+        .ssl-border-box.ignored { box-shadow: inset 0 0 0 4px #ff0000 !important; }
 
         .ssl-ignored-img { 
             opacity: ${CONFIG.ignoredOpacity} !important; 
-            filter: grayscale(90%) !important; 
+            filter: grayscale(100%) !important; 
             transition: all 0.3s ease !important;
         }
         .ssl-ignored-img:hover {
@@ -161,15 +166,17 @@
 
         const ownedCount = STATE.userData.owned ? STATE.userData.owned.length : 0;
         const wishlistCount = STATE.userData.wishlist ? STATE.userData.wishlist.length : 0;
+        const ignoredCount = STATE.userData.ignored ? STATE.userData.ignored.length : 0;
 
         panel.innerHTML = `
-            <h4>Steam Linker v3.1.7</h4>
-            <div>Owned (Apps): <span class="ssl-status-ok">${ownedCount}</span></div>
+            <h4>Steam Linker v3.2.0</h4>
+            <div>Owned: <span class="ssl-status-ok">${ownedCount}</span></div>
             <div>Wishlist: <span class="ssl-status-ok">${wishlistCount}</span></div>
+            <div>Ignored: <span class="ssl-status-warn">${ignoredCount}</span></div>
             <div>Queue: ${STATE.requests.length}</div>
             <div style="font-size:10px; color:#aaa; white-space:nowrap; overflow:hidden;">Active: ${STATE.activeRequest}</div>
             <button id="ssl-force-refresh">Refresh Data</button>
-            <button id="ssl-clear-cache">Clear Cache</button>
+            <button id="ssl-clear-cache">Reset All</button>
         `;
 
         const btnRefresh = document.getElementById('ssl-force-refresh');
@@ -278,18 +285,21 @@
     // --- Title Cleaner ---
     function cleanTitle(title) {
         let cleaned = title;
+        // FIXED: Removed the aggressive hyhen/suffix stripper specific for Hentai/DLCs
         const removePatterns = [
             /Pre-Purchase/gi,
             /Deluxe Edition/gi,
             /with Early Purchase Bonus/gi,
             /Steam Key/gi,
-            /\s-\s.*/,
-            /Season Pass/gi
+            /Season Pass/gi,
+            /Complete Edition/gi,
+            /GOTY/gi
         ];
 
         removePatterns.forEach(regex => {
             cleaned = cleaned.replace(regex, "");
         });
+
         return cleaned.trim().replace(/\s\s+/g, ' ');
     }
 
@@ -300,7 +310,7 @@
         if (cached) return Promise.resolve(cached);
 
         return new Promise(resolve => {
-            queueRequest(`Search: ${cleanedTerm.substring(0, 10)}...`, () => new Promise(subResolve => {
+            queueRequest(`Search: ${cleanedTerm.substring(0, 15)}...`, () => new Promise(subResolve => {
                 GM_xmlhttpRequest({
                     method: "GET",
                     url: `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(cleanedTerm)}&l=english&cc=us`,
@@ -310,7 +320,7 @@
                         let foundId = null;
                         try {
                             const data = JSON.parse(res.responseText);
-                            if (data.items && data.items.length > 0) currentId = data.items[0].id;
+                            if (data.items && data.items.length > 0) foundId = data.items[0].id;
                         } catch (e) { }
 
                         if (foundId) {
@@ -480,13 +490,15 @@
         const borderBox = document.createElement('div');
         borderBox.className = 'ssl-border-box';
 
-        if (isOwned) borderBox.classList.add('owned');
-        else if (isWishlist) borderBox.classList.add('wishlist');
-
-        if (isIgnored) {
+        // Strict Priority: Owned > Wishlist > Ignored
+        if (isOwned) {
+            borderBox.classList.add('owned');
+        } else if (isWishlist) {
+            borderBox.classList.add('wishlist');
+        } else if (isIgnored) {
+            borderBox.classList.add('ignored');
             const img = element.querySelector('img');
             if (img) img.classList.add('ssl-ignored-img');
-            borderBox.classList.add('ignored');
         }
 
         if (isOwned || isWishlist || isIgnored) {
@@ -524,7 +536,6 @@
 
     // --- Bundle Overview Scanner ---
     function scanBundlesOverview() {
-        // Target specifically the bundle cards in the overview
         const bundles = document.querySelectorAll('.bundles-main-item-col, .container-item, .item-main-container, .main-list-item');
 
         bundles.forEach(bundle => {
@@ -562,14 +573,14 @@
                                 if (STATE.userData.ignored.includes(idStr)) hasIgnored = true;
                             }
 
-                            // Add PHYSICAL border box with Priority: Owned > Wishlist > Ignored
+                            // Strict Priority: Owned > Wishlist > Ignored
                             if (hasOwned || hasWishlist || hasIgnored) {
                                 const bundleBox = document.createElement('div');
                                 bundleBox.className = 'ssl-border-box';
 
                                 if (hasOwned) bundleBox.classList.add('owned');
-                                else if (hasWishlist) bundleBox.classList.add('wishlist'); // Blue wins if no Owned
-                                else if (hasIgnored) bundleBox.classList.add('ignored');   // Gray only if nothing else
+                                else if (hasWishlist) bundleBox.classList.add('wishlist');
+                                else if (hasIgnored) bundleBox.classList.add('ignored');
 
                                 bundle.appendChild(bundleBox);
                             }
