@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         IndieGala Steam Linker
 // @namespace    https://github.com/gbzret4d/indiegala-steam-linker
-// @version      3.2.3
-// @description  The ultimate fix for IndieGala. Adds Steam links, Review Scores, and Ownership Status. (v3.2.3: Round Borders & Visual Polish)
+// @version      3.2.4
+// @description  The ultimate fix for IndieGala. Adds Steam links, Review Scores, and Ownership Status. (v3.2.4: Fix Overlay Position)
 // @author       gbzret4d
 // @match        https://www.indiegala.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=indiegala.com
@@ -125,8 +125,12 @@
              position: relative !important;
         }
         
-        /* Some containers have different radius, try to inherit or valid fallback */
-        .main-list-results-item figure { border-radius: 25px !important; }
+        /* V3.2.4: Ensure Image Containers are Relative for Bar Positioning */
+        .main-list-item figure,
+        .bundle-page-tier-item-col figure,
+        .carousel-item-img-col {
+            position: relative !important;
+        }
 
         /* DEBUG PANEL */
         #ssl-debug-panel {
@@ -184,7 +188,7 @@
         const ignoredCount = STATE.userData.ignored ? STATE.userData.ignored.length : 0;
 
         panel.innerHTML = `
-            <h4>Steam Linker v3.2.3</h4>
+            <h4>Steam Linker v3.2.4</h4>
             <div>Owned: <span class="ssl-status-ok">${ownedCount}</span></div>
             <div>Wishlist: <span class="ssl-status-ok">${wishlistCount}</span></div>
             <div>Ignored: <span class="ssl-status-warn">${ignoredCount}</span></div>
@@ -433,19 +437,16 @@
         `);
 
         candidates.forEach(element => {
-            // Check if already processed OR the container already has a border box
+            // Check if already processed
             if (element.dataset.sslProcessed) return;
 
-            // Find container
+            // Find container (Card)
             const container = element.closest('.bundle-page-tier-item-col') ||
                 element.closest('.main-list-results-item') ||
                 element.closest('.carousel-cell') ||
                 element.closest('.slick-slide') ||
                 element.parentElement;
 
-            // For carousel items, sometimes the figure is inside, sometimes it IS the item.
-            // On IndieGala bundle pages, .carousel-item usually holds a .bundle-slider-game-data-item
-            // V3.2.1: Robust container check
             const effectiveContainer = element.classList.contains('carousel-item') ? element : (container || element.parentElement);
 
             if (!effectiveContainer) return;
@@ -453,7 +454,9 @@
             // Prevent double box
             if (effectiveContainer.querySelector('.ssl-border-box')) return;
 
-            effectiveContainer.classList.add('ssl-relative');
+            // Ensure BOTH have relative positioning
+            effectiveContainer.classList.add('ssl-relative'); // For Border
+            element.classList.add('ssl-relative'); // For Overlay Bar (Image Container)
 
             let title = null;
 
@@ -476,8 +479,8 @@
 
             searchSteam(title).then(id => {
                 if (id && id !== '404') {
-                    // Inject into the Container, not the figure, to ensure border surrounds whole card
-                    injectGame(effectiveContainer, id);
+                    // Split Injection: Border -> Container, Bar -> Image
+                    injectGame(effectiveContainer, element, id);
                 } else {
                     element.dataset.sslProcessed = "done_no_id";
                 }
@@ -486,6 +489,7 @@
     }
 
     // NEW: Scan Single Product Page
+    // On product page, imgContainer IS the image container AND often the whole visual block
     function scanProductPage() {
         if (!location.href.includes('/store/game/')) return;
 
@@ -500,17 +504,19 @@
 
         searchSteam(title).then(id => {
             if (id && id !== '404') {
-                injectGame(imgContainer, id);
+                // Here, container and image container are likely the same or very close
+                injectGame(imgContainer, imgContainer, id);
             }
         });
     }
 
-    function injectGame(element, appId) {
+    // UPDATED: Now accepts cardContainer AND imgContainer
+    function injectGame(cardContainer, imgContainer, appId) {
         const isOwned = STATE.userData.owned.includes(parseInt(appId));
         const isWishlist = STATE.userData.wishlist.includes(String(appId));
         const isIgnored = STATE.userData.ignored.includes(String(appId));
 
-        // Create Physical Border Box
+        // 1. Physical Border Box -> Goes to WHOLE CARD (cardContainer)
         const borderBox = document.createElement('div');
         borderBox.className = 'ssl-border-box';
 
@@ -524,23 +530,23 @@
             hasStatus = true;
         } else if (isIgnored) {
             borderBox.classList.add('ignored');
-            const img = element.querySelector('img');
+            const img = cardContainer.querySelector('img'); // Gray out image
             if (img) img.classList.add('ssl-ignored-img');
             hasStatus = true;
         }
 
         if (hasStatus) {
-            element.appendChild(borderBox);
+            cardContainer.appendChild(borderBox);
         }
 
-        // Create Overlay Bar (Always create it for the link)
+        // 2. Overlay Bar -> Goes to IMAGE (imgContainer)
         const overlay = document.createElement('a');
         overlay.href = `https://store.steampowered.com/app/${appId}`;
         overlay.className = 'ssl-overlay-bar';
         overlay.target = '_blank';
         overlay.innerHTML = `<img src="https://store.steampowered.com/favicon.ico"> STEAM`;
 
-        element.appendChild(overlay);
+        imgContainer.appendChild(overlay);
 
         getReviewScore(appId).then(score => {
             if (score && typeof score.percent === 'number') {
@@ -559,7 +565,9 @@
             }
         });
 
-        element.dataset.sslProcessed = "done";
+        // Mark both as processed
+        cardContainer.dataset.sslProcessed = "done";
+        imgContainer.dataset.sslProcessed = "done";
     }
 
     // --- Bundle Overview Scanner ---
