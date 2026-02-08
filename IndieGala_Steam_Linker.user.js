@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         IndieGala Steam Linker
 // @namespace    https://github.com/gbzret4d/indiegala-steam-linker
-// @version      3.0.8
+// @version      3.0.9
 // @description  The ultimate fix for IndieGala. Adds Steam links, Review Scores, and Ownership Status. Includes visible Stats/Debug Panel.
 // @author       gbzret4d
 // @match        https://www.indiegala.com/*
@@ -24,7 +24,7 @@
         debug: true,
         cacheTime: 24 * 60 * 60 * 1000,
         ignoredOpacity: 0.4,
-        queueInterval: 100 // ms between requests
+        queueInterval: 100
     };
 
     // --- CSS ---
@@ -49,11 +49,12 @@
         .ssl-review-negative { color: #c00; background: rgba(204, 0, 0, 0.2); }
         .ssl-review-none { color: #888; background: rgba(128, 128, 128, 0.2); }
 
-        .ssl-border-owned { box-shadow: inset 0 0 0 3px #a4d007 !important; }
-        .ssl-border-wishlist { box-shadow: inset 0 0 0 3px #66c0f4 !important; }
+        /* Status Borders - Now targets IMG with Outline for better visibility */
+        .ssl-border-owned img { outline: 3px solid #a4d007 !important; outline-offset: -3px; }
+        .ssl-border-wishlist img { outline: 3px solid #66c0f4 !important; outline-offset: -3px; }
         
         .ssl-ignored-img { opacity: 0.4 !important; filter: grayscale(100%) !important; }
-        .ssl-border-ignored { box-shadow: inset 0 0 0 3px #555 !important; }
+        .ssl-border-ignored img { outline: 3px solid #555 !important; outline-offset: -3px; }
 
         .ssl-bundle-owned { border: 2px solid #a4d007 !important; }
         .ssl-bundle-wishlist { border: 2px solid #66c0f4 !important; }
@@ -80,7 +81,6 @@
         .ssl-status-ok { color: #a4d007; }
         .ssl-status-warn { color: #f0ad4e; }
         .ssl-status-err { color: #d9534f; }
-        .ssl-searching { color: #66c0f4; font-style: italic; }
     `);
 
     // --- State & Cache ---
@@ -99,7 +99,7 @@
         userData: CACHE.get('ssl_userdata') || { owned: [], wishlist: [], ignored: [] },
         requests: [],
         processing: false,
-        activeRequest: 'None' // Debug info
+        activeRequest: 'None'
     };
 
     // --- UI Helpers ---
@@ -115,8 +115,8 @@
         const wishlistCount = STATE.userData.wishlist ? STATE.userData.wishlist.length : 0;
 
         panel.innerHTML = `
-            <h4>Steam Linker v3.0.8</h4>
-            <div>Owned: <span class="ssl-status-ok">${ownedCount}</span></div>
+            <h4>Steam Linker v3.0.9</h4>
+            <div>Owned (Apps): <span class="ssl-status-ok">${ownedCount}</span></div>
             <div>Wishlist: <span class="ssl-status-ok">${wishlistCount}</span></div>
             <div>Queue: ${STATE.requests.length}</div>
             <div style="font-size:10px; color:#aaa; white-space:nowrap; overflow:hidden;">Active: ${STATE.activeRequest}</div>
@@ -139,7 +139,6 @@
 
     // --- API Helpers ---
     const MATURE_HEADERS = {
-        // Only use this for Public Pages (Store, App) to bypass Age Gate
         "Cookie": "birthtime=0; lastagecheckage=1-0-1900; wants_mature_content=1"
     };
 
@@ -171,7 +170,6 @@
             setTimeout(processQueue, CONFIG.queueInterval);
         };
 
-        // Watchdog - 5 seconds max per request
         setTimeout(() => {
             if (!handled) {
                 console.warn(`[SSL] Request '${req.name}' timed out - Forcing next`);
@@ -192,16 +190,16 @@
         STATE.activeRequest = "Fetching User Data...";
         updateDebugPanel();
 
-        // 1. Owned/Ignored - NO HEADERS (Use Browser Cookies)
+        // 1. Owned/Ignored - FIX: Usage of rgOwnedApps instead of rgOwnedPackages
         queueRequest("UserData", () => new Promise(resolve => {
             GM_xmlhttpRequest({
                 method: "GET",
                 url: "https://store.steampowered.com/dynamicstore/userdata/",
-                // DO NOT INJECT HEADERS HERE - It breaks Auth
                 onload: (res) => {
                     try {
                         const data = JSON.parse(res.responseText);
-                        STATE.userData.owned = data.rgOwnedPackages || [];
+                        // v3.0.9 FIX: rgOwnedApps is the correct list for AppIDs
+                        STATE.userData.owned = data.rgOwnedApps || [];
                         STATE.userData.ignored = Object.keys(data.rgIgnoredApps || {});
                         updateDebugPanel();
                     } catch (e) { }
@@ -212,19 +210,17 @@
             });
         }));
 
-        // 2. Wishlist - NO HEADERS (Use Browser Cookies)
+        // 2. Wishlist
         queueRequest("Wishlist", () => new Promise(resolve => {
             GM_xmlhttpRequest({
                 method: "GET",
                 url: "https://steamcommunity.com/my/wishlistdata/?p=0",
-                // DO NOT INJECT HEADERS HERE - It breaks Auth
                 onload: (res) => {
                     try {
                         const data = JSON.parse(res.responseText);
                         STATE.userData.wishlist = Object.keys(data || {});
                         CACHE.set('ssl_userdata', STATE.userData);
                         updateDebugPanel();
-                        console.log('[SSL] User Data Updated:', STATE.userData);
                     } catch (e) { }
                     resolve();
                 },
@@ -244,7 +240,7 @@
                 GM_xmlhttpRequest({
                     method: "GET",
                     url: `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(term)}&l=english&cc=us`,
-                    headers: MATURE_HEADERS, // USE Safe Headers for Public Search
+                    headers: MATURE_HEADERS,
                     timeout: 4000,
                     onload: (res) => {
                         let foundId = null;
@@ -260,7 +256,6 @@
                             subResolve();
                             resolve(foundId);
                         } else {
-                            // Chain to fallback in same promise
                             searchSteamFallback(term, subResolve, resolve, cacheKey);
                         }
                     },
@@ -275,7 +270,7 @@
         GM_xmlhttpRequest({
             method: "GET",
             url: `https://store.steampowered.com/search/?term=${encodeURIComponent(term)}&ignore_preferences=1&category1=998`,
-            headers: MATURE_HEADERS, // USE Safe Headers
+            headers: MATURE_HEADERS,
             timeout: 4000,
             onload: (res) => {
                 let id = null;
@@ -307,7 +302,7 @@
                 GM_xmlhttpRequest({
                     method: "GET",
                     url: `https://store.steampowered.com/appreviews/${appId}?json=1&day_range=365&language=all`,
-                    headers: MATURE_HEADERS, // USE Safe Headers
+                    headers: MATURE_HEADERS,
                     timeout: 4000,
                     onload: (res) => {
                         try {
@@ -318,7 +313,7 @@
                             if (summary.total_reviews > 0) {
                                 percent = Math.floor((summary.total_positive / summary.total_reviews) * 100);
                             } else {
-                                percent = -1; // No reviews
+                                percent = -1;
                             }
 
                             const score = {
@@ -362,17 +357,14 @@
 
             let title = null;
 
-            // Priority 1: H3 (Store) or H2 or Title Classes
             const titleEl = container.querySelector('h3, h2, .bundle-page-tier-item-title, .main-list-results-item-title, .title, .item-title-text');
             if (titleEl) title = titleEl.textContent.trim();
 
-            // Priority 2: Figcaption (Bundle)
             if (!title) {
                 const fig = container.querySelector('figcaption');
                 if (fig) title = fig.textContent.trim();
             }
 
-            // Priority 3: Image Alt
             if (!title) {
                 const img = figure.querySelector('img');
                 if (img && img.alt && img.alt.length > 2) title = img.alt;
@@ -398,7 +390,7 @@
         const isIgnored = STATE.userData.ignored.includes(String(appId));
 
         if (isOwned) figure.classList.add('ssl-border-owned');
-        else if (isWishlist) figure.classList.add('ssl-border-wishlist'); // Only wishlist if NOT owned
+        else if (isWishlist) figure.classList.add('ssl-border-wishlist');
 
         if (isIgnored) {
             const img = figure.querySelector('img');
@@ -489,7 +481,7 @@
     }
 
     // --- Init ---
-    updateDebugPanel(); // Show initial Empty Panel
+    updateDebugPanel();
     setTimeout(fetchUserData, 1000);
 
     // Main Loop
