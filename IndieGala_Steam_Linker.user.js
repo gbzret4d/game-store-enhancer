@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         IndieGala Steam Linker
 // @namespace    https://github.com/gbzret4d/indiegala-steam-linker
-// @version      3.1.8
-// @description  The ultimate fix for IndieGala. Adds Steam links, Review Scores, and Ownership Status. (v3.1.8: Fix DLC Matching)
+// @version      3.1.9
+// @description  The ultimate fix for IndieGala. Adds Steam links, Review Scores, and Ownership Status. (v3.1.9: REALLY Fix DLC Matching)
 // @author       gbzret4d
 // @match        https://www.indiegala.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=indiegala.com
