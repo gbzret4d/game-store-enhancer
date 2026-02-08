@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         IndieGala Steam Linker
 // @namespace    https://github.com/gbzret4d/indiegala-steam-linker
-// @version      3.2.1
-// @description  The ultimate fix for IndieGala. Adds Steam links, Review Scores, and Ownership Status. (v3.2.1: Carousel Fix + Thicker Borders)
+// @version      3.2.2
+// @description  The ultimate fix for IndieGala. Adds Steam links, Review Scores, and Ownership Status. (v3.2.2: FIX LAYOUT BREAKAGE)
 // @author       gbzret4d
 // @match        https://www.indiegala.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=indiegala.com
@@ -23,7 +23,7 @@
     const CONFIG = {
         debug: true,
         cacheTime: 24 * 60 * 60 * 1000,
-        ignoredOpacity: 0.85, // V3.2.1: Less transparent (easier to see)
+        ignoredOpacity: 0.85,
         queueInterval: 100
     };
 
@@ -79,7 +79,7 @@
         /* OWNED = GREEN */
         .ssl-border-box.owned { box-shadow: inset 0 0 0 6px #a4d007 !important; }
         
-        /* WISHLIST = BLUE - V3.2.1: Thicker (6px) */
+        /* WISHLIST = BLUE - Thicker (6px) */
         .ssl-border-box.wishlist { box-shadow: inset 0 0 0 6px #66c0f4 !important; }
         
         /* IGNORED = RED */
@@ -98,7 +98,8 @@
         .ssl-bundle-owned { border: 2px solid #a4d007 !important; }
         .ssl-bundle-wishlist { border: 2px solid #66c0f4 !important; }
 
-        .ssl-relative { position: relative !important; display: block !important; }
+        /* V3.2.2: REMOVED display: block to prevent breaking Grid/Flex layouts! */
+        .ssl-relative { position: relative !important; }
         
         /* Layout Fixes */
         .main-list-item figure, 
@@ -107,13 +108,12 @@
             min-height: 50px; 
         } 
         
-        /* V3.2.1: Fix Carousel Text Overlap */
-        /* Only show info when the item is active or hovered, logic handled by IndieGala usually but we enforce it */
+         /* Carousel Text Fix */
         .carousel-item .bundle-slider-game-info {
-            display: none !important; /* Hide by default to prevent stack */
+            display: none !important; 
         }
         .carousel-item.active .bundle-slider-game-info {
-            display: block !important; /* Show only active */
+            display: block !important; 
         }
         
         /* Specific Fix for Product Page Image Container */
@@ -178,7 +178,7 @@
         const ignoredCount = STATE.userData.ignored ? STATE.userData.ignored.length : 0;
 
         panel.innerHTML = `
-            <h4>Steam Linker v3.2.1</h4>
+            <h4>Steam Linker v3.2.2</h4>
             <div>Owned: <span class="ssl-status-ok">${ownedCount}</span></div>
             <div>Wishlist: <span class="ssl-status-ok">${wishlistCount}</span></div>
             <div>Ignored: <span class="ssl-status-warn">${ignoredCount}</span></div>
