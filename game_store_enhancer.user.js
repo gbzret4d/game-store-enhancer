@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.1.10
+// @version      2.1.12
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -215,7 +215,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.5'; // v1.46: Bump for crash fix & fresh logs
+    const CACHE_VERSION = '2.6'; // v2.1.11: Bump to clear 'null' results for Prey
 
     // Styles
     const css = `
@@ -712,11 +712,13 @@
             searchTerms.push(cleanedName);
         }
 
-        // v2.1.5: Aggressive Fallback for "Digital Deluxe" etc.
-        // If "Prey Digital Deluxe Edition" fails, try "Prey"
+        // v2.1.11: Aggressive Fallback for "Digital Deluxe" etc.
+        // If "Prey Digital Deluxe Edition" fail, we MUST try "Prey"
         if (cleanedName.includes(' ')) {
             const baseName = cleanedName.split(/\s(digital|deluxe|edition|remaster|definitive|goty|game of the year|complete|collection|anthology)/i)[0].trim();
+            // Ensure baseName is valid and not just empty
             if (baseName && baseName.length > 2 && baseName !== cleanedName) {
+                console.log(`[Game Store Enhancer] Adding Base Name Fallback: "${baseName}"`);
                 searchTerms.push(baseName);
             }
         }
@@ -910,42 +912,6 @@
         });
     }
 
-    async function searchSteamGame(gameName) {
-        const cacheKey = 'steam_search_' + gameName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-        const cached = getStoredValue(cacheKey, null);
-        if (cached && (Date.now() - cached.timestamp < CACHE_TTL * 30)) { // Cache searches for 30 days
-            return cached.data;
-        }
-
-        return steamQueue.add(() => new Promise((resolve) => {
-            GM_xmlhttpRequest({
-                method: 'GET',
-                url: `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(gameName)}&l=english&cc=US`,
-                onload: (res) => {
-                    try {
-                        const data = JSON.parse(res.responseText);
-                        if (data.total > 0 && data.items && data.items.length > 0) {
-                            const item = data.items[0]; // Take top result
-                            const result = {
-                                id: item.id,
-                                type: item.type === 'app' ? 'app' : 'sub', // bundle?
-                                name: item.name,
-                                tiny_image: item.tiny_image,
-                                price: item.price ? item.price.final / 100 : null,
-                                discount: item.price ? item.price.discount_percent : 0
-                            };
-                            setStoredValue(cacheKey, { data: result, timestamp: Date.now() });
-                            resolve(result);
-                        } else {
-                            setStoredValue(cacheKey, { data: null, timestamp: Date.now() }); // Cache "not found"
-                            resolve(null);
-                        }
-                    } catch (e) { resolve(null); }
-                },
-                onerror: () => resolve(null)
-            });
-        }));
-    }
 
     function scanForSteamAssets(element) {
         // v1.3: Asset Scanner
