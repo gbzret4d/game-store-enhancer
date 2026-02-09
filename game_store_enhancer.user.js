@@ -896,7 +896,7 @@
         return null;
     }
 
-    // --- Processing ---// @version      1.6
+    // --- Processing ---
 
     let userDataPromise = fetchSteamUserData();
 
@@ -1001,10 +1001,14 @@
 
             const link = el.querySelector('a[href]');
             if (link && link.href) {
-                // Remove query parameters to normalize URLs
-                return link.href.split('?')[0];
+                // v2.1.0: Ignore generic/empty links (Fixes IndieGala Bundle Deduplication)
+                const href = link.getAttribute('href');
+                if (href && href !== '#' && !href.startsWith('javascript:') && href.trim() !== '') {
+                    // Remove query parameters to normalize URLs
+                    return link.href.split('?')[0];
+                }
             }
-            return name; // Fallback to name if no link found
+            return name; // Fallback to name if no valid link found
         };
         const uniqueId = getUniqueId(element, gameName);
 
@@ -1019,20 +1023,18 @@
             if (currentConfig.getAppId) {
                 const directId = currentConfig.getAppId(element);
                 if (directId) {
-                    result = {
-                        id: directId,
-                        type: 'app',
-                        name: gameName,
-                        tiny_image: null, price: null, discount: 0
-                    };
-
-                    // DailyIndieGame Special: Hide native Steam link
-                    if (currentConfig.name === 'DailyIndieGame') {
-                        const nativeLink = element.querySelector('a[href*="store.steampowered.com"]');
-                        if (nativeLink) nativeLink.style.display = 'none';
-                    }
+                    result = { id: directId, type: 'direct' };
                 }
             }
+
+            if (!result) {
+                // v1.45: Skip Name Scan if "Force Simple" is active (unless direct ID found above)
+                if (forceSimpleArg) return;
+                // v1.3: 2. Name Scan (Fallback)
+                result = scanForGameName(gameName);
+            }
+
+
 
             // v1.7: Fanatical API Map Lookup (Highest Priority)
             if (currentConfig.interceptor) {
@@ -1345,7 +1347,8 @@
         // v2.0.14: Add specific styles for IndieGala bundle pages
         // This is added here because it's specific to IndieGala and needs to be applied once.
         GM_addStyle(`
-        /* v2.0.17: Spacing fix for IndieGala Bundle Page - Apply styling ONLY to the cover image */
+        /* v2.1.0: Spacing fix for IndieGala Bundle Page - Apply styling ONLY to the cover image */
+        /* IGNORED */
         .ssl-container-ignored {
             border: none !important;
             padding: 0 5px !important; /* Reset/Ensure default padding */
@@ -1363,12 +1366,35 @@
         .ssl-container-ignored img.img-fit {
             border: 4px solid #d9534f !important;
             border-radius: 6px;
-            /* opacity: 0.6; - Removed per user request (too dark) */
+            box-sizing: border-box !important;
         }
         .ssl-title-ignored {
              color: #d9534f !important;
         }
+
+        /* OWNED & WISHLISTED (Added v2.1.0) */
+        .ssl-container-owned .img-fit,
+        .ssl-container-wishlist .img-fit {
+            border: 4px solid #5cb85c !important; /* Green for Owned */
+            border-radius: 6px;
+            box-sizing: border-box !important;
+        }
+        .ssl-container-wishlist .img-fit {
+            border-color: #5bc0de !important; /* Blue for Wishlist */
+        }
         
+        /* v2.1.0: Compact Overlay */
+        .ssl-steam-overlay {
+            padding: 1px 0 !important;
+            font-size: 10px !important;
+            background: rgba(0,0,0,0.9) !important;
+            line-height: normal !important;
+        }
+        .ssl-icon-img {
+            width: 12px !important;
+            height: 12px !important;
+        }
+
         /* v2.0.16: Bundle Wishlist Indicator - Inset Shadow to prevent clipping */
         .ssl-bundle-wishlisted {
             border: none !important;
