@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.1.6
+// @version      2.1.77
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -676,23 +676,9 @@
     }
 
     async function searchSteamGame(gameName) {
-        // v2.1.6: Manual Mapping for problematic titles (Prey Digital Deluxe, etc.)
-        const manualMap = {
-            'prey digital deluxe edition': { id: 277639, type: 'sub' },
-            'prey': { id: 480490, type: 'app' }
-        };
-        const lowerName = gameName.toLowerCase().trim();
-        if (manualMap[lowerName]) {
-            console.log(`[Game Store Enhancer] Manual Mapping Hit: "${gameName}" -> ${manualMap[lowerName].type}/${manualMap[lowerName].id}`);
-            return {
-                id: manualMap[lowerName].id,
-                type: manualMap[lowerName].type,
-                name: gameName,
-                price: null,
-                discount: 0
-            };
-        }
+        // v2.1.7: Removed Manual Mapping - Using SteamDB Fallback instead
 
+        const lowerName = gameName.toLowerCase().trim();
         const cacheKey = `steam_search_${lowerName.replace(/[^a-z0-9]/g, '')}`;
         const cached = getStoredValue(cacheKey, null);
         if (cached && (Date.now() - cached.timestamp < CACHE_TTL * 7)) return cached.data;
@@ -704,6 +690,15 @@
         const searchTerms = [gameName];
         if (cleanedName !== gameName.toLowerCase()) {
             searchTerms.push(cleanedName);
+        }
+
+        // v2.1.5: Aggressive Fallback for "Digital Deluxe" etc.
+        // If "Prey Digital Deluxe Edition" fails, try "Prey"
+        if (cleanedName.includes(' ')) {
+            const baseName = cleanedName.split(/\s(digital|deluxe|edition|remaster|definitive|goty|game of the year|complete|collection|anthology)/i)[0].trim();
+            if (baseName && baseName.length > 2 && baseName !== cleanedName) {
+                searchTerms.push(baseName);
+            }
         }
 
         // v2.0: Check Offline Cache First
@@ -725,7 +720,20 @@
 
         // Perform Online Search (Try terms sequentially)
         for (const term of searchTerms) {
-            const result = await performOnlineSearch(term);
+            let result = await performOnlineSearch(term);
+
+            // v2.1.7: SteamDB Fallback for Subs/Bundles (e.g. Prey Digital Deluxe)
+            // Only try this if:
+            // 1. Steam Store failed
+            // 2. The term looks like a special edition (Deluxe/Edition/Complete)
+            // 3. We haven't tried the "Base Name" fallback yet (which is usually the last term)
+            const isBaseNameFallback = (term === searchTerms[searchTerms.length - 1] && searchTerms.length > 1);
+
+            if (!result && !isBaseNameFallback && (term.toLowerCase().includes('deluxe') || term.toLowerCase().includes('edition') || term.toLowerCase().includes('complete'))) {
+                console.log(`[Game Store Enhancer] Steam Store failed for "${term}", trying SteamDB...`);
+                result = await searchSteamDB(term);
+            }
+
             if (result) {
                 setStoredValue(cacheKey, { data: result, timestamp: Date.now() });
                 return result;
@@ -735,6 +743,43 @@
         // If all failed
         setStoredValue(cacheKey, { data: null, timestamp: Date.now() });
         return null;
+    }
+
+    // v2.1.7: Search SteamDB for Subs/Packages that Steam Store hides
+    async function searchSteamDB(term) {
+        return steamQueue.add(() => new Promise((resolve) => {
+            GM_xmlhttpRequest({
+                method: 'GET',
+                url: `https://steamdb.info/search/?a=sub&q=${encodeURIComponent(term)}`,
+                onload: (res) => {
+                    if (res.status !== 200) {
+                        resolve(null);
+                        return;
+                    }
+                    try {
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(res.responseText, "text/html");
+                        // SteamDB search results table: .table-hover tbody tr
+                        const firstRow = doc.querySelector('.table-hover tbody tr');
+                        if (firstRow) {
+                            const link = firstRow.querySelector('a[href^="/sub/"]');
+                            if (link) {
+                                const subId = link.getAttribute('href').split('/')[2];
+                                const name = link.textContent.trim();
+                                console.log(`[Game Store Enhancer] SteamDB Hit: "${term}" -> Sub/Package ${subId}`);
+                                resolve({ id: subId, type: 'sub', name: name, price: null, discount: 0 });
+                                return;
+                            }
+                        }
+                        resolve(null);
+                    } catch (e) {
+                        console.error("[Game Store Enhancer] SteamDB Parse Error:", e);
+                        resolve(null);
+                    }
+                },
+                onerror: () => resolve(null)
+            });
+        }));
     }
 
     async function performOnlineSearch(term) {
