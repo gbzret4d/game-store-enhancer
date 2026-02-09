@@ -1,16 +1,15 @@
 // ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.1.0
-// @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, GOG, and IndieGala with Steam data (owned/wishlist status, reviews, age rating).
+// @version      2.1.1
+// @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
 // @match        https://www.fanatical.com/*
 // @match        https://dailyindiegame.com/*
 // @match        https://www.dailyindiegame.com/*
 // @match        https://www.gog.com/*
-// @match        https://www.indiegala.com/*
-// @match        https://freebies.indiegala.com/*
+
 // @icon         https://store.steampowered.com/favicon.ico
 // @updateURL    https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/game_store_enhancer.user.js
 // @downloadURL  https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/game_store_enhancer.user.js
@@ -127,46 +126,7 @@
             // GOG IDs don't match Steam, so we rely on Name Search.
             // But we can filter out non-game pages if needed.
         },
-        indiegala: {
-            name: 'IndieGala',
-            selectors: [
-                // Bundle Page (New v2.1)
-                // Container: .bundle-page-tier-item-col
-                // Title: .bundle-page-tier-item-title strong
-                { container: '.bundle-page-tier-item-col', title: '.bundle-page-tier-item-title strong' },
 
-                // Store / Sales Grid (Updated v1.56)
-                { container: '.main-list-item', title: '.store-main-page-items-list-item-details a' }, // Modern Store Item
-                // v2.0: Verified Store Grid Selector (Live Analysis)
-                { container: '.main-list-results-item', title: '.main-list-results-item-info h3' },
-
-                // v1.41: Homepage "Results" Grid (e.g. Metro Awakening)
-                { container: '.main-list-results-item-margin', title: 'h3 a' },
-
-                // Showcase
-                { container: '.showcase-main-list-item.main-list-item', title: '.showcase-title' },
-
-                // Freebies (subdomain)
-                { container: '.products-col-inner', title: '.product-title' }
-            ],
-            getAppId: (element) => {
-                // 1. Bundle Image URL (Reliable)
-                // Pattern: .../bundle_games/[DATE]/[APP_ID].jpg
-                const img = element.querySelector('img.img-fit') || element.querySelector('img[src*="/bundle_games/"]');
-                if (img) {
-                    const match = img.src.match(/\/(\d+)\.jpg/);
-                    if (match) return match[1];
-                }
-
-                // 2. Library: Try to get ID from existing native Steam Link
-                const steamLink = element.querySelector('a[href*="steampowered.com/app/"]');
-                if (steamLink) {
-                    const match = steamLink.href.match(/\/app\/(\d+)/);
-                    if (match) return match[1];
-                }
-                return null;
-            }
-        }
 
     };
 
@@ -263,12 +223,7 @@
             position: relative;
         }
 
-        /* IndieGala Tweaks */
-        .store-main-page-items-list-item-col .ssl-link {
-            display: block;
-            width: fit-content;
-            margin-bottom: 5px;
-        }
+
         
         .profile-private-page-library-subitem .ssl-link {
             margin-left: 10px;
@@ -276,8 +231,6 @@
         }
 
         .items-list-item .ssl-link,
-        .trades-list-card-contents .ssl-link,
-        .showcase-main-list-item .ssl-link,
         .product-title-cont .ssl-link {
             display: block;
             margin-top: 5px;
@@ -285,39 +238,7 @@
         }
 
         /* IndieGala Specific Overrides */
-        ${currentConfig.name === 'IndieGala' ? `
-            /* Fix Grid Container Positioning */
-            .bundle-page-tier-item-col { position: relative !important; }
-            .bundle-page-tier-item-inner { position: relative !important; }
-            .bundle-page-tier-item-col figure { position: relative !important; display: block !important; }
 
-            /* Target IMAGE only for borders */
-            .ssl-container-owned .img-fit,
-            .ssl-container-wishlist .img-fit,
-            .ssl-container-ignored .img-fit {
-                 box-sizing: border-box;
-                 border-radius: 4px;
-            }
-            .ssl-container-owned .img-fit { border: 4px solid #5cb85c !important; }
-            .ssl-container-wishlist .img-fit { border: 4px solid #5bc0de !important; }
-            .ssl-container-ignored .img-fit { border: 4px solid #d9534f !important; opacity: 0.6; }
-
-            /* Remove default psuedo-element borders from container to avoid duplication */
-            .ssl-container-owned::after, .ssl-container-wishlist::after, .ssl-container-ignored::after {
-                content: none !important; 
-                display: none !important;
-            }
-            
-            /* Overlay specific positioning for IG Bundles */
-            .ssl-steam-overlay {
-                justify-content: center !important; /* Center text */
-                background: rgba(0,0,0,0.85) !important;
-                padding: 4px 0 !important;
-                z-index: 100 !important;
-                border-bottom-left-radius: 4px;
-                border-bottom-right-radius: 4px;
-            }
-        ` : ''}
         
         /* Hide native links on DIG */
         a[href*="dailyindiegame.com"] a[href*="store.steampowered.com"],
@@ -411,9 +332,7 @@
         }
 
         /* Layout Fixes */
-        .showcase-main-list-item figure,
         .main-list-item figure,
-        .bundle-page-tier-item-inner, /* Power Shock */
         .container-item-inner {       /* Bundle Overview */
              position: relative !important; 
         }
@@ -1167,149 +1086,38 @@
                         // Optional: Add padding to separate text from border
                         cell.style.paddingBottom = "4px";
                     }
-                } else if (currentConfig.name === 'IndieGala' && (
-                    element.classList.contains('main-list-item') || // v1.56: Standard Store/Bundle Item
-                    element.classList.contains('store-main-page-items-list-item-col') ||
-                    element.classList.contains('main-list-results-item-margin') ||
-                    element.classList.contains('showcase-main-list-item') ||
-                    element.classList.contains('items-list-item') ||
-                    element.dataset.sslProcessed !== "true" // Catch-all
-                )) {
-                    // v1.60: Hybrid Strategy & Priority Fix
-                    // Strategy A: Platform Container (Homepage Lists) -> Inline with existing icons (Preferred if available)
-                    // Strategy B: Figure Overlay (Store Grids, Bundles) -> High Visibility on Image
 
-                    const figure = element.querySelector('figure');
-                    const platformContainer = element.querySelector('.item-platforms'); // Homepage "Top Sellers" container
-
-                    if (platformContainer) {
-                        // --- STRATEGY A: PLATFORM CONTAINER (Homepage Lists) ---
-                        // Insert as a small badge NEXT to the existing icons (Steam/Windows/Apple)
-
-                        // DUPLICATION CHECK:
-                        if (platformContainer.querySelector('.ssl-steam-badge')) {
-                            element.dataset.sslProcessed = "true";
-                            return;
-                        }
-
-                        const badge = document.createElement('a');
-                        badge.className = 'ssl-steam-badge';
-                        badge.href = link.href;
-                        badge.target = '_blank';
-                        badge.title = "View on Steam";
-
-                        // Style to match icons
-                        badge.style.display = 'inline-flex';
-                        badge.style.alignItems = 'center';
-                        badge.style.marginLeft = '10px';
-                        badge.style.textDecoration = 'none';
-                        badge.style.verticalAlign = 'middle';
-
-                        let reviewText = '';
-                        if (appData && appData.reviews && appData.reviews.percent) {
-                            let color = '#a8926a';
-                            if (parseInt(appData.reviews.percent) >= 70) color = '#66C0F4';
-                            if (parseInt(appData.reviews.percent) < 40) color = '#c15755';
-                            reviewText = `<span style="color:${color}; font-weight:bold; font-size:12px; margin-left:4px;">${appData.reviews.percent}%</span>`;
-                        }
-
-                        badge.innerHTML = `<img src="https://store.steampowered.com/favicon.ico" style="width:16px;height:16px;vertical-align:middle;">${reviewText}`;
-
-                        platformContainer.appendChild(badge);
-
-                    } else if (figure) {
-                        // --- STRATEGY B: FIGURE OVERLAY (Store/Bundles) ---
-                        // DUPLICATION CHECK:
-                        if (figure.querySelector('.ssl-steam-overlay')) {
-                            element.dataset.sslProcessed = "true";
-                            return;
-                        }
-
-                        figure.style.position = 'relative';
-                        figure.style.display = 'block';
-
-                        const overlay = document.createElement('a');
-                        overlay.className = 'ssl-steam-overlay';
-                        overlay.href = link.href;
-                        overlay.target = '_blank';
-
-                        overlay.style.position = 'absolute';
-                        overlay.style.bottom = '0';
-                        overlay.style.left = '0';
-                        overlay.style.width = '100%';
-                        overlay.style.padding = '2px 0';
-                        overlay.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
-                        overlay.style.zIndex = '20';
-                        overlay.style.display = 'flex';
-                        overlay.style.alignItems = 'center';
-                        // v2.0.26: Force Bottom Alignment for IndieGala Bundle/Store
-                        if (currentConfig.name === 'IndieGala') {
-                            overlay.style.justifyContent = 'flex-end';
-                        } else {
-                            overlay.style.justifyContent = 'center';
-                        }
-                        overlay.style.pointerEvents = 'auto';
-                        overlay.style.textDecoration = 'none';
-
-                        let statusHtml = '<span style="color:#fff; font-size:11px; font-weight:bold;">STEAM</span>';
-                        let overlayBg = 'rgba(0, 0, 0, 0.7)';
-
-                        if (appData.owned) {
-                            statusHtml = '<span style="color:#a4d007; font-weight:bold; font-size:11px;">OWNED</span>';
-                        } else if (appData.wishlisted) {
-                            statusHtml = '<span style="color:#66c0f4; font-weight:bold; font-size:11px;">WISHLIST</span>';
-                        } else if (appData.ignored !== undefined) {
-                            statusHtml = '<span style="color:#d9534f; font-weight:bold; font-size:11px;">IGNORED</span>';
-                            overlayBg = 'rgba(0, 0, 0, 0.85)'; // Darker for ignored
-                        }
-
-                        overlay.style.backgroundColor = overlayBg;
-
-                        let reviewSnippet = '';
-                        if (appData && appData.reviews && appData.reviews.percent) {
-                            let color = '#a8926a';
-                            if (parseInt(appData.reviews.percent) >= 70) color = '#66C0F4';
-                            if (parseInt(appData.reviews.percent) < 40) color = '#c15755';
-                            reviewSnippet = ` <span style="color:${color}; margin-left:5px; font-weight:bold; font-size:11px;">${appData.reviews.percent}%</span>`;
-                        }
-
-                        overlay.innerHTML = `<img src="https://store.steampowered.com/favicon.ico" class="ssl-icon-img" style="width:14px;height:14px;vertical-align:middle; margin-right:4px;"> ${statusHtml}${reviewSnippet}`;
-                        figure.appendChild(overlay);
-
-                    } else {
-
-                        // Fallback: If neither Strategy fits (or forced Simple)
-                        // v2.0.6: Product Page Badge Strategy (Next to "Steam Key" label)
-                        if (forceSimple) {
-                            // Style as a dark badge
-                            link.style.display = 'inline-block';
-                            link.style.marginLeft = '10px';
-                            link.style.color = '#fff';
-                            link.style.fontWeight = 'bold';
-                            link.style.fontSize = '14px'; // Slightly smaller than H1
-                            link.style.verticalAlign = 'middle';
-                            link.style.backgroundColor = '#171a21'; // Steam Dark Blue/Black
-                            link.style.padding = '2px 8px';
-                            link.style.borderRadius = '4px';
-                            link.style.boxShadow = '0 0 4px rgba(0,0,0,0.5)';
-                            link.style.lineHeight = 'normal';
-                            link.style.whiteSpace = 'nowrap'; // Prevent wrapping
-
-                            // Try to find the "Steam Key" label (em tag) inside H1
-                            const steamKeyLabel = nameEl.querySelector('em');
-                            if (steamKeyLabel) {
-                                steamKeyLabel.after(link);
-                            } else {
-                                nameEl.appendChild(link); // Append to H1 if label missing
-                            }
-                        } else {
-                            nameEl.after(link);
-                        }
-                    }
                 } else {
-                    // Fallback for non-IndieGala/Standard flow
-                    nameEl.after(link);
+
+                    // Fallback: If neither Strategy fits (or forced Simple)
+                    // v2.0.6: Product Page Badge Strategy (Next to "Steam Key" label)
+                    if (forceSimple) {
+                        // Style as a dark badge
+                        link.style.display = 'inline-block';
+                        link.style.marginLeft = '10px';
+                        link.style.color = '#fff';
+                        link.style.fontWeight = 'bold';
+                        link.style.fontSize = '14px'; // Slightly smaller than H1
+                        link.style.verticalAlign = 'middle';
+                        link.style.backgroundColor = '#171a21'; // Steam Dark Blue/Black
+                        link.style.padding = '2px 8px';
+                        link.style.borderRadius = '4px';
+                        link.style.boxShadow = '0 0 4px rgba(0,0,0,0.5)';
+                        link.style.lineHeight = 'normal';
+                        link.style.whiteSpace = 'nowrap'; // Prevent wrapping
+
+                        // Try to find the "Steam Key" label (em tag) inside H1
+                        const steamKeyLabel = nameEl.querySelector('em');
+                        if (steamKeyLabel) {
+                            steamKeyLabel.after(link);
+                        } else {
+                            nameEl.appendChild(link); // Append to H1 if label missing
+                        }
+                    } else {
+                        nameEl.after(link);
+                    }
                 }
+
             }
         } catch (e) {
             console.error(e);
@@ -1331,84 +1139,9 @@
         if (currentConfig.isExcluded && currentConfig.isExcluded()) return;
         if (!currentConfig.selectors) return;
 
-        if (DEBUG && currentConfig.name === 'IndieGala') {
-            console.log('[Game Store Enhancer] [DEBUG] Scanning IndieGala page...');
-        }
 
-        // v1.52: IndieGala Age Gate Bypass
-        if (currentConfig.name === 'IndieGala') {
-            const confirmBtn = document.querySelector('a.adult-check-confirm');
-            if (confirmBtn) {
-                console.log('[Game Store Enhancer] Auto-confirming Age Gate...');
-                confirmBtn.click();
-            }
-        }
 
-        // v2.0.14: Add specific styles for IndieGala bundle pages
-        // This is added here because it's specific to IndieGala and needs to be applied once.
-        GM_addStyle(`
-        /* v2.1.0: Spacing fix for IndieGala Bundle Page - Apply styling ONLY to the cover image */
-        /* IGNORED */
-        .ssl-container-ignored {
-            border: none !important;
-            padding: 0 5px !important; /* Reset/Ensure default padding */
-            background: none !important;
-            box-shadow: none !important;
-        }
-        .ssl-container-ignored .bundle-page-tier-item-outer {
-            border: none !important;
-            margin: 0 !important;
-            box-shadow: none !important;
-        }
-        /* Target the figure/image inside the ignored container */
-        .ssl-container-ignored .bundle-page-tier-item-image, 
-        .ssl-container-ignored figure,
-        .ssl-container-ignored img.img-fit {
-            border: 4px solid #d9534f !important;
-            border-radius: 6px;
-            box-sizing: border-box !important;
-        }
-        .ssl-title-ignored {
-             color: #d9534f !important;
-        }
 
-        /* OWNED & WISHLISTED (Added v2.1.0) */
-        .ssl-container-owned .img-fit,
-        .ssl-container-wishlist .img-fit {
-            border: 4px solid #5cb85c !important; /* Green for Owned */
-            border-radius: 6px;
-            box-sizing: border-box !important;
-        }
-        .ssl-container-wishlist .img-fit {
-            border-color: #5bc0de !important; /* Blue for Wishlist */
-        }
-        
-        /* v2.1.0: Compact Overlay */
-        .ssl-steam-overlay {
-            padding: 1px 0 !important;
-            font-size: 10px !important;
-            background: rgba(0,0,0,0.9) !important;
-            line-height: normal !important;
-        }
-        .ssl-icon-img {
-            width: 12px !important;
-            height: 12px !important;
-        }
-
-        /* v2.0.16: Bundle Wishlist Indicator - Inset Shadow to prevent clipping */
-        .ssl-bundle-wishlisted {
-            border: none !important;
-            /* Inset shadow draws INSIDE the element, so it won't be clipped by overflow:hidden */
-            box-shadow: inset 0 0 0 4px #66c0f4, 0 0 15px rgba(102, 192, 244, 0.6) !important; 
-            /* Ensure detection on dark backgrounds */
-            z-index: 10; 
-        }
-
-        /* v2.0.12: Bundle Wishlist Indicator */
-        .ssl-wishlist-dot {
-            display: none !important;
-        }
-    `);
 
 
         // v2.0.12: Scan Bundle Overview & Tier Items
