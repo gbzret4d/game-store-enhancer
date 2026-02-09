@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.1.77
+// @version      2.1.87
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -273,29 +273,32 @@
             position: relative !important; /* Context for pseudo */
         }
 
-        /* v2.1.6: Fixed Border Styles (No pseudo-elements, direct absolute overlay) */
+        /* v2.1.8: Refined Border Styling (Box-Shadow for cleaner look) */
         .ssl-container-owned::before, .ssl-container-wishlist::before, .ssl-container-ignored::before {
             content: "";
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
             z-index: 10;
             pointer-events: none;
-            border-radius: 4px; /* Match Humble card radius */
+            border-radius: 4px; /* Default Humble Radius */
+            box-sizing: border-box; /* Ensure border is inside */
+            transition: all 0.2s ease;
         }
 
+        /* Use Box-Shadow for a glow effect that doesn't mess with layout/padding */
         .ssl-container-owned::before {
-            border: 4px solid #5cb85c;
-            box-shadow: inset 0 0 10px rgba(92, 184, 92, 0.4);
+            border: 2px solid #5cb85c;
+            box-shadow: inset 0 0 4px rgba(92, 184, 92, 0.5), 0 0 4px rgba(92, 184, 92, 0.5);
         }
         
         .ssl-container-wishlist::before {
-            border: 4px solid #5bc0de;
-            box-shadow: inset 0 0 10px rgba(91, 192, 222, 0.4);
+            border: 2px solid #5bc0de;
+            box-shadow: inset 0 0 4px rgba(91, 192, 222, 0.5), 0 0 4px rgba(91, 192, 222, 0.5);
         }
 
         .ssl-container-ignored::before {
-            border: 4px solid #d9534f;
-            box-shadow: inset 0 0 10px rgba(217, 83, 79, 0.4);
+            border: 2px solid #d9534f;
+            box-shadow: inset 0 0 4px rgba(217, 83, 79, 0.5), 0 0 4px rgba(217, 83, 79, 0.5);
         }
         
         /* Remove old background/border styles */
