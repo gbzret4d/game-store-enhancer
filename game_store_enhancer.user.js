@@ -127,61 +127,38 @@
             // GOG IDs don't match Steam, so we rely on Name Search.
             // But we can filter out non-game pages if needed.
         },
-        /*
-            indiegala: {
+        indiegala: {
             name: 'IndieGala',
             selectors: [
+                // Bundle Page (New v2.1)
+                // Container: .bundle-page-tier-item-col
+                // Title: .bundle-page-tier-item-title strong
+                { container: '.bundle-page-tier-item-col', title: '.bundle-page-tier-item-title strong' },
+
                 // Store / Sales Grid (Updated v1.56)
                 { container: '.main-list-item', title: '.store-main-page-items-list-item-details a' }, // Modern Store Item
                 // v2.0: Verified Store Grid Selector (Live Analysis)
                 { container: '.main-list-results-item', title: '.main-list-results-item-info h3' },
-                // Store / Sales Grid (Updated v1.56)
-                { container: '.main-list-item', title: '.store-main-page-items-list-item-details a' }, // Modern Store Item
-                { container: '.store-main-page-items-list-item-col', title: '.store-main-page-items-list-item-details a' }, // Legacy?
-                // v2.0: Generic Store Grid Fallback (Broadest match)
-                { container: '.store-main-page-items-list-item-col', title: '.item-title' },
+
                 // v1.41: Homepage "Results" Grid (e.g. Metro Awakening)
                 { container: '.main-list-results-item-margin', title: 'h3 a' },
-                // v1.42: Product Detail Page (e.g. Resident Evil Requiem)
-                // v2.0.4: Moved to Cover Art container for better overlay positioning
-                //{ container: '.store-product-header-flex', title: 'h1[itemprop="name"]', forceSimple: true },
-                { container: '.store-product-contents-aside-inner figure', title: 'h1[itemprop="name"]', externalTitle: true },
 
-                // v1.47: Fallback Product Page
-                //{ container: '.store-product-page-content', title: 'h1', forceSimple: true }, // Legacy
-                { container: '.dev-cover-text-col', title: 'h1', forceSimple: true }, // Another potential container
-                // Bundles
-                { container: '.bundle-item-cont', title: '.bundle-item-title' }, // General Bundles
-                //{ container: '.bundle-page-tier-item-inner', title: '.bundle-page-tier-item-title' }, // Power Shock / Specific Bundles (Grid)
-                { container: '.bundle-slider-game-info', title: '.bundle-slider-game-info-title' }, // Bundle Carousel
-                { container: '.container-item', title: '.container-item-title' }, // Bundles Overview Lists
-
-                // Library
-                { container: 'li.profile-private-page-library-subitem', title: '.profile-private-page-library-subitem-text' },
-                { container: '.profile-private-page-library-product-item', title: '.profile-private-page-library-product-item-title' },
-                { container: '.library-bundle-item', title: '.title' }, // Generic Library Bundle
-
-                // Giveaways
-                { container: '.items-list-item', title: '.items-list-item-title a' },
-                { container: '.trading-card-header', title: '.trading-card-header-game' },
-                // Trades
-                { container: '.trades-list-card-contents', title: '.trades-list-card-title a' },
                 // Showcase
                 { container: '.showcase-main-list-item.main-list-item', title: '.showcase-title' },
+
                 // Freebies (subdomain)
                 { container: '.products-col-inner', title: '.product-title' }
             ],
             getAppId: (element) => {
-                // 1. (Removed v1.61) Store URL IDs are internal IndieGala IDs, not Steam.
-                // We MUST rely on Search or other methods for Store items.
-
-                // 2. Fallback: Try to get ID from Bundle Image URL
-                const img = element.querySelector('img[src*="/bundle_games/"]');
+                // 1. Bundle Image URL (Reliable)
+                // Pattern: .../bundle_games/[DATE]/[APP_ID].jpg
+                const img = element.querySelector('img.img-fit') || element.querySelector('img[src*="/bundle_games/"]');
                 if (img) {
                     const match = img.src.match(/\/(\d+)\.jpg/);
                     if (match) return match[1];
                 }
-                // 3. Library: Try to get ID from existing native Steam Link
+
+                // 2. Library: Try to get ID from existing native Steam Link
                 const steamLink = element.querySelector('a[href*="steampowered.com/app/"]');
                 if (steamLink) {
                     const match = steamLink.href.match(/\/app\/(\d+)/);
@@ -190,7 +167,6 @@
                 return null;
             }
         }
-        */
 
     };
 
@@ -307,6 +283,41 @@
             margin-top: 5px;
             width: fit-content;
         }
+
+        /* IndieGala Specific Overrides */
+        ${currentConfig.name === 'IndieGala' ? `
+            /* Fix Grid Container Positioning */
+            .bundle-page-tier-item-col { position: relative !important; }
+            .bundle-page-tier-item-inner { position: relative !important; }
+            .bundle-page-tier-item-col figure { position: relative !important; display: block !important; }
+
+            /* Target IMAGE only for borders */
+            .ssl-container-owned .img-fit,
+            .ssl-container-wishlist .img-fit,
+            .ssl-container-ignored .img-fit {
+                 box-sizing: border-box;
+                 border-radius: 4px;
+            }
+            .ssl-container-owned .img-fit { border: 4px solid #5cb85c !important; }
+            .ssl-container-wishlist .img-fit { border: 4px solid #5bc0de !important; }
+            .ssl-container-ignored .img-fit { border: 4px solid #d9534f !important; opacity: 0.6; }
+
+            /* Remove default psuedo-element borders from container to avoid duplication */
+            .ssl-container-owned::after, .ssl-container-wishlist::after, .ssl-container-ignored::after {
+                content: none !important; 
+                display: none !important;
+            }
+            
+            /* Overlay specific positioning for IG Bundles */
+            .ssl-steam-overlay {
+                justify-content: center !important; /* Center text */
+                background: rgba(0,0,0,0.85) !important;
+                padding: 4px 0 !important;
+                z-index: 100 !important;
+                border-bottom-left-radius: 4px;
+                border-bottom-right-radius: 4px;
+            }
+        ` : ''}
         
         /* Hide native links on DIG */
         a[href*="dailyindiegame.com"] a[href*="store.steampowered.com"],
@@ -1396,292 +1407,24 @@
     }
 
 
-    // v2.0.28: IndieGalaHandler - Unified Logic
-    /*
-    const IndieGalaHandler = {
-        config: {
-            homepage: {
-                urlRegex: /^https?:\/\/www\.indiegala\.com\/?$/,
-                selectors: [
-                    { container: '.main-list-item-col', title: '.main-list-item-col-title', img: '.main-list-item-col-image' }
-                ]
-            },
-            store: {
-                urlRegex: /\/store/,
-                selectors: [
-                    { container: '.main-list-results-item', title: '.main-list-results-item-title a', img: 'figure' }
-                ]
-            },
-            bundlesOverview: {
-                urlRegex: /\/bundles/,
-                selectors: [
-                    { container: '.container-item', title: null, link: 'a.container-item-click-cover' }
-                ]
-            },
-            bundleDetail: {
-                urlRegex: /\/bundle\/(?!s\/)/,
-                selectors: [
-                    // v2.0.30: Simplified to target inner card for correct border placement
-                    { container: '.bundle-page-tier-item-inner', title: '.bundle-page-tier-item-title', img: 'figure' }
-                ]
-            }
-        },
 
-        init: function () {
-            const path = window.location.href;
-            if (this.config.homepage.urlRegex.test(path)) this.handleHomePage();
-            else if (this.config.store.urlRegex.test(path)) this.handleStorePage();
-            else if (this.config.bundlesOverview.urlRegex.test(path)) this.handleBundlesOverview();
-            else if (this.config.bundleDetail.urlRegex.test(path)) this.handleBundleDetail();
 
-            // Global Styles
-            this.injectStyles();
-        },
-
-        injectStyles: function () {
-            if (document.getElementById('ssl-ig-styles')) return;
-            GM_addStyle(`
-                .ssl-border-owned { border: 3px solid #a4d007 !important; border-radius: 4px !important; box-shadow: 0 0 5px rgba(164, 208, 7, 0.5); }
-                .ssl-border-wishlisted { border: 3px solid #66c0f4 !important; border-radius: 4px !important; box-shadow: 0 0 5px rgba(102, 192, 244, 0.5); }
-                .ssl-border-ignored { border: 3px solid #d9534f !important; border-radius: 4px !important; opacity: 0.6; }
-                
-                .ssl-steam-overlay {
-                    position: absolute; bottom: 0; left: 0; width: 100%;
-                    background: rgba(0,0,0,0.85); color: white; font-size: 11px;
-                    padding: 3px 0; text-align: center; display: flex !important;
-                    justify-content: center; align-items: center; z-index: 9999 !important; /* v2.0.30: Max Z-Index */
-    pointer - events: auto; text - decoration: none!important;
-}
-    .ssl - steam - overlay img { width: 14px; height: 14px; vertical - align: middle; margin - right: 4px; }
-`);
-            const s = document.createElement('style'); s.id = 'ssl-ig-styles'; document.head.appendChild(s);
-        },
-
-        handleHomePage: function () { this.scanGrid(this.config.homepage.selectors); },
-        handleStorePage: function () { this.scanGrid(this.config.store.selectors); },
-
-        handleBundleDetail: function () {
-            this.config.bundleDetail.selectors.forEach(strat => this.scanGrid([strat], true));
-        },
-
-        handleBundlesOverview: function () {
-            const strat = this.config.bundlesOverview.selectors[0];
-            document.querySelectorAll(strat.container).forEach(container => {
-                if (container.dataset.sslProcessed) return;
-
-                // Find Link
-                const link = container.querySelector(strat.link) || container.querySelector('a[href^="/bundle/"]');
-                if (!link) return;
-
-                container.dataset.sslProcessed = "fetching";
-                const bundleUrl = link.href;
-                const bundleId = bundleUrl.split('/').pop();
-                const cacheKey = `ssl_bundle_wishlist_${ bundleId } `;
-
-                // Cache Check
-                const cached = getStoredValue(cacheKey, null);
-                if (cached && (Date.now() - cached.timestamp < CACHE_TTL * 4)) {
-                    if (cached.hasWishlist) this.applyStyles(container, 'wishlisted');
-                    container.dataset.sslProcessed = "true";
-                    return;
-                }
-
-                // Fetch
-                steamQueue.add(() => new Promise(resolve => {
-                    GM_xmlhttpRequest({
-                        method: 'GET', url: bundleUrl,
-                        onload: (res) => {
-                            try {
-                                const html = res.responseText;
-                                const allIds = new Set();
-                                const matches = html.matchAll(/store\.steampowered\.com\/app\/(\d+)/g);
-                                for (const m of matches) allIds.add(m[1]);
-
-                                // Also check image logic if needed (backup)
-                                const imgMatches = html.matchAll(/\/bundle_games\/(\d+\/)?(\d+)\.jpg/g);
-                                for (const m of imgMatches) allIds.add(m[2] || m[1]);
-
-                                fetchSteamUserData().then(userData => {
-                                    const wishlist = userData?.wishlist || [];
-                                    const hasWishlist = Array.from(allIds).some(id => wishlist.some(w => (w.appid == id || w == id)));
-
-                                    if (hasWishlist) this.applyStyles(container, 'wishlisted');
-                                    setStoredValue(cacheKey, { hasWishlist, timestamp: Date.now() });
-                                    container.dataset.sslProcessed = "true";
-                                    resolve();
-                                });
-                            } catch (e) { resolve(); }
-                        },
-                        onerror: () => resolve()
-                    });
-                }));
-            });
-        },
-
-        scanGrid: function (selectors, isBundleDetail = false) {
-            selectors.forEach(strat => {
-                document.querySelectorAll(strat.container).forEach(container => {
-                    if (container.dataset.sslProcessed) return;
-
-                    // Ensure Position
-                    if (window.getComputedStyle(container).position === 'static') container.style.position = 'relative';
-
-                    const titleEl = container.querySelector(strat.title);
-                    if (!titleEl) return; // Must have title
-
-                    const title = titleEl.textContent.trim();
-                    const imgContainer = (strat.img === 'figure' ? container.querySelector('figure') : container.querySelector(strat.img)) || container;
-
-                    if (!imgContainer) return;
-
-                    // Ensure Img Context
-                    if (window.getComputedStyle(imgContainer).position === 'static') imgContainer.style.position = 'relative';
-
-                    // Scan ID
-                    const appId = getAppId(container, title);
-
-                    if (appId) {
-                        this.processGame(appId, title, container, imgContainer, isBundleDetail);
-                    } else {
-                        // Search
-                        searchSteam(title, container, 'ig_grid', isBundleDetail).then(res => {
-                            // handled by linkSteamApp/searchSteam internals
-                        });
-                    }
-                    container.dataset.sslProcessed = "pending";
-                });
-            });
-        },
-
-        processGame: async function (appId, title, container, imgContainer, isBundleDetail) {
-            // Reuse generic data fetcher, but apply IG specific styles
-            linkSteamApp(appId, imgContainer, title, isBundleDetail, container);
-        },
-
-        applyStyles: function (container, status) {
-            container.classList.remove('ssl-border-owned', 'ssl-border-wishlisted', 'ssl-border-ignored');
-            if (status !== 'none') container.classList.add(`ssl - border - ${ status } `);
-
-            // Handle Bundle Detail "Ignored" Opacity special case
-            if (status === 'ignored') {
-                const img = container.querySelector('img');
-                if (img) img.style.opacity = '0.6';
-            }
+    // --- Observer ---
+    const observer = new MutationObserver((mutations) => {
+        let shouldScan = false;
+        mutations.forEach(m => { if (m.addedNodes.length > 0) shouldScan = true; });
+        if (shouldScan) {
+            if (window.sslScanTimeout) clearTimeout(window.sslScanTimeout);
+            window.sslScanTimeout = setTimeout(scanPage, 500);
         }
-    };
-    // --- Helper Functions (Restored & Updated) ---
+    });
 
-    // v2.0.28: Updated Linker with Standardized CSS
-    async function linkSteamApp(appId, container, title, isBundleDetail) {
-        if (!appId) return;
-
-        // 1. Fetch Data
-        const userData = await userDataPromise;
-        const owned = userData.ownedApps.includes(parseInt(appId));
-        const wishlisted = userData.wishlist.some(w => (w.appid === parseInt(appId) || w === parseInt(appId)));
-        const ignored = userData.ignored && userData.ignored[appId];
-
-        const [proton, reviews] = await Promise.all([
-            fetchProtonDB(appId),
-            fetchSteamReviews(appId)
-        ]);
-
-        // 2. Target Image
-        let figure = container.querySelector('figure') ||
-            container.querySelector('.bundle-page-tier-item-image') ||
-            container.querySelector('.main-list-item-col-image') ||
-            container.querySelector('.main-list-results-item-img') ||
-            container;
-
-        if (window.getComputedStyle(figure).position === 'static') figure.style.position = 'relative';
-
-        // 3. Create Overlay IF not exists
-        if (!figure.querySelector('.ssl-steam-overlay')) {
-            const overlay = document.createElement('a');
-            overlay.className = 'ssl-steam-overlay';
-            overlay.href = `https://store.steampowered.com/app/${appId}/`;
-overlay.target = '_blank';
-
-let statusHtml = '<span style="color:#fff; font-weight:bold;">STEAM</span>';
-if (owned) statusHtml = '<span style="color:#a4d007; font-weight:bold;">OWNED</span>';
-else if (wishlisted) statusHtml = '<span style="color:#66c0f4; font-weight:bold;">WISHLIST</span>';
-else if (ignored) statusHtml = '<span style="color:#d9534f; font-weight:bold;">IGNORED</span>';
-
-let reviewSnippet = '';
-if (reviews && reviews.percent) {
-    let color = '#a8926a';
-    if (parseInt(reviews.percent) >= 70) color = '#66C0F4';
-    if (parseInt(reviews.percent) < 40) color = '#c15755';
-    reviewSnippet = ` <span style="color:${color}; margin-left:5px; font-weight:bold;">${reviews.percent}%</span>`;
-}
-
-// Using flex style from CSS
-overlay.innerHTML = `<img src="https://store.steampowered.com/favicon.ico"> ${statusHtml}${reviewSnippet}`;
-figure.appendChild(overlay);
-        }
-
-// 4. Updates Styles (Classes)
-container.classList.remove('ssl-border-owned', 'ssl-border-wishlisted', 'ssl-border-ignored');
-
-if (owned) container.classList.add('ssl-border-owned');
-else if (wishlisted) container.classList.add('ssl-border-wishlisted');
-else if (ignored) {
-    container.classList.add('ssl-border-ignored');
-    // Dim image for ignored
-    if (isBundleDetail) {
-        const img = container.querySelector('img');
-        if (img) img.style.opacity = '0.6';
-    }
-}
-
-// 5. Stats
-const uniqueId = title + '_' + appId;
-if (!stats.countedSet.has(uniqueId)) {
-    if (owned) stats.owned++;
-    else if (wishlisted) stats.wishlist++;
-    else if (ignored) stats.ignored++;
-    else stats.missing++;
-    stats.total++;
-    stats.countedSet.add(uniqueId);
-    updateStatsUI();
-}
-container.dataset.sslStatsCounted = "true";
-    }
-
-// v2.0.28: Search Helper
-async function searchSteam(title, container, type, isBundleDetail) {
-    try {
-        const result = await searchSteamGame(title);
-        if (result && result.id) {
-            linkSteamApp(result.id, container, title, isBundleDetail);
-        } else {
-            stats.no_data++;
-            stats.total++;
-            updateStatsUI();
-            container.dataset.sslProcessed = "no_data";
-        }
-    } catch (e) {
-        console.error(e);
-        container.dataset.sslProcessed = "error";
-    }
-}
-
-// --- Observer ---
-const observer = new MutationObserver((mutations) => {
-    let shouldScan = false;
-    mutations.forEach(m => { if (m.addedNodes.length > 0) shouldScan = true; });
-    if (shouldScan) {
-        if (window.sslScanTimeout) clearTimeout(window.sslScanTimeout);
-        window.sslScanTimeout = setTimeout(scanPage, 500);
-    }
-});
-
-observer.observe(document.body, { childList: true, subtree: true });
+    observer.observe(document.body, { childList: true, subtree: true });
 
 
-// v2.0: Init Cache then Scan
-setTimeout(() => {
-    fetchSteamAppCache();
-    scanPage();
-}, 1000);
-}) ();
+    // v2.0: Init Cache then Scan
+    setTimeout(() => {
+        fetchSteamAppCache();
+        scanPage();
+    }, 1000);
+})();
