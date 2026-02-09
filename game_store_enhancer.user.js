@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.1.1
+// @version      2.1.6
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -19,6 +19,7 @@
 // @connect      protondb.max-p.me
 // @connect      steamcommunity.com
 // @connect      gbzret4d.github.io
+// @connect      cdn.jsdelivr.net
 // @grant        GM_xmlhttpRequest
 // @grant        GM_setValue
 // @grant        GM_getValue
@@ -47,11 +48,23 @@
                 { container: '.product-hero', title: 'h1' },
                 { container: '.product-hero', title: 'h1' },
                 { container: '[class*="product-detail"]', title: 'h1' },
-                // v1.13: Target individual slides to ensure every game in the carousel is processed (e.g. Haste)
-                { container: '.expanded-info-view .slick-slide', title: 'h2.heading-medium' },
-                { container: '.modal-content', title: 'h2' }, // Keep as backup
             ],
             isValidGameElement: (element, nameEl) => {
+                // v2.1.2: Whitelist strategy for Bundles
+                // If we detect the main tier grid, ONLY accept items inside it.
+                if (document.querySelector('.desktop-tier-collection-view')) {
+                    if (!element.closest('.desktop-tier-collection-view')) {
+                        return false;
+                    }
+                    // Filter out carousel items that might be nested inside the main view
+                    if (element.classList.contains('slick-slide') || element.closest('.slick-slide') || element.closest('.slick-track')) {
+                        return false;
+                    }
+                } else if (element.classList.contains('slick-slide') || element.closest('.slick-slide') || element.closest('.marketing-su-module-slide') || element.closest('.slick-track')) {
+                    // Fallback blacklist logic
+                    return false;
+                }
+
                 const link = element.closest('a') || element.querySelector('a');
                 if (link && link.href) {
                     if (link.href.includes('/store/search') || link.href.includes('/store/promo')) {
@@ -180,7 +193,7 @@
     }
 
     const currentConfig = getCurrentSiteConfig();
-    const DEBUG = true; // Enabled for debugging IndieGala
+    const DEBUG = false; // Enabled for debugging IndieGala
 
     if (!currentConfig) {
         console.log('[Game Store Enhancer] Site not supported');
@@ -260,37 +273,29 @@
             position: relative !important; /* Context for pseudo */
         }
 
-        .ssl-container-owned::after {
+        /* v2.1.6: Fixed Border Styles (No pseudo-elements, direct absolute overlay) */
+        .ssl-container-owned::before, .ssl-container-wishlist::before, .ssl-container-ignored::before {
             content: "";
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
-            border: 4px solid #5cb85c;
-            box-shadow: inset 0 0 10px rgba(92, 184, 92, 0.4);
+            z-index: 10;
             pointer-events: none;
-            z-index: 50; /* Above image */
-            border-radius: inherit;
-        }
-        
-        .ssl-container-wishlist::after {
-            content: "";
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
-            border: 4px solid #5bc0de;
-            box-shadow: inset 0 0 10px rgba(91, 192, 222, 0.4);
-            pointer-events: none;
-            z-index: 50;
-            border-radius: inherit;
+            border-radius: 4px; /* Match Humble card radius */
         }
 
-        .ssl-container-ignored::after {
-            content: "";
-            position: absolute;
-            top: 0; left: 0; right: 0; bottom: 0;
+        .ssl-container-owned::before {
+            border: 4px solid #5cb85c;
+            box-shadow: inset 0 0 10px rgba(92, 184, 92, 0.4);
+        }
+        
+        .ssl-container-wishlist::before {
+            border: 4px solid #5bc0de;
+            box-shadow: inset 0 0 10px rgba(91, 192, 222, 0.4);
+        }
+
+        .ssl-container-ignored::before {
             border: 4px solid #d9534f;
             box-shadow: inset 0 0 10px rgba(217, 83, 79, 0.4);
-            pointer-events: none;
-            z-index: 50;
-            border-radius: inherit;
         }
         
         /* Remove old background/border styles */
@@ -395,6 +400,16 @@
             border-radius: 50%;
             z-index: 30;
             box-shadow: 0 0 4px rgba(0,0,0,0.5);
+        }
+
+        /* Review Colors */
+        .ssl-review-positive { color: #66c0f4 !important; font-weight: bold; }
+        .ssl-review-mixed { color: #a4d007 !important; font-weight: bold; }
+        .ssl-review-negative { color: #d9534f !important; font-weight: bold; }
+
+        /* Humble Bundle Specifics */
+        .tier-item-view, .entity-block-container {
+             position: relative !important;
         }
     `;
     GM_addStyle(css);
@@ -661,33 +676,73 @@
     }
 
     async function searchSteamGame(gameName) {
-        const cacheKey = `steam_search_${gameName.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
+        // v2.1.6: Manual Mapping for problematic titles (Prey Digital Deluxe, etc.)
+        const manualMap = {
+            'prey digital deluxe edition': { id: 277639, type: 'sub' },
+            'prey': { id: 480490, type: 'app' }
+        };
+        const lowerName = gameName.toLowerCase().trim();
+        if (manualMap[lowerName]) {
+            console.log(`[Game Store Enhancer] Manual Mapping Hit: "${gameName}" -> ${manualMap[lowerName].type}/${manualMap[lowerName].id}`);
+            return {
+                id: manualMap[lowerName].id,
+                type: manualMap[lowerName].type,
+                name: gameName,
+                price: null,
+                discount: 0
+            };
+        }
+
+        const cacheKey = `steam_search_${lowerName.replace(/[^a-z0-9]/g, '')}`;
         const cached = getStoredValue(cacheKey, null);
         if (cached && (Date.now() - cached.timestamp < CACHE_TTL * 7)) return cached.data;
 
         const cleanupRegex = /(:| -| –| —)?\s*(The\s+)?(Pre-Purchase|Pre-Order|Steam Key|Complete|Anthology|Collection|Definitive|Game of the Year|GOTY|Deluxe|Ultimate|Premium)(\s+(Edition|Cut|Content|Pack))?(\s+Bundle)?(\s*\.{3,})?/gi;
         const cleanedName = gameName.replace(cleanupRegex, '').trim().toLowerCase();
 
+        // 1. Try EXACT name first, then fallback to cleaned name
+        const searchTerms = [gameName];
+        if (cleanedName !== gameName.toLowerCase()) {
+            searchTerms.push(cleanedName);
+        }
+
         // v2.0: Check Offline Cache First
         const appDb = getStoredValue('steam_apps_db', null)?.data;
         if (appDb) {
-            const appId = appDb[cleanedName];
-            if (appId) {
-                console.log(`[Game Store Enhancer] Offline Cache Hit: "${cleanedName}" -> ID ${appId}`);
-                // Create minimal result. Price/Discount unknown, but ID is enough for links/reviews!
-                const result = { id: appId, type: 'app', name: gameName, price: null, discount: 0 };
+            // Check all terms in offline cache
+            for (const term of searchTerms) {
+                const appId = appDb[term.toLowerCase().replace(/[^a-z0-9]/g, '')] || appDb[term];
+                if (appId) {
+                    console.log(`[Game Store Enhancer] Offline Cache Hit: "${term}" -> ID ${appId}`);
+                    const result = { id: appId, type: 'app', name: gameName, price: null, discount: 0 };
+                    setStoredValue(cacheKey, { data: result, timestamp: Date.now() });
+                    return result;
+                }
+            }
+        }
+
+        console.log(`[Game Store Enhancer] Search Strategy:`, searchTerms);
+
+        // Perform Online Search (Try terms sequentially)
+        for (const term of searchTerms) {
+            const result = await performOnlineSearch(term);
+            if (result) {
                 setStoredValue(cacheKey, { data: result, timestamp: Date.now() });
                 return result;
             }
         }
 
-        console.log(`[Game Store Enhancer] Cleaning name: "${gameName}" -> "${cleanedName}"`);
+        // If all failed
+        setStoredValue(cacheKey, { data: null, timestamp: Date.now() });
+        return null;
+    }
 
+    async function performOnlineSearch(term) {
         return steamQueue.add(() => new Promise((resolve, reject) => {
             GM_xmlhttpRequest({
                 method: 'GET',
                 // v1.62: Use hardcoded URL to ensure HTML return
-                url: `https://store.steampowered.com/search/results?term=${encodeURIComponent(cleanedName)}&ignore_preferences=1`,
+                url: `https://store.steampowered.com/search/results?term=${encodeURIComponent(term)}&ignore_preferences=1`,
                 onload: (response) => {
                     // v1.62: Circuit Breaker for Rate Limits
                     if (response.status === 403 || response.responseText.includes("Access Denied")) {
@@ -717,11 +772,9 @@
                             if (discountEl) discount = parseInt(discountEl.innerText.replace('-', ''));
 
                             const result = { id, type, name, tiny_image: img, price, discount };
-                            setStoredValue(cacheKey, { data: result, timestamp: Date.now() });
                             resolve(result);
                         } else {
-                            console.log(`[Game Store Enhancer] No results for "${cleanedName}"`);
-                            setStoredValue(cacheKey, { data: null, timestamp: Date.now() });
+                            console.log(`[Game Store Enhancer] No results for "${term}"`);
                             resolve(null);
                         }
                     } catch (e) {
@@ -788,6 +841,43 @@
                 onerror: () => resolve(null)
             });
         });
+    }
+
+    async function searchSteamGame(gameName) {
+        const cacheKey = 'steam_search_' + gameName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        const cached = getStoredValue(cacheKey, null);
+        if (cached && (Date.now() - cached.timestamp < CACHE_TTL * 30)) { // Cache searches for 30 days
+            return cached.data;
+        }
+
+        return steamQueue.add(() => new Promise((resolve) => {
+            GM_xmlhttpRequest({
+                method: 'GET',
+                url: `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(gameName)}&l=english&cc=US`,
+                onload: (res) => {
+                    try {
+                        const data = JSON.parse(res.responseText);
+                        if (data.total > 0 && data.items && data.items.length > 0) {
+                            const item = data.items[0]; // Take top result
+                            const result = {
+                                id: item.id,
+                                type: item.type === 'app' ? 'app' : 'sub', // bundle?
+                                name: item.name,
+                                tiny_image: item.tiny_image,
+                                price: item.price ? item.price.final / 100 : null,
+                                discount: item.price ? item.price.discount_percent : 0
+                            };
+                            setStoredValue(cacheKey, { data: result, timestamp: Date.now() });
+                            resolve(result);
+                        } else {
+                            setStoredValue(cacheKey, { data: null, timestamp: Date.now() }); // Cache "not found"
+                            resolve(null);
+                        }
+                    } catch (e) { resolve(null); }
+                },
+                onerror: () => resolve(null)
+            });
+        }));
     }
 
     function scanForSteamAssets(element) {
@@ -950,7 +1040,7 @@
                 // v1.45: Skip Name Scan if "Force Simple" is active (unless direct ID found above)
                 if (forceSimpleArg) return;
                 // v1.3: 2. Name Scan (Fallback)
-                result = scanForGameName(gameName);
+                result = await searchSteamGame(gameName);
             }
 
 
@@ -1057,6 +1147,17 @@
                         updateStatsUI();
                     }
                     element.dataset.sslStatsCounted = "true";
+                }
+
+                // v2.1.4: Hide Native Humble Review Text to reduce clutter
+                if (currentConfig.name === 'Humble Bundle') {
+                    // Look for divs containing "Positive on Steam" text
+                    const nativeReviews = element.querySelectorAll('div, span');
+                    nativeReviews.forEach(el => {
+                        if (el.textContent.includes('Positive on Steam') || el.textContent.includes('Very Positive') || el.textContent.includes('Mixed') || el.textContent.includes('Negative')) {
+                            el.style.display = 'none';
+                        }
+                    });
                 }
 
 
