@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.1.88
+// @version      2.1.10
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -271,6 +271,23 @@
         
         .ssl-container-owned, .ssl-container-wishlist, .ssl-container-ignored {
             position: relative !important; /* Context for pseudo */
+        }
+
+        /* v2.1.9: Fix Clipping & Corners */
+        .tier-item-view {
+            overflow: visible !important; /* Allow badge to hang out if needed */
+            position: relative !important;
+        }
+
+        /* Ensure badge is above the border and visible */
+        .ssl-link, .ssl-steam-overlay {
+            z-index: 20 !important; /* Higher than border (10) */
+            position: absolute !important;
+            bottom: 0px !important;
+            left: 0px !important;
+            /* right: 0px !important; Remove full width constraint to avoid text clipping if container is weird */
+            border-bottom-left-radius: 4px;
+            /* border-bottom-right-radius: 4px; */ 
         }
 
         /* v2.1.8: Refined Border Styling (Box-Shadow for cleaner look) */
@@ -686,7 +703,7 @@
         const cached = getStoredValue(cacheKey, null);
         if (cached && (Date.now() - cached.timestamp < CACHE_TTL * 7)) return cached.data;
 
-        const cleanupRegex = /(:| -| –| —)?\s*(The\s+)?(Pre-Purchase|Pre-Order|Steam Key|Complete|Anthology|Collection|Definitive|Game of the Year|GOTY|Deluxe|Ultimate|Premium)(\s+(Edition|Cut|Content|Pack))?(\s+Bundle)?(\s*\.{3,})?/gi;
+        const cleanupRegex = /(:| -| –| —)?\s*(The\s+)?(Pre-Purchase|Pre-Order|Steam Key|Complete|Anthology|Collection|Definitive|Game of the Year|GOTY|Digital|Deluxe|Ultimate|Premium)(\s+(Edition|Cut|Content|Pack))?(\s+Bundle)?(\s*\.{3,})?/gi;
         const cleanedName = gameName.replace(cleanupRegex, '').trim().toLowerCase();
 
         // 1. Try EXACT name first, then fallback to cleaned name
@@ -755,12 +772,14 @@
                 method: 'GET',
                 url: `https://steamdb.info/search/?a=sub&q=${encodeURIComponent(term)}`,
                 onload: (res) => {
-                    if (res.status !== 200) {
+                    if (res.status !== 200 || res.responseText.includes('Cloudflare')) {
+                        console.error(`[Game Store Enhancer] SteamDB Blocked/Error: ${res.status} for "${term}"`);
                         resolve(null);
                         return;
                     }
                     try {
                         const parser = new DOMParser();
+                        // ...
                         const doc = parser.parseFromString(res.responseText, "text/html");
                         // SteamDB search results table: .table-hover tbody tr
                         const firstRow = doc.querySelector('.table-hover tbody tr');
