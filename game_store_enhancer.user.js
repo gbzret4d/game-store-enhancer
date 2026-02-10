@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.1.90
+// @version      2.1.91
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -46,23 +46,32 @@
                 { container: '.details-heading', title: 'h1' },
                 { container: '.product-header', title: 'h1' },
                 { container: '.product-hero', title: 'h1' },
-                { container: '.product-hero', title: 'h1' },
                 { container: '[class*="product-detail"]', title: 'h1' },
+                // v2.1.13: Homepage Support
+                { container: '.full-tile-view', title: '.item-title' }, // Featured
+                { container: '.product-tile', title: '.item-title' },   // Store/Bundle
+                { container: '.mosaic-tile', title: '.item-title' }     // Mosaic
             ],
             isValidGameElement: (element, nameEl) => {
-                // v2.1.2: Whitelist strategy for Bundles
-                // If we detect the main tier grid, ONLY accept items inside it.
-                if (document.querySelector('.desktop-tier-collection-view')) {
-                    if (!element.closest('.desktop-tier-collection-view')) {
+                const isHomepage = window.location.pathname === '/' || window.location.pathname === '/home';
+
+                // v2.1.13: Homepage uses slick-slide heavily. We MUST allow it there.
+                // But on Bundle pages, we still want to filter it out to avoid duplicate carousel items.
+                if (!isHomepage) {
+                    // v2.1.2: Whitelist strategy for Bundles
+                    // If we detect the main tier grid, ONLY accept items inside it.
+                    if (document.querySelector('.desktop-tier-collection-view')) {
+                        if (!element.closest('.desktop-tier-collection-view')) {
+                            return false;
+                        }
+                        // Filter out carousel items that might be nested inside the main view
+                        if (element.classList.contains('slick-slide') || element.closest('.slick-slide') || element.closest('.slick-track')) {
+                            return false;
+                        }
+                    } else if (element.classList.contains('slick-slide') || element.closest('.slick-slide') || element.closest('.marketing-su-module-slide') || element.closest('.slick-track')) {
+                        // Fallback blacklist logic for non-homepage
                         return false;
                     }
-                    // Filter out carousel items that might be nested inside the main view
-                    if (element.classList.contains('slick-slide') || element.closest('.slick-slide') || element.closest('.slick-track')) {
-                        return false;
-                    }
-                } else if (element.classList.contains('slick-slide') || element.closest('.slick-slide') || element.closest('.marketing-su-module-slide') || element.closest('.slick-track')) {
-                    // Fallback blacklist logic
-                    return false;
                 }
 
                 const link = element.closest('a') || element.querySelector('a');
