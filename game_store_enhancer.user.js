@@ -667,7 +667,7 @@
     }
 
     // --- Steam API & Cache (v2.0) ---
-    const STEAM_CACHE_URL = 'https://cdn.jsdelivr.net/gh/gbzret4d/game-store-enhancer@main/data/steam_apps.min.json';
+    const STEAM_CACHE_URL = 'https://cdn.jsdelivr.net/gh/gbzret4d/game-store-enhancer@develop/data/steam_apps.min.json';
     const STEAM_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 Hours
 
     async function fetchSteamAppCache() {
