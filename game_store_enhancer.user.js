@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.1.91
+// @version      2.2.0
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -1324,9 +1324,152 @@
     observer.observe(document.body, { childList: true, subtree: true });
 
 
-    // v2.0: Init Cache then Scan
-    setTimeout(() => {
-        fetchSteamAppCache();
-        scanPage();
-    }, 1000);
-})();
+    // --- Homepage Bundle Scanner (v2.1.14 / v2.2.0) ---
+    const BUNDLE_CACHE_KEY = 'gse_bundle_cache';
+    const BUNDLE_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 Hours
+
+    function getBundleCache() {
+        try {
+            const raw = GM_getValue(BUNDLE_CACHE_KEY, '{}');
+            return JSON.parse(raw);
+        } catch (e) { return {}; }
+    }
+
+    function setBundleCache(url, gameIds) {
+        const cache = getBundleCache();
+        cache[url] = { timestamp: Date.now(), games: gameIds };
+        GM_setValue(BUNDLE_CACHE_KEY, JSON.stringify(cache));
+    }
+
+    async function fetchBundleContents(url) {
+        return new Promise(resolve => {
+            GM_xmlhttpRequest({
+                method: 'GET',
+                url: url,
+                onload: (res) => {
+                    try {
+                        const text = res.responseText;
+                        // Regex to find "machine_name" (e.g. "machine_name": "prey_digitaldeluxe")
+                        // Or better yet, look for the 'models' blob if possible, but regex is faster/lighter than DOM parsing
+                        // Pattern: "machine_name":\s*"([^"]+)"
+                        const machineNames = [];
+                        const regex = /"machine_name":\s*"([^"]+)"/g;
+                        let match;
+                        while ((match = regex.exec(text)) !== null) {
+                            machineNames.push(match[1]);
+                        }
+                        resolve([...new Set(machineNames)]); // Unique IDs
+                    } catch (e) { resolve([]); }
+                },
+                onerror: () => resolve([])
+            });
+        });
+    }
+
+    async function scanHomepageBundles() {
+        if (window.location.pathname !== '/') return;
+
+        // Find Bundle Tiles (using the same selectors we added for titles)
+        const tiles = document.querySelectorAll('.full-tile-view a, .mosaic-tile, .product-tile a');
+        const cache = getBundleCache();
+
+        // Helper to check user status against a list of machine names
+        const checkStatus = (machineNames) => {
+            let wishlisted = 0;
+            let owned = 0;
+            let total = machineNames.length;
+
+            // We need to map Machine Name -> AppID. 
+            // This is tricky without the Asset Scanner.
+            // HOWEVER, we can check the 'steam_app_cache' if we have it, OR just rely on the fact
+            // that we might not have the ID yet. 
+            // BUT, wait! 'steam_userdata' is keyed by AppID. 
+            // We need AppIDs. 
+            // The bundle page source usually contains 'steam_app_id' as well!
+            // Let's optimize the Regex to find 'steam_app_id'.
+            return { wishlisted: 0, owned: 0 }; // Placeholder until we fix the AppID extraction
+        };
+
+        // Refined Fetch for AppIDs
+        const fetchBundleAppIds = (url) => {
+            if (cache[url] && (Date.now() - cache[url].timestamp < BUNDLE_CACHE_TTL)) {
+                return Promise.resolve(cache[url].games); // These should be AppIDs now
+            }
+            return new Promise(resolve => {
+                GM_xmlhttpRequest({
+                    GM_xmlhttpRequest({
+                        method: 'GET',
+                        url: url,
+                        onload: (res) => {
+            const text = res.responseText;
+            const appIds = [];
+
+            // Strategy 1: Look for "steam_app_id": 12345 (Standard JSON)
+            let regex = /"steam_app_id":\s*(\d+)/g;
+            let match;
+            while ((match = regex.exec(text)) !== null) appIds.push(parseInt(match[1]));
+
+            // Strategy 2: Look for steam_app_id: 12345 (JS Object keys)
+            regex = /steam_app_id:\s*(\d+)/g;
+            while ((match = regex.exec(text)) !== null) appIds.push(parseInt(match[1]));
+
+            // Strategy 3: Look for machine_name if App ID is missing? 
+            // No, stick to App IDs for now as they are reliable for comparisons.
+            // But if we find NO App IDs, maybe we should try finding the "products" blob?
+            // For now, simple regex is usually enough if the source contains the data.
+
+            const unique = [...new Set(appIds)];
+            if (unique.length > 0) setBundleCache(url, unique);
+            resolve(unique);
+        },
+        onerror: () => resolve([])
+    });
+
+});
+        };
+
+for (const tile of tiles) {
+    let container = tile.closest('.full-tile-view, .mosaic-tile, .product-tile');
+    if (!container) continue;
+
+    // Avoid re-processing
+    if (container.dataset.gseBundleScanned) continue;
+
+    const href = tile.href || tile.parentElement.href;
+    if (!href || (!href.includes('/games/') && !href.includes('/software/'))) continue;
+
+    // Mark as scanning
+    container.dataset.gseBundleScanned = "pending";
+
+    fetchBundleAppIds(href).then(appIds => {
+        if (!appIds || appIds.length === 0) return;
+
+        // Compare with User Data
+        const userdata = getStoredValue('steam_userdata', { owned: [], wishlist: [] });
+        const wishlistedCount = appIds.filter(id => userdata.wishlist.includes(id)).length;
+        const ownedCount = appIds.filter(id => userdata.owned.includes(id)).length;
+
+        if (wishlistedCount > 0) {
+            container.classList.add('ssl-container-wishlist'); // Reuse existing green/blue styles!
+            // Add a dot/counter
+            const dot = document.createElement('div');
+            dot.className = 'ssl-wishlist-dot';
+            dot.title = `Contains ${wishlistedCount} Wishlisted Item(s)`;
+            container.appendChild(dot);
+        } else if (ownedCount === appIds.length && appIds.length > 0) {
+            container.classList.add('ssl-container-owned');
+        }
+
+        container.dataset.gseBundleScanned = "true";
+    });
+}
+    }
+
+// v2.1.14: Init Cache then Scan
+setTimeout(() => {
+    fetchSteamAppCache();
+    scanPage();
+    scanHomepageBundles(); // Start Bundle Scanner
+}, 10); // Fast start
+}, 1000);
+}) ();
