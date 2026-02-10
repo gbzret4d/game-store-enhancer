@@ -1470,5 +1470,5 @@
         scanPage();
         scanHomepageBundles(); // Start Bundle Scanner
     }, 10); // Fast start
-}, 1000);
-}) ();
+
+})();
