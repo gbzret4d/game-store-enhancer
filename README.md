@@ -92,12 +92,18 @@ This script is not affiliated with Humble Bundle, Fanatical, DailyIndieGame, GOG
 ## To-Do
 
 - [ ] Add settings panel to toggle features (e.g. Hide Owned Games).
-- [ ] **IndieGala Support**: Add support for store and bundle pages.
-- [ ] **Metacritic / OpenCritic**: Display review scores alongside Steam ratings.
-- [ ] Support more bundle sites (e.g. SteamGifts).
-- [ ] Implement "External Database Mapping" (JSON on GitHub) to manually potential fix missing/wrong links for complex bundles.
-- [ ] Add option to filter Steam reviews by purchase type (Steam Purchasers vs. Key Activations).
-- [ ] Improve performance on very large pages.
+- **External Database Integration**: 
+    - Uses a self-hosted `steam_apps.min.json` (updated every 6 hours via GitHub Actions) to map game names to Steam AppIDs without relying on the slow Steam Search API.
+    - **Note**: The database update workflow requires a `STEAM_API_KEY` in GitHub Secrets.
+- **Homepage Bundle Scanner** (New in v2.2.0):
+    - **Best Effort**: Scans Humble Bundle homepage tiles for known game names.
+    - **Visuals**: Adds blue/green status markers (Wishlist/Owned) directly to bundle tiles.
+- **IndieGala Support**: Full support for Store, Bundles, and Giveaway pages.
+- **Metacritic / OpenCritic**: Display review scores alongside Steam ratings.
+- **Support more bundle sites**: (e.g. SteamGifts).
+- **External Database Mapping**: Implemented via `steam_apps.min.json`.
+- **Add option to filter Steam reviews**: by purchase type (Steam Purchasers vs. Key Activations).
+- **Improve performance**: on very large pages.
 
 ## License
 
