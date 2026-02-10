@@ -1397,79 +1397,78 @@
             }
             return new Promise(resolve => {
                 GM_xmlhttpRequest({
-                    GM_xmlhttpRequest({
-                        method: 'GET',
-                        url: url,
-                        onload: (res) => {
-            const text = res.responseText;
-            const appIds = [];
+                    method: 'GET',
+                    url: url,
+                    onload: (res) => {
+                        const text = res.responseText;
+                        const appIds = [];
 
-            // Strategy 1: Look for "steam_app_id": 12345 (Standard JSON)
-            let regex = /"steam_app_id":\s*(\d+)/g;
-            let match;
-            while ((match = regex.exec(text)) !== null) appIds.push(parseInt(match[1]));
+                        // Strategy 1: Look for "steam_app_id": 12345 (Standard JSON)
+                        let regex = /"steam_app_id":\s*(\d+)/g;
+                        let match;
+                        while ((match = regex.exec(text)) !== null) appIds.push(parseInt(match[1]));
 
-            // Strategy 2: Look for steam_app_id: 12345 (JS Object keys)
-            regex = /steam_app_id:\s*(\d+)/g;
-            while ((match = regex.exec(text)) !== null) appIds.push(parseInt(match[1]));
+                        // Strategy 2: Look for steam_app_id: 12345 (JS Object keys)
+                        regex = /steam_app_id:\s*(\d+)/g;
+                        while ((match = regex.exec(text)) !== null) appIds.push(parseInt(match[1]));
 
-            // Strategy 3: Look for machine_name if App ID is missing? 
-            // No, stick to App IDs for now as they are reliable for comparisons.
-            // But if we find NO App IDs, maybe we should try finding the "products" blob?
-            // For now, simple regex is usually enough if the source contains the data.
+                        // Strategy 3: Look for machine_name if App ID is missing? 
+                        // No, stick to App IDs for now as they are reliable for comparisons.
+                        // But if we find NO App IDs, maybe we should try finding the "products" blob?
+                        // For now, simple regex is usually enough if the source contains the data.
 
-            const unique = [...new Set(appIds)];
-            if (unique.length > 0) setBundleCache(url, unique);
-            resolve(unique);
-        },
-        onerror: () => resolve([])
-    });
+                        const unique = [...new Set(appIds)];
+                        if (unique.length > 0) setBundleCache(url, unique);
+                        resolve(unique);
+                    },
+                    onerror: () => resolve([])
+                });
 
-});
+            });
         };
 
-for (const tile of tiles) {
-    let container = tile.closest('.full-tile-view, .mosaic-tile, .product-tile');
-    if (!container) continue;
+        for (const tile of tiles) {
+            let container = tile.closest('.full-tile-view, .mosaic-tile, .product-tile');
+            if (!container) continue;
 
-    // Avoid re-processing
-    if (container.dataset.gseBundleScanned) continue;
+            // Avoid re-processing
+            if (container.dataset.gseBundleScanned) continue;
 
-    const href = tile.href || tile.parentElement.href;
-    if (!href || (!href.includes('/games/') && !href.includes('/software/'))) continue;
+            const href = tile.href || tile.parentElement.href;
+            if (!href || (!href.includes('/games/') && !href.includes('/software/'))) continue;
 
-    // Mark as scanning
-    container.dataset.gseBundleScanned = "pending";
+            // Mark as scanning
+            container.dataset.gseBundleScanned = "pending";
 
-    fetchBundleAppIds(href).then(appIds => {
-        if (!appIds || appIds.length === 0) return;
+            fetchBundleAppIds(href).then(appIds => {
+                if (!appIds || appIds.length === 0) return;
 
-        // Compare with User Data
-        const userdata = getStoredValue('steam_userdata', { owned: [], wishlist: [] });
-        const wishlistedCount = appIds.filter(id => userdata.wishlist.includes(id)).length;
-        const ownedCount = appIds.filter(id => userdata.owned.includes(id)).length;
+                // Compare with User Data
+                const userdata = getStoredValue('steam_userdata', { owned: [], wishlist: [] });
+                const wishlistedCount = appIds.filter(id => userdata.wishlist.includes(id)).length;
+                const ownedCount = appIds.filter(id => userdata.owned.includes(id)).length;
 
-        if (wishlistedCount > 0) {
-            container.classList.add('ssl-container-wishlist'); // Reuse existing green/blue styles!
-            // Add a dot/counter
-            const dot = document.createElement('div');
-            dot.className = 'ssl-wishlist-dot';
-            dot.title = `Contains ${wishlistedCount} Wishlisted Item(s)`;
-            container.appendChild(dot);
-        } else if (ownedCount === appIds.length && appIds.length > 0) {
-            container.classList.add('ssl-container-owned');
+                if (wishlistedCount > 0) {
+                    container.classList.add('ssl-container-wishlist'); // Reuse existing green/blue styles!
+                    // Add a dot/counter
+                    const dot = document.createElement('div');
+                    dot.className = 'ssl-wishlist-dot';
+                    dot.title = `Contains ${wishlistedCount} Wishlisted Item(s)`;
+                    container.appendChild(dot);
+                } else if (ownedCount === appIds.length && appIds.length > 0) {
+                    container.classList.add('ssl-container-owned');
+                }
+
+                container.dataset.gseBundleScanned = "true";
+            });
         }
-
-        container.dataset.gseBundleScanned = "true";
-    });
-}
     }
 
-// v2.1.14: Init Cache then Scan
-setTimeout(() => {
-    fetchSteamAppCache();
-    scanPage();
-    scanHomepageBundles(); // Start Bundle Scanner
-}, 10); // Fast start
+    // v2.1.14: Init Cache then Scan
+    setTimeout(() => {
+        fetchSteamAppCache();
+        scanPage();
+        scanHomepageBundles(); // Start Bundle Scanner
+    }, 10); // Fast start
 }, 1000);
 }) ();
