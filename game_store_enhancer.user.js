@@ -407,6 +407,46 @@
             pointer-events: auto;
         }
         
+        .ssl-stats-panel-content { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; }
+    .ssl-stats-panel-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #444; padding-bottom: 5px; margin-bottom: 5px; }
+    .ssl-stats-panel-title { font-weight: bold; color: #fff; }
+    .ssl-stats-close { cursor: pointer; color: #aaa; }
+    .ssl-stats-close:hover { color: #fff; }
+    .ssl-stats-row { display: flex; justify-content: space-between; margin-bottom: 3px; }
+    .ssl-stats-label { color: #ccc; }
+    .ssl-stats-value { font-weight: bold; color: #fff; }
+    .ssl-link-inline { display: inline-block !important; margin-right: 8px !important; }
+
+    /* Homepage Enhancements */
+    .humble-home-steam-link { 
+        display: inline-block; 
+        margin-left: 8px; 
+        vertical-align: middle; 
+        opacity: 0.8;
+        transition: opacity 0.2s;
+    }
+    .humble-home-steam-link:hover { opacity: 1; }
+    
+    .ssl-bundle-status {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-weight: bold;
+        font-size: 12px;
+        color: white;
+        background: rgba(0,0,0,0.8);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        z-index: 10;
+        pointer-events: none;
+    }
+    .ssl-status-wishlist { border: 1px solid #3c9bf0; color: #3c9bf0; }
+    .ssl-status-owned { border: 1px solid #4cff00; color: #4cff00; }
+    .ssl-status-icon { margin-right: 4px; }
+    
+    .ssl-wishlist-dot { display: none; } /* Deprecated */
+        
         #ssl-stats h4 { 
             margin: 0 0 8px 0; 
             color: #66c0f4; 
@@ -1435,7 +1475,14 @@
             if (container.dataset.gseBundleScanned) continue;
 
             const href = tile.href || tile.parentElement.href;
-            if (!href || (!href.includes('/games/') && !href.includes('/software/'))) continue;
+            // 1. Filter Non-Game Bundles from URL
+            if (!href || (!href.includes('/games/') && !href.includes('/software/') && !href.includes('humble_choice'))) {
+                // Check for generic 'bundle' path but EXCLUDE books/software explicit paths
+                if (href.includes('/books/') || href.includes('/software/')) return;
+                // If it's just /bundles/something, we might want to check it ONLY if the user wants?
+                // User said "ignore books/software".
+                if (!href.includes('/games/') && !href.includes('humble_choice')) return;
+            }
 
             // Mark as scanning
             container.dataset.gseBundleScanned = "pending";
@@ -1445,18 +1492,34 @@
 
                 // Compare with User Data
                 const userdata = getStoredValue('steam_userdata', { owned: [], wishlist: [] });
-                const wishlistedCount = appIds.filter(id => userdata.wishlist.includes(id)).length;
+                const wishlistedCount = appIds.filter(id => {
+                    if (userdata.wishlist.includes(id)) return true;
+                    if (userdata.owned.includes(id)) return false;
+                    return false;
+                }).length;
                 const ownedCount = appIds.filter(id => userdata.owned.includes(id)).length;
+                const totalCount = appIds.length;
 
+                // Visual Feedback
                 if (wishlistedCount > 0) {
-                    container.classList.add('ssl-container-wishlist'); // Reuse existing green/blue styles!
-                    // Add a dot/counter
-                    const dot = document.createElement('div');
-                    dot.className = 'ssl-wishlist-dot';
-                    dot.title = `Contains ${wishlistedCount} Wishlisted Item(s)`;
-                    container.appendChild(dot);
-                } else if (ownedCount === appIds.length && appIds.length > 0) {
+                    container.classList.add('ssl-container-wishlist');
+                    const badge = document.createElement('div');
+                    badge.className = 'ssl-bundle-status ssl-status-wishlist';
+                    badge.innerHTML = `<span class="ssl-status-icon">♥</span> ${wishlistedCount}`;
+                    badge.title = `${wishlistedCount} Wishlisted Item(s)`;
+                    container.style.position = 'relative';
+                    container.appendChild(badge);
+                } else if (ownedCount === totalCount && totalCount > 0) {
                     container.classList.add('ssl-container-owned');
+                    const badge = document.createElement('div');
+                    badge.className = 'ssl-bundle-status ssl-status-owned';
+                    badge.innerHTML = `<span class="ssl-status-icon">✓</span> Owned`;
+                    container.style.position = 'relative';
+                    container.appendChild(badge);
+                } else if (ownedCount > 0) {
+                    // Partial Ownership (Optional: Orange/Blue mix?)
+                    // For now, let's just show owned count if significant? 
+                    // Or maybe just leave it clean. 
                 }
 
                 container.dataset.gseBundleScanned = "true";
@@ -1464,11 +1527,81 @@
         }
     }
 
+    // --- Homepage Game Scanner (v2.2.0) ---
+    async function scanHomepageGames() {
+        if (window.location.pathname !== '/' && !window.location.pathname.startsWith('/store')) return;
+
+        // Select 'full-tile-view store' items
+        const tiles = document.querySelectorAll('.full-tile-view.store, .entity-block-container.store-entity-container');
+
+        tiles.forEach(tile => {
+            if (tile.dataset.gseGameScanned) return;
+            tile.dataset.gseGameScanned = "true";
+
+            // 1. Extract Info
+            const titleEl = tile.querySelector('.js-tile-label, .tile-label, .entity-title');
+            if (!titleEl) return;
+
+            let title = titleEl.innerText.trim();
+            const href = tile.querySelector('a')?.href || tile.href;
+
+            // 2. Resolve AppID
+            getAppId(title).then(appId => {
+                if (!appId) {
+                    // Try fallback if title has "Deluxe", "Edition", etc.
+                    // But getAppId should handle some cleaning.
+                    return;
+                }
+
+                // 3. Status (Owned/Wishlist) & Visuals
+                fetchSteamUserData().then(userdata => {
+                    if (userdata.owned.includes(appId)) {
+                        tile.classList.add('ssl-container-owned');
+                        tile.style.opacity = '0.6';
+                    } else if (userdata.wishlist.includes(appId)) {
+                        tile.classList.add('ssl-container-wishlist');
+                        tile.style.border = '2px solid #3c9bf0'; // Explicit Blue Border
+                    }
+                });
+
+                // 4. Steam Stats (Review %)
+                // We need `fetchSteamAppDetails` but it might be heavy for homepage. 
+                // Let's use `steam_app_cache` if available for basics? 
+                // Or just fetch individually (browsers handle caching well).
+
+                // Add Link
+                const linkContainer = document.createElement('div');
+                linkContainer.className = 'humble-home-steam-link';
+                linkContainer.innerHTML = `
+                    <a href="https://store.steampowered.com/app/${appId}" target="_blank" title="View on Steam">
+                        <svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:white;"><path d="M11.979 0C5.666 0 .548 5.135.548 11.465c0 3.864 1.96 7.288 4.965 9.42l-1.954-2.822 3.12 1.394c1.373.49 2.91.751 4.3.751 6.313 0 11.432-5.135 11.432-11.465S17.292 0 11.979 0zM8.32 12.018a2.536 2.536 0 1 1 5.071 0 2.536 2.536 0 0 1-5.072 0zm7.042-2.185c.182.905-.39 1.79-1.282 1.976-.902.184-1.785-.397-1.968-1.302-.182-.904.389-1.79 1.282-1.975.902-.185 1.785.394 1.968 1.3z"/></svg>
+                    </a>
+                `;
+
+                // Position logic
+                const priceEl = tile.querySelector('.price, .discount-price, .entity-pricing-details');
+                if (priceEl) {
+                    priceEl.parentNode.insertBefore(linkContainer, priceEl.nextSibling);
+                } else {
+                    tile.appendChild(linkContainer);
+                }
+
+            });
+        });
+    }
+
+    function scanHomepage() {
+        scanHomepageBundles();
+        scanHomepageGames();
+    }
+
     // v2.1.14: Init Cache then Scan
     setTimeout(() => {
         fetchSteamAppCache();
-        scanPage();
-        scanHomepageBundles(); // Start Bundle Scanner
+        scanPage(); // Normal Store Pages
+        if (window.location.pathname === '/' || window.location.pathname.startsWith('/store')) {
+            scanHomepage(); // Homepage Specifics
+        }
     }, 10); // Fast start
 
 })();
