@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.3.4
+// @version      2.3.5
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -225,7 +225,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.10'; // v2.3.4: Fix userdata property name & missing connect
+    const CACHE_VERSION = '2.11'; // v2.3.5: Force absolute positioning for visuals
 
     // Styles
     const css = `
@@ -1617,21 +1617,19 @@
                     </a>
                 `;
 
-                // Position logic: Try insertion near price, fallback to append
-                if (priceEl) {
-                    // Styles for inline placement
-                    linkContainer.style.display = "inline-block";
-                    linkContainer.style.marginLeft = "8px";
-                    priceEl.parentNode.insertBefore(linkContainer, priceEl.nextSibling);
-                } else {
-                    // Absolute positioning fallback
-                    linkContainer.style.position = "absolute";
-                    linkContainer.style.bottom = "8px";
-                    linkContainer.style.right = "8px";
-                    linkContainer.style.zIndex = "100";
-                    tile.style.position = "relative";
-                    tile.appendChild(linkContainer);
+                // Position logic: ALWAYS use absolute positioning for reliability on homepage 
+                // The price element structure is too varied/fragile.
+                linkContainer.style.position = "absolute";
+                linkContainer.style.bottom = "8px";
+                linkContainer.style.right = "8px"; // Bottom Right corner
+                linkContainer.style.zIndex = "100";
+
+                // Ensure tile is relative for absolute positioning
+                if (window.getComputedStyle(tile).position === 'static') {
+                    tile.style.position = 'relative';
                 }
+
+                tile.appendChild(linkContainer);
 
             });
         });
