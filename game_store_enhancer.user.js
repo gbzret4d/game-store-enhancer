@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.3.8
+// @version      2.3.9
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -225,7 +225,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.14'; // v2.3.8: Hotfix for Crash
+    const CACHE_VERSION = '2.15'; // v2.3.9: Standard Design Fix
 
     // Styles
     const css = `
@@ -1607,60 +1607,39 @@
                     }
                 });
 
-                // 4. Steam Stats (Review %) & Link - v2.3.7 (Top-Left)
+                // 4. Steam Stats (Standard Badge) - v2.3.9
+                const appData = result; // Alias for createSteamLink
+                const link = createSteamLink(appData);
+
+                // Convert to SPAN if tile is an A tag to avoid invalid nesting
                 const linkContainer = document.createElement('span');
-                linkContainer.className = 'humble-home-steam-link';
+                linkContainer.className = link.className + ' humble-home-steam-link';
+                linkContainer.innerHTML = link.innerHTML;
+                linkContainer.title = link.title;
+
+                // Apply standard badge styles + absolute positioning
+                linkContainer.style.cssText = link.style.cssText; // Copy original inline styles
+                linkContainer.style.position = 'absolute';
+                linkContainer.style.top = '6px';
+                linkContainer.style.left = '6px';
+                linkContainer.style.zIndex = '100000';
                 linkContainer.style.cursor = 'pointer';
-                linkContainer.style.display = 'flex';
-                linkContainer.style.alignItems = 'center';
-                linkContainer.style.gap = '6px';
-                linkContainer.title = 'View on Steam';
+                linkContainer.style.pointerEvents = 'auto';
 
-                // Fetch Reviews (v2.3.7)
-                fetchSteamReviews(appId).then(reviews => {
-                    let reviewHtml = '';
-                    if (reviews) {
-                        const percent = reviews.percent;
-                        let color = '#a3a3a3'; // Grey
-                        if (percent >= 70) color = '#66C0F4'; // Blue
-                        if (percent >= 95) color = '#8847ff'; // Purple
-                        if (percent < 40) color = '#A34C25'; // Red
-
-                        reviewHtml = `<span style="color:${color}; font-weight:bold; font-size:12px; text-shadow: 1px 1px 2px black;">${percent}%</span>`;
-                    }
-
-                    // Add icon & reviews
-                    linkContainer.innerHTML = `
-                        <svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:white;vertical-align:middle;filter:drop-shadow(1px 1px 2px black);"><path d="M11.979 0C5.666 0 .548 5.135.548 11.465c0 3.864 1.96 7.288 4.965 9.42l-1.954-2.822 3.12 1.394c1.373.49 2.91.751 4.3.751 6.313 0 11.432-5.135 11.432-11.465S17.292 0 11.979 0zM8.32 12.018a2.536 2.536 0 1 1 5.071 0 2.536 2.536 0 0 1-5.072 0zm7.042-2.185c.182.905-.39 1.79-1.282 1.976-.902.184-1.785-.397-1.968-1.302-.182-.904.389-1.79 1.282-1.975.902-.185 1.785.394 1.968 1.3z"/></svg>
-                        ${reviewHtml}
-                    `;
-                });
-
-                // Handle click manually
+                // Handle click manually (same as link)
                 linkContainer.addEventListener('click', (e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     window.open(`https://store.steampowered.com/app/${appId}`, '_blank');
                 });
 
-                // Position logic: Top-Left (User Request v2.3.7)
-                linkContainer.style.position = "absolute";
-                linkContainer.style.top = "6px";
-                linkContainer.style.left = "6px";
-                linkContainer.style.right = "auto";
-                linkContainer.style.bottom = "auto";
-                linkContainer.style.zIndex = "100000";
-                linkContainer.style.backgroundColor = "rgba(0,0,0,0.7)";
-                linkContainer.style.padding = "4px 6px";
-                linkContainer.style.borderRadius = "4px";
-                linkContainer.style.pointerEvents = "auto";
-
                 // Ensure tile is relative for absolute positioning
                 if (window.getComputedStyle(tile).position === 'static') {
                     tile.style.position = 'relative';
                 }
 
-                console.log(`[Game Store Enhancer] Rendering Link for "${title}"`);
+                console.log(`[Game Store Enhancer] Rendering Standard Badge for "${title}"`);
+
                 tile.appendChild(linkContainer);
             });
         });
