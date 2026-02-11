@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.3.3
+// @version      2.3.4
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -20,6 +20,7 @@
 // @connect      steamcommunity.com
 // @connect      gbzret4d.github.io
 // @connect      cdn.jsdelivr.net
+// @connect      steamdb.info
 // @grant        GM_xmlhttpRequest
 // @grant        GM_setValue
 // @grant        GM_getValue
@@ -224,7 +225,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.9'; // v2.3.3: Fix ReferenceError (getAppId -> searchSteamGame)
+    const CACHE_VERSION = '2.10'; // v2.3.4: Fix userdata property name & missing connect
 
     // Styles
     const css = `
@@ -1597,7 +1598,7 @@
 
                 // 3. Status (Owned/Wishlist) & Visuals
                 fetchSteamUserData().then(userdata => {
-                    if (userdata.owned.includes(appId)) {
+                    if (userdata.ownedApps.includes(appId)) {
                         tile.classList.add('ssl-container-owned');
                         tile.style.opacity = '0.6';
                     } else if (userdata.wishlist.includes(appId)) {
