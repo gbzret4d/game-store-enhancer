@@ -1527,31 +1527,49 @@
         }
     }
 
-    // --- Homepage Game Scanner (v2.2.0) ---
+    // --- Homepage Game Scanner (v2.2.0 - Fixed) ---
     async function scanHomepageGames() {
         if (window.location.pathname !== '/' && !window.location.pathname.startsWith('/store')) return;
 
-        // Select 'full-tile-view store' items
-        const tiles = document.querySelectorAll('.full-tile-view.store, .entity-block-container.store-entity-container');
+        // v2.3.0: Broadened Selectors for Dynamic Tiles
+        const selector = [
+            '.full-tile-view.store',
+            '.entity-block-container',
+            '.mosaic-tile',
+            '.game-tile'
+        ].join(', ');
+
+        const tiles = document.querySelectorAll(selector);
 
         tiles.forEach(tile => {
             if (tile.dataset.gseGameScanned) return;
+
+            // Heuristic: Is this actually a game tile?
+            // Must have a price or a known structure
+            const priceEl = tile.querySelector('.price, .current-price, .price-button, .entity-pricing-details');
+            if (!priceEl && !tile.className.includes('store')) return;
+
             tile.dataset.gseGameScanned = "true";
 
             // 1. Extract Info
-            const titleEl = tile.querySelector('.js-tile-label, .tile-label, .entity-title');
+            const titleEl = tile.querySelector('.js-tile-label, .tile-label, .entity-title, .human-name, .name');
             if (!titleEl) return;
 
             let title = titleEl.innerText.trim();
-            const href = tile.querySelector('a')?.href || tile.href;
+            // Cleanup title (remove "Pre-order", "Deluxe", etc. if needed, but getAppId handles some)
+
+            // Extract Link (robust)
+            let href = "";
+            const linkEl = tile.querySelector('a');
+            if (tile.tagName === 'A') href = tile.href;
+            else if (linkEl) href = linkEl.href;
+
+            // Skip non-game links if possible
+            if (href && (href.includes('/books/') || href.includes('/software/'))) return;
 
             // 2. Resolve AppID
             getAppId(title).then(appId => {
-                if (!appId) {
-                    // Try fallback if title has "Deluxe", "Edition", etc.
-                    // But getAppId should handle some cleaning.
-                    return;
-                }
+                if (!appId) return;
 
                 // 3. Status (Owned/Wishlist) & Visuals
                 fetchSteamUserData().then(userdata => {
@@ -1564,25 +1582,29 @@
                     }
                 });
 
-                // 4. Steam Stats (Review %)
-                // We need `fetchSteamAppDetails` but it might be heavy for homepage. 
-                // Let's use `steam_app_cache` if available for basics? 
-                // Or just fetch individually (browsers handle caching well).
-
+                // 4. Steam Stats (Review %) & Link
                 // Add Link
                 const linkContainer = document.createElement('div');
                 linkContainer.className = 'humble-home-steam-link';
                 linkContainer.innerHTML = `
-                    <a href="https://store.steampowered.com/app/${appId}" target="_blank" title="View on Steam">
-                        <svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:white;"><path d="M11.979 0C5.666 0 .548 5.135.548 11.465c0 3.864 1.96 7.288 4.965 9.42l-1.954-2.822 3.12 1.394c1.373.49 2.91.751 4.3.751 6.313 0 11.432-5.135 11.432-11.465S17.292 0 11.979 0zM8.32 12.018a2.536 2.536 0 1 1 5.071 0 2.536 2.536 0 0 1-5.072 0zm7.042-2.185c.182.905-.39 1.79-1.282 1.976-.902.184-1.785-.397-1.968-1.302-.182-.904.389-1.79 1.282-1.975.902-.185 1.785.394 1.968 1.3z"/></svg>
+                    <a href="https://store.steampowered.com/app/${appId}" target="_blank" title="View on Steam" style="text-decoration:none;">
+                        <svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:white;vertical-align:middle;"><path d="M11.979 0C5.666 0 .548 5.135.548 11.465c0 3.864 1.96 7.288 4.965 9.42l-1.954-2.822 3.12 1.394c1.373.49 2.91.751 4.3.751 6.313 0 11.432-5.135 11.432-11.465S17.292 0 11.979 0zM8.32 12.018a2.536 2.536 0 1 1 5.071 0 2.536 2.536 0 0 1-5.072 0zm7.042-2.185c.182.905-.39 1.79-1.282 1.976-.902.184-1.785-.397-1.968-1.302-.182-.904.389-1.79 1.282-1.975.902-.185 1.785.394 1.968 1.3z"/></svg>
                     </a>
                 `;
 
-                // Position logic
-                const priceEl = tile.querySelector('.price, .discount-price, .entity-pricing-details');
+                // Position logic: Try insertion near price, fallback to append
                 if (priceEl) {
+                    // Styles for inline placement
+                    linkContainer.style.display = "inline-block";
+                    linkContainer.style.marginLeft = "8px";
                     priceEl.parentNode.insertBefore(linkContainer, priceEl.nextSibling);
                 } else {
+                    // Absolute positioning fallback
+                    linkContainer.style.position = "absolute";
+                    linkContainer.style.bottom = "8px";
+                    linkContainer.style.right = "8px";
+                    linkContainer.style.zIndex = "100";
+                    tile.style.position = "relative";
                     tile.appendChild(linkContainer);
                 }
 
