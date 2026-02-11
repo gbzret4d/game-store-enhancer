@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.3.0
+// @version      2.3.1
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
