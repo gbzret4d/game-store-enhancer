@@ -223,8 +223,8 @@
     const STEAM_SEARCH_API = 'https://store.steampowered.com/search/results/?json=1&term=';
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
-    const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.7'; // v2.3.1: Bump for Homepage Fix
+    const CACHE_TTL = 15 * 60 * 1000; // @version      2.3.2
+    const CACHE_VERSION = '2.8'; // v2.3.2: Robust Homepage Scanner
 
     // Styles
     const css = `
@@ -1527,7 +1527,7 @@
         }
     }
 
-    // --- Homepage Game Scanner (v2.2.0 - Fixed) ---
+    // --- Homepage Game Scanner (v2.3.2 - Fixed) ---
     async function scanHomepageGames() {
         if (window.location.pathname !== '/' && !window.location.pathname.startsWith('/store')) return;
 
@@ -1544,19 +1544,42 @@
         tiles.forEach(tile => {
             if (tile.dataset.gseGameScanned) return;
 
-            // Heuristic: Is this actually a game tile?
-            // Must have a price or a known structure
-            const priceEl = tile.querySelector('.price, .current-price, .price-button, .entity-pricing-details');
+            // Heuristic v2: If no price class, look for any price-like text
+            let priceEl = tile.querySelector('.price, .current-price, .price-button, .entity-pricing-details');
+            if (!priceEl) {
+                // Fallback: Find any element with a currency symbol
+                // This is risky but necessary if classes are missing
+                const candidates = tile.querySelectorAll('span, div');
+                for (const c of candidates) {
+                    if (/[€$£¥]/.test(c.innerText)) {
+                        priceEl = c;
+                        break;
+                    }
+                }
+            }
+
+            // If still no price and not explicitly a store tile, skip
             if (!priceEl && !tile.className.includes('store')) return;
 
             tile.dataset.gseGameScanned = "true";
 
-            // 1. Extract Info
-            const titleEl = tile.querySelector('.js-tile-label, .tile-label, .entity-title, .human-name, .name');
+            // 1. Extract Info - Retry Logic
+            let titleEl = tile.querySelector('.js-tile-label, .tile-label, .entity-title, .human-name, .name');
+            if (!titleEl) {
+                // Fallback: The title is usually the first significant text that isn't the price
+                const spans = tile.querySelectorAll('span');
+                for (const s of spans) {
+                    const text = s.innerText.trim();
+                    if (text.length > 2 && !/[€$£¥]/.test(text) && !text.includes('OFF')) {
+                        titleEl = s;
+                        break;
+                    }
+                }
+            }
+
             if (!titleEl) return;
 
             let title = titleEl.innerText.trim();
-            // Cleanup title (remove "Pre-order", "Deluxe", etc. if needed, but getAppId handles some)
 
             // Extract Link (robust)
             let href = "";
