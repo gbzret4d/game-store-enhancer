@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.3.2
+// @version      2.3.3
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -224,7 +224,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.8'; // v2.3.2: Robust Homepage Scanner
+    const CACHE_VERSION = '2.9'; // v2.3.3: Fix ReferenceError (getAppId -> searchSteamGame)
 
     // Styles
     const css = `
@@ -1591,7 +1591,8 @@
             if (href && (href.includes('/books/') || href.includes('/software/'))) return;
 
             // 2. Resolve AppID
-            getAppId(title).then(appId => {
+            searchSteamGame(title).then(result => {
+                const appId = result ? result.id : null;
                 if (!appId) return;
 
                 // 3. Status (Owned/Wishlist) & Visuals
