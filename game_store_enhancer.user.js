@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.3.5
+// @version      2.3.6
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -225,7 +225,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.11'; // v2.3.5: Force absolute positioning for visuals
+    const CACHE_VERSION = '2.12'; // v2.3.6: Fix nested A tags (visual bug)
 
     // Styles
     const css = `
@@ -1608,26 +1608,40 @@
                 });
 
                 // 4. Steam Stats (Review %) & Link
-                // Add Link
-                const linkContainer = document.createElement('div');
+                // Use a SPAN with onclick to avoid invalid nested A tags if tile is an A tag
+                const linkContainer = document.createElement('span');
                 linkContainer.className = 'humble-home-steam-link';
+                linkContainer.style.cursor = 'pointer';
+                linkContainer.title = 'View on Steam';
+
+                // Add icon
                 linkContainer.innerHTML = `
-                    <a href="https://store.steampowered.com/app/${appId}" target="_blank" title="View on Steam" style="text-decoration:none;">
-                        <svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:white;vertical-align:middle;"><path d="M11.979 0C5.666 0 .548 5.135.548 11.465c0 3.864 1.96 7.288 4.965 9.42l-1.954-2.822 3.12 1.394c1.373.49 2.91.751 4.3.751 6.313 0 11.432-5.135 11.432-11.465S17.292 0 11.979 0zM8.32 12.018a2.536 2.536 0 1 1 5.071 0 2.536 2.536 0 0 1-5.072 0zm7.042-2.185c.182.905-.39 1.79-1.282 1.976-.902.184-1.785-.397-1.968-1.302-.182-.904.389-1.79 1.282-1.975.902-.185 1.785.394 1.968 1.3z"/></svg>
-                    </a>
+                    <svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:white;vertical-align:middle;filter:drop-shadow(1px 1px 2px black);"><path d="M11.979 0C5.666 0 .548 5.135.548 11.465c0 3.864 1.96 7.288 4.965 9.42l-1.954-2.822 3.12 1.394c1.373.49 2.91.751 4.3.751 6.313 0 11.432-5.135 11.432-11.465S17.292 0 11.979 0zM8.32 12.018a2.536 2.536 0 1 1 5.071 0 2.536 2.536 0 0 1-5.072 0zm7.042-2.185c.182.905-.39 1.79-1.282 1.976-.902.184-1.785-.397-1.968-1.302-.182-.904.389-1.79 1.282-1.975.902-.185 1.785.394 1.968 1.3z"/></svg>
                 `;
 
-                // Position logic: ALWAYS use absolute positioning for reliability on homepage 
-                // The price element structure is too varied/fragile.
+                // Handle click manually
+                linkContainer.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.open(`https://store.steampowered.com/app/${appId}`, '_blank');
+                });
+
+                // Position logic: ALWAYS use absolute positioning
                 linkContainer.style.position = "absolute";
                 linkContainer.style.bottom = "8px";
-                linkContainer.style.right = "8px"; // Bottom Right corner
-                linkContainer.style.zIndex = "100";
+                linkContainer.style.right = "8px";
+                linkContainer.style.zIndex = "100000"; // Highest possible
+                linkContainer.style.backgroundColor = "rgba(0,0,0,0.6)"; // Ensure contrast
+                linkContainer.style.padding = "4px";
+                linkContainer.style.borderRadius = "4px";
 
                 // Ensure tile is relative for absolute positioning
                 if (window.getComputedStyle(tile).position === 'static') {
                     tile.style.position = 'relative';
                 }
+
+                // Log for debugging
+                console.log(`[Game Store Enhancer] Rendering Steam Link for "${title}" (AppID: ${appId}) on ${tile.tagName}`);
 
                 tile.appendChild(linkContainer);
 
