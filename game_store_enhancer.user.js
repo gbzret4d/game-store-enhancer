@@ -224,7 +224,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.6'; // v2.1.11: Bump to clear 'null' results for Prey
+    const CACHE_VERSION = '2.7'; // v2.3.1: Bump for Homepage Fix
 
     // Styles
     const css = `
