@@ -51,7 +51,14 @@
                 // v2.1.13: Homepage Support
                 { container: '.full-tile-view', title: '.item-title' }, // Featured
                 { container: '.product-tile', title: '.item-title' },   // Store/Bundle
-                { container: '.mosaic-tile', title: '.item-title' }     // Mosaic
+                { container: '.mosaic-tile', title: '.item-title' },     // Mosaic
+                { container: '.takeover-tile-view', title: '.item-title' }, // Featured Takeover
+
+                // v2.4.0: Layout Update (2026)
+                { container: '.item-details', title: '.item-title' }, // Bundle Page V2
+                { container: '.js-item-details', title: '.item-title' }, // Bundle Page V2 (JS)
+                { container: '.entity-link', title: '.entity-title' }, // Store Page V2
+                { container: '.js-entity-link', title: '.entity-title' } // Store Page V2 (JS)
             ],
             isValidGameElement: (element, nameEl) => {
                 const isHomepage = window.location.pathname === '/' || window.location.pathname === '/home';
@@ -82,7 +89,7 @@
                     }
                 }
                 const text = nameEl.textContent.trim().toLowerCase();
-                const blocklist = ['deals under', 'great on', 'browse by', 'top selling', 'new on humble', 'coming soon'];
+                const blocklist = ['deals under', 'great on', 'browse by', 'top selling', 'new on humble', 'coming soon', 'ign plus', 'get one month of ign plus'];
                 if (blocklist.some(term => text.includes(term))) return false;
                 return true;
             }
@@ -290,11 +297,11 @@
         }
 
         /* Ensure badge is above the border and visible */
-        .ssl-link, .ssl-steam-overlay {
+        .ssl-link, .ssl-steam-overlay, .humble-home-steam-link {
             z-index: 20 !important; /* Higher than border (10) */
             position: absolute !important;
-            bottom: 0px !important;
-            left: 0px !important;
+            bottom: 6px !important; /* Moved up slightly to not be cut off */
+            left: 6px !important;
             /* right: 0px !important; Remove full width constraint to avoid text clipping if container is weird */
             border-bottom-left-radius: 4px;
             /* border-bottom-right-radius: 4px; */ 
@@ -478,7 +485,8 @@
         .ssl-review-negative { color: #d9534f !important; font-weight: bold; }
 
         /* Humble Bundle Specifics */
-        .tier-item-view, .entity-block-container {
+        .tier-item-view, .entity-block-container,
+        .item-details, .js-item-details, .entity-link, .takeover-tile-view {
              position: relative !important;
         }
     `;
@@ -525,7 +533,7 @@
         link.target = '_blank';
         link.title = appData.name;
 
-        let html = `<span>STEAM</span>`;
+        let html = `<span><img src="https://store.steampowered.com/favicon.ico" style="width:12px; height:12px; vertical-align:middle; margin-right:4px;">STEAM</span>`;
         if (appData.cards) html += `<span>CARDS</span>`;
         if (appData.owned) html += `<span class="ssl-owned">OWNED</span>`;
         else if (appData.wishlisted) html += `<span class="ssl-wishlist">WISHLIST</span>`;
@@ -1347,6 +1355,19 @@
                 processGameElement(el, strat.title, strat.forceSimple, strat.externalTitle);
             });
         });
+
+        // v2.4.1: Auto Age Check
+        if (currentConfig.name === 'Humble Bundle') {
+            if (document.querySelector('.age-check-form') || window.location.href.includes('agecheck')) {
+                const yearSelect = document.querySelector('select[name="year"]');
+                const enterBtn = document.querySelector('button[type="submit"], input[type="submit"]');
+                if (yearSelect) {
+                    yearSelect.value = '1990';
+                    yearSelect.dispatchEvent(new Event('change'));
+                }
+                if (enterBtn) enterBtn.click();
+            }
+        }
     }
 
 
@@ -1485,6 +1506,9 @@
                 if (!href.includes('/games/') && !href.includes('humble_choice')) return;
             }
 
+            // v2.4.0: Exclude IGN Plus
+            if (tile.innerText.toLowerCase().includes('ign plus')) return;
+
             // Mark as scanning
             container.dataset.gseBundleScanned = "pending";
 
@@ -1534,10 +1558,11 @@
 
         // v2.3.0: Broadened Selectors for Dynamic Tiles
         const selector = [
-            '.full-tile-view.store',
+            '.full-tile-view',
             '.entity-block-container',
             '.mosaic-tile',
-            '.game-tile'
+            '.game-tile',
+            '.takeover-tile-view'
         ].join(', ');
 
         const tiles = document.querySelectorAll(selector);
@@ -1605,6 +1630,25 @@
                         tile.classList.add('ssl-container-wishlist');
                         tile.style.border = '2px solid #3c9bf0'; // Explicit Blue Border
                     }
+
+                    // v2.4.3: Product Page Enhancements (H1 targeting)
+                    if (window.location.pathname.startsWith('/store') && !window.location.pathname.endsWith('/store')) {
+                        const h1 = document.querySelector('h1');
+                        if (h1 && title === h1.innerText.trim()) {
+                            if (userdata.wishlist.includes(appId)) {
+                                h1.style.border = '2px solid #3c9bf0';
+                                h1.style.padding = '4px';
+                                h1.style.borderRadius = '4px';
+                                const badge = document.createElement('span');
+                                badge.className = 'ssl-wishlist';
+                                badge.style.marginLeft = '10px';
+                                badge.style.fontSize = '0.6em';
+                                badge.style.verticalAlign = 'middle';
+                                badge.innerText = 'WISHLIST';
+                                h1.appendChild(badge);
+                            }
+                        }
+                    }
                 });
 
                 // 4. Steam Stats (Standard Badge) - v2.3.9
@@ -1620,7 +1664,9 @@
                 // Apply standard badge styles + absolute positioning with Layout Fixes (v2.3.10)
                 linkContainer.style.cssText = link.style.cssText;
                 linkContainer.style.position = 'absolute';
-                linkContainer.style.top = '6px';
+                // v2.4.2: Bottom align to match standard layout
+                linkContainer.style.top = 'auto';
+                linkContainer.style.bottom = '6px';
                 linkContainer.style.left = '6px';
                 linkContainer.style.zIndex = '100000';
                 linkContainer.style.cursor = 'pointer';
