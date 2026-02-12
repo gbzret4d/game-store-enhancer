@@ -297,14 +297,23 @@
         }
 
         /* Ensure badge is above the border and visible */
-        .ssl-link, .ssl-steam-overlay, .humble-home-steam-link {
-            z-index: 20 !important; /* Higher than border (10) */
+        .ssl-link, .ssl-steam-overlay {
+            z-index: 20 !important;
             position: absolute !important;
-            bottom: 6px !important; /* Moved up slightly to not be cut off */
-            left: 6px !important;
-            /* right: 0px !important; Remove full width constraint to avoid text clipping if container is weird */
+            bottom: 6px; 
+            left: 6px;
             border-bottom-left-radius: 4px;
-            /* border-bottom-right-radius: 4px; */ 
+        }
+
+        /* Humble Home Link - Top Left on Image */
+        .humble-home-steam-link {
+            z-index: 20 !important;
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            bottom: auto !important;
+            border-top-left-radius: 4px;
+            border-bottom-right-radius: 4px;
         }
 
         /* v2.1.8: Refined Border Styling (Box-Shadow for cleaner look) */
@@ -1621,12 +1630,19 @@
                 const appId = result ? result.id : null;
                 if (!appId) return;
 
-                // 3. Status (Owned/Wishlist) & Visuals
-                fetchSteamUserData().then(userdata => {
-                    if (userdata.ownedApps.includes(appId)) {
+                // 3. Fetch Data & Status (Unified)
+                Promise.all([
+                    fetchSteamUserData(),
+                    fetchSteamReviews(appId)
+                ]).then(([userdata, reviews]) => {
+                    const owned = userdata.ownedApps.includes(appId);
+                    const wishlisted = userdata.wishlist.includes(appId);
+                    const ignored = userdata.ignored && userdata.ignored[appId];
+
+                    if (owned) {
                         tile.classList.add('ssl-container-owned');
                         tile.style.opacity = '0.6';
-                    } else if (userdata.wishlist.includes(appId)) {
+                    } else if (wishlisted) {
                         tile.classList.add('ssl-container-wishlist');
                         tile.style.border = '2px solid #3c9bf0'; // Explicit Blue Border
                     }
@@ -1635,7 +1651,7 @@
                     if (window.location.pathname.startsWith('/store') && !window.location.pathname.endsWith('/store')) {
                         const h1 = document.querySelector('h1');
                         if (h1 && title === h1.innerText.trim()) {
-                            if (userdata.wishlist.includes(appId)) {
+                            if (wishlisted) {
                                 h1.style.border = '2px solid #3c9bf0';
                                 h1.style.padding = '4px';
                                 h1.style.borderRadius = '4px';
@@ -1645,70 +1661,81 @@
                                 badge.style.fontSize = '0.6em';
                                 badge.style.verticalAlign = 'middle';
                                 badge.innerText = 'WISHLIST';
-                                h1.appendChild(badge);
+                                // Avoid duplicate badges
+                                if (!h1.querySelector('.ssl-wishlist')) h1.appendChild(badge);
                             }
                         }
                     }
+
+                    // 4. Create Badge with FULL Data
+                    const appData = { ...result, owned, wishlisted, ignored, reviews };
+                    const link = createSteamLink(appData);
+
+                    // Convert to SPAN if tile is an A tag to avoid invalid nesting
+                    const linkContainer = document.createElement('span');
+                    linkContainer.className = link.className + ' humble-home-steam-link';
+                    linkContainer.innerHTML = link.innerHTML;
+                    linkContainer.title = link.title;
+
+                    // Apply standard badge styles + absolute positioning with Layout Fixes (v2.3.10)
+                    linkContainer.style.cssText = link.style.cssText;
+                    linkContainer.style.position = 'absolute';
+                    // v2.4.4: Top-Left Positioning (User Request)
+                    linkContainer.style.top = '0';
+                    linkContainer.style.left = '0';
+                    linkContainer.style.bottom = 'auto'; // Reset bottom
+                    linkContainer.style.zIndex = '100000';
+                    linkContainer.style.cursor = 'pointer';
+                    linkContainer.style.pointerEvents = 'auto';
+                    linkContainer.style.borderTopLeftRadius = '4px';
+                    linkContainer.style.borderBottomRightRadius = '4px';
+
+                    // Layout Fixes - Prevent "Vertical Strip" Issue (v2.3.11)
+                    linkContainer.style.setProperty('display', 'inline-flex', 'important');
+                    linkContainer.style.setProperty('flex-direction', 'row', 'important');
+                    linkContainer.style.setProperty('align-items', 'center', 'important');
+                    linkContainer.style.setProperty('justify-content', 'flex-start', 'important');
+                    linkContainer.style.setProperty('width', 'auto', 'important');
+                    linkContainer.style.setProperty('max-width', 'none', 'important');
+                    linkContainer.style.setProperty('height', 'auto', 'important');
+                    linkContainer.style.setProperty('white-space', 'nowrap', 'important');
+                    linkContainer.style.backgroundColor = 'rgba(23, 26, 33, 0.95)';
+                    linkContainer.style.padding = '2px 4px';
+                    linkContainer.style.lineHeight = 'normal';
+                    linkContainer.style.boxShadow = '1px 1px 3px rgba(0,0,0,0.5)';
+
+                    // Also enforce on children if needed
+                    Array.from(linkContainer.children).forEach(child => {
+                        child.style.display = 'inline-block';
+                        child.style.verticalAlign = 'middle';
+                    });
+
+                    // Handle click manually (same as link)
+                    linkContainer.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        window.open(`https://store.steampowered.com/app/${appId}`, '_blank');
+                    });
+
+                    // 5. Find Image Container for Positioning
+                    // We prefer appending to the image container so top:0/left:0 is relative to the *image*.
+                    let targetContainer = tile.querySelector('.image-container') ||
+                        tile.querySelector('.entity-details') || // Store
+                        tile.querySelector('.product-image'); // Fallback
+
+                    // Fallback to tile if strict container not found, but ensure tile acts as relative root
+                    if (!targetContainer) {
+                        targetContainer = tile;
+                    }
+
+                    // Ensure target is relative
+                    if (window.getComputedStyle(targetContainer).position === 'static') {
+                        targetContainer.style.position = 'relative';
+                    }
+
+                    if (DEBUG) console.log(`[Game Store Enhancer] Rendering Badge for "${title}" inside`, targetContainer);
+                    targetContainer.appendChild(linkContainer);
                 });
-
-                // 4. Steam Stats (Standard Badge) - v2.3.9
-                const appData = result; // Alias for createSteamLink
-                const link = createSteamLink(appData);
-
-                // Convert to SPAN if tile is an A tag to avoid invalid nesting
-                const linkContainer = document.createElement('span');
-                linkContainer.className = link.className + ' humble-home-steam-link';
-                linkContainer.innerHTML = link.innerHTML;
-                linkContainer.title = link.title;
-
-                // Apply standard badge styles + absolute positioning with Layout Fixes (v2.3.10)
-                linkContainer.style.cssText = link.style.cssText;
-                linkContainer.style.position = 'absolute';
-                // v2.4.2: Bottom align to match standard layout
-                linkContainer.style.top = 'auto';
-                linkContainer.style.bottom = '6px';
-                linkContainer.style.left = '6px';
-                linkContainer.style.zIndex = '100000';
-                linkContainer.style.cursor = 'pointer';
-                linkContainer.style.pointerEvents = 'auto';
-
-                // Layout Fixes - Prevent "Vertical Strip" Issue (v2.3.11)
-                // We use !important to override any aggressive site CSS
-                linkContainer.style.setProperty('display', 'inline-flex', 'important');
-                linkContainer.style.setProperty('flex-direction', 'row', 'important');
-                linkContainer.style.setProperty('align-items', 'center', 'important');
-                linkContainer.style.setProperty('justify-content', 'flex-start', 'important');
-                linkContainer.style.setProperty('width', 'auto', 'important');
-                linkContainer.style.setProperty('max-width', 'none', 'important');
-                linkContainer.style.setProperty('height', 'auto', 'important');
-                linkContainer.style.setProperty('white-space', 'nowrap', 'important');
-                linkContainer.style.backgroundColor = 'rgba(23, 26, 33, 0.9)'; // Darker Steam Blue-ish bg
-                linkContainer.style.padding = '4px 6px';
-                linkContainer.style.borderRadius = '4px';
-                linkContainer.style.boxShadow = '1px 1px 3px rgba(0,0,0,0.5)';
-                linkContainer.style.lineHeight = 'normal';
-
-                // Also enforce on children if needed
-                Array.from(linkContainer.children).forEach(child => {
-                    child.style.display = 'inline-block';
-                    child.style.verticalAlign = 'middle';
-                });
-
-                // Handle click manually (same as link)
-                linkContainer.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    window.open(`https://store.steampowered.com/app/${appId}`, '_blank');
-                });
-
-                // Ensure tile is relative for absolute positioning
-                if (window.getComputedStyle(tile).position === 'static') {
-                    tile.style.position = 'relative';
-                }
-
-                console.log(`[Game Store Enhancer] Rendering Standard Badge for "${title}"`);
-
-                tile.appendChild(linkContainer);
             });
         });
     }
