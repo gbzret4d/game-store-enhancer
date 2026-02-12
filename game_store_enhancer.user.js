@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.3.9
+// @version      2.3.10
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -225,7 +225,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.15'; // v2.3.9: Standard Design Fix
+    const CACHE_VERSION = '2.16'; // v2.3.10: Layout Fixes
 
     // Styles
     const css = `
@@ -1617,14 +1617,26 @@
                 linkContainer.innerHTML = link.innerHTML;
                 linkContainer.title = link.title;
 
-                // Apply standard badge styles + absolute positioning
-                linkContainer.style.cssText = link.style.cssText; // Copy original inline styles
+                // Apply standard badge styles + absolute positioning with Layout Fixes (v2.3.10)
+                linkContainer.style.cssText = link.style.cssText;
                 linkContainer.style.position = 'absolute';
                 linkContainer.style.top = '6px';
                 linkContainer.style.left = '6px';
                 linkContainer.style.zIndex = '100000';
                 linkContainer.style.cursor = 'pointer';
                 linkContainer.style.pointerEvents = 'auto';
+
+                // Layout Fixes - Prevent "Vertical Strip" Issue
+                linkContainer.style.display = 'inline-flex';
+                linkContainer.style.alignItems = 'center';
+                linkContainer.style.justifyContent = 'center';
+                linkContainer.style.width = 'auto';
+                linkContainer.style.height = 'auto';
+                linkContainer.style.whiteSpace = 'nowrap';
+                linkContainer.style.backgroundColor = 'rgba(0,0,0,0.85)'; // Darker bg for contrast
+                linkContainer.style.padding = '2px 5px';
+                linkContainer.style.borderRadius = '3px';
+                linkContainer.style.boxShadow = '1px 1px 3px rgba(0,0,0,0.5)';
 
                 // Handle click manually (same as link)
                 linkContainer.addEventListener('click', (e) => {
