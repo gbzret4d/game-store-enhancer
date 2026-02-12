@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.3.10
+// @version      2.3.11
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -225,7 +225,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.16'; // v2.3.10: Layout Fixes
+    const CACHE_VERSION = '2.17'; // v2.3.11: Layout Fixes V2
 
     // Styles
     const css = `
@@ -1626,17 +1626,27 @@
                 linkContainer.style.cursor = 'pointer';
                 linkContainer.style.pointerEvents = 'auto';
 
-                // Layout Fixes - Prevent "Vertical Strip" Issue
-                linkContainer.style.display = 'inline-flex';
-                linkContainer.style.alignItems = 'center';
-                linkContainer.style.justifyContent = 'center';
-                linkContainer.style.width = 'auto';
-                linkContainer.style.height = 'auto';
-                linkContainer.style.whiteSpace = 'nowrap';
-                linkContainer.style.backgroundColor = 'rgba(0,0,0,0.85)'; // Darker bg for contrast
-                linkContainer.style.padding = '2px 5px';
-                linkContainer.style.borderRadius = '3px';
+                // Layout Fixes - Prevent "Vertical Strip" Issue (v2.3.11)
+                // We use !important to override any aggressive site CSS
+                linkContainer.style.setProperty('display', 'inline-flex', 'important');
+                linkContainer.style.setProperty('flex-direction', 'row', 'important');
+                linkContainer.style.setProperty('align-items', 'center', 'important');
+                linkContainer.style.setProperty('justify-content', 'flex-start', 'important');
+                linkContainer.style.setProperty('width', 'auto', 'important');
+                linkContainer.style.setProperty('max-width', 'none', 'important');
+                linkContainer.style.setProperty('height', 'auto', 'important');
+                linkContainer.style.setProperty('white-space', 'nowrap', 'important');
+                linkContainer.style.backgroundColor = 'rgba(23, 26, 33, 0.9)'; // Darker Steam Blue-ish bg
+                linkContainer.style.padding = '4px 6px';
+                linkContainer.style.borderRadius = '4px';
                 linkContainer.style.boxShadow = '1px 1px 3px rgba(0,0,0,0.5)';
+                linkContainer.style.lineHeight = 'normal';
+
+                // Also enforce on children if needed
+                Array.from(linkContainer.children).forEach(child => {
+                    child.style.display = 'inline-block';
+                    child.style.verticalAlign = 'middle';
+                });
 
                 // Handle click manually (same as link)
                 linkContainer.addEventListener('click', (e) => {
