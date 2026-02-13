@@ -524,8 +524,20 @@
         }
 
         let html = `<h4>${currentConfig.name} Stats</h4>`;
+
+        // v2.5.0: Add Account Stats Section
+        const cachedUserData = getStoredValue('steam_userdata', null);
+        if (cachedUserData && cachedUserData.data) {
+            html += `<div style="margin-bottom:8px; padding-bottom:4px; border-bottom:1px solid #444;">
+                        <div style="font-size:10px; color:#aaa; margin-bottom:2px;">STEAM ACCOUNT</div>
+                        <div>Owned: <span class="val" style="float:right; color:#a4d007;">${cachedUserData.data.ownedApps.length}</span></div>
+                        <div>Wishlist: <span class="val" style="float:right; color:#66c0f4;">${cachedUserData.data.wishlist.length}</span></div>
+                      </div>`;
+        }
+
+        html += `<div style="font-size:10px; color:#aaa; margin-bottom:2px;">PAGE STATS</div>`;
         const lines = [
-            { label: 'Total', val: stats.total },
+            { label: 'Total Unique', val: stats.total },
             { label: 'Owned', val: stats.owned },
             { label: 'Wishlist', val: stats.wishlist },
             { label: 'Ignored', val: stats.ignored },
@@ -535,7 +547,7 @@
         lines.forEach(l => { html += `<div>${l.label}: <span class="val">${l.val}</span></div>`; });
 
         // v2.4.16: Add Timestamp & Refresh Button
-        const cachedUserData = getStoredValue('steam_userdata', null);
+        // reuse cachedUserData from above
         if (cachedUserData && cachedUserData.timestamp) {
             const date = new Date(cachedUserData.timestamp);
             html += `<div style="margin-top:4px; font-size:10px; color:#aaa; border-top:1px solid #555; paddingTop:4px;">
@@ -1679,11 +1691,14 @@
 
                     const appIdNum = parseInt(appId);
                     const owned = userdata.ownedApps.includes(appIdNum);
-                    const wishlisted = userdata.wishlist.includes(appIdNum);
+                    // v2.5.0: Robust Wishlist Check (Handle both [123] and [{appid:123}] formats)
+                    const wishlisted = userdata.wishlist.some(w => (w === appIdNum || w.appid === appIdNum));
                     const ignored = userdata.ignored && userdata.ignored[appIdNum];
 
                     // Update Total Stats (v2.4.17)
-                    if (!stats.countedSet.has(appIdNum)) {
+                    // v2.5.0: Fix Duplicate Counting - Only count if not already processed for stats
+                    const isNewStat = !stats.countedSet.has(appIdNum);
+                    if (isNewStat) {
                         stats.total++;
                         stats.countedSet.add(appIdNum);
                     }
@@ -1703,7 +1718,7 @@
                     if (owned) {
                         tile.classList.add('ssl-container-owned');
                         tile.style.position = 'relative'; // Ensure pseudo-element border works
-                        stats.owned++; // Update stats
+                        if (isNewStat) stats.owned++; // Update stats only once per unique game
                         // v2.4.5: Only dim the image, not the whole tile (so badge stays opaque)
                         const img = tile.querySelector('img');
                         if (img) img.style.opacity = '0.6';
@@ -1716,7 +1731,7 @@
                     } else if (wishlisted) {
                         tile.classList.add('ssl-container-wishlist');
                         tile.style.position = 'relative'; // Ensure pseudo-element border works
-                        stats.wishlist++; // Update stats
+                        if (isNewStat) stats.wishlist++; // Update stats only once per unique game
                         // v2.4.14: Use Outline instead of Border
                         tile.style.outline = '2px solid #3c9bf0';
                         tile.style.outlineOffset = '-2px';
