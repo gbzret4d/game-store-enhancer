@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.4.6
+// @version      2.4.7
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -1721,32 +1721,32 @@
                         child.style.opacity = '1.0';
                     });
 
-                    // Handle click manually (same as link)
-                    linkContainer.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        e.stopImmediatePropagation(); // Crucial for Humble
-                        window.open(`https://store.steampowered.com/app/${appId}`, '_blank');
+                    // Handle click manually (Capture Phase to prevent Parent Hijacking)
+                    ['click', 'mousedown', 'mouseup'].forEach(eventType => {
+                        linkContainer.addEventListener(eventType, (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            e.stopImmediatePropagation();
+                            if (eventType === 'click') {
+                                window.open(`https://store.steampowered.com/app/${appId}`, '_blank');
+                            }
+                        }, true); // <--- Capture Phase is critical here
                     });
 
-                    // 5. Find Image Container for Positioning
-                    // We prefer appending to the image container so top:0/left:0 is relative to the *image*.
-                    let targetContainer = tile.querySelector('.image-container') ||
-                        tile.querySelector('.entity-details') || // Store
-                        tile.querySelector('.product-image'); // Fallback
+                    // 5. Append to TILE Root (Fix Stacking Context)
+                    // We append directly to the tile to ensure our z-index works against sibling overlays.
+                    // If we append to image-container, we are trapped in its stacking context which might be below an overlay.
+                    let targetContainer = tile;
 
-                    // Fallback to tile if strict container not found, but ensure tile acts as relative root
-                    if (!targetContainer) {
-                        targetContainer = tile;
-                    }
-
-                    // Ensure target is relative
+                    // Ensure target is relative so absolute positioning works
                     if (window.getComputedStyle(targetContainer).position === 'static') {
                         targetContainer.style.position = 'relative';
                     }
 
-                    if (DEBUG) console.log(`[Game Store Enhancer] Rendering Badge for "${title}" inside`, targetContainer);
+                    if (DEBUG) console.log(`[Game Store Enhancer] Rendering Badge for "${title}" inside TILE root`, targetContainer);
                     targetContainer.appendChild(linkContainer);
+
+
                 });
             });
         });
