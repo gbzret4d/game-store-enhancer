@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.5.2
+// @version      2.5.3
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -236,7 +236,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.20'; // v2.5.2: Fix Stats & Syntax
+    const CACHE_VERSION = '2.21'; // v2.5.3: H1 Logic Fix
 
     // Styles
     const css = `
@@ -1404,67 +1404,119 @@
                     }
                 }
 
-                // v2.5.0: Product Page Enhancements (H1 targeting)
-                if (window.location.pathname.startsWith('/store') && !window.location.pathname.endsWith('/store')) {
-                    const h1 = document.querySelector('h1');
-                    // Check if the processed element's title matches H1 (Main Game)
-                    if (h1 && gameName === h1.innerText.trim()) {
-                        // Apply Border Color to H1
-                        if (owned) {
-                            h1.style.border = '2px solid #a4d007'; // Green
-                            h1.style.boxShadow = '0 0 10px rgba(164, 208, 7, 0.2)';
-                        } else if (wishlisted) {
-                            h1.style.border = '2px solid #3c9bf0'; // Blue
-                            h1.style.boxShadow = '0 0 10px rgba(60, 155, 240, 0.2)';
-                        } else if (ignored) {
-                            h1.style.border = '2px solid #d9534f'; // Red
-                        }
-
-                        h1.style.padding = '8px 12px';
-                        h1.style.borderRadius = '6px';
-                        h1.style.display = 'inline-block';
-                        h1.style.width = 'auto';
-                        h1.style.marginRight = '15px';
-
-                        // Badge Placement
-                        const badge = createSteamLink(Object.assign({}, appData, { name: '' }));
-                        badge.className = 'ssl-link';
-                        badge.style.display = 'inline-flex';
-                        badge.style.alignItems = 'center';
-                        badge.style.marginLeft = '15px';
-                        badge.style.verticalAlign = 'middle';
-                        badge.style.fontSize = '14px';
-                        badge.style.fontWeight = 'normal';
-                        badge.style.backgroundColor = '#171a21';
-                        badge.style.padding = '4px 10px';
-                        badge.style.borderRadius = '4px';
-                        badge.style.border = '1px solid #3c3d3e';
-
-                        const oldBadge = h1.querySelector('.ssl-link-header');
-                        if (oldBadge) oldBadge.remove();
-                        const nextSibling = h1.nextElementSibling;
-                        if (nextSibling && nextSibling.classList.contains('ssl-link')) nextSibling.remove();
-
-                        badge.classList.add('ssl-link-header');
-                        h1.style.display = 'inline-block';
-                        h1.after(badge);
+                // v2.5.3: Product Page Enhancements (Target H1 specifically)
+                // Fixes v2.5.0 regression where search/store pages were treated as product pages, skipping tile logic.
+                if (nameEl.tagName === 'H1') {
+                    const h1 = nameEl;
+                    // Apply Border Color to H1
+                    if (owned) {
+                        h1.style.border = '2px solid #a4d007'; // Green
+                        h1.style.boxShadow = '0 0 10px rgba(164, 208, 7, 0.2)';
+                    } else if (wishlisted) {
+                        h1.style.border = '2px solid #3c9bf0'; // Blue
+                        h1.style.boxShadow = '0 0 10px rgba(60, 155, 240, 0.2)';
+                    } else if (ignored) {
+                        h1.style.border = '2px solid #d9534f'; // Red
                     }
+
+                    h1.style.padding = '8px 12px';
+                    h1.style.borderRadius = '6px';
+                    h1.style.display = 'inline-block';
+                    h1.style.width = 'auto';
+                    h1.style.marginRight = '15px';
+
+                    // Badge Placement
+                    const badge = createSteamLink(Object.assign({}, appData, { name: '' }));
+                    badge.className = 'ssl-link';
+                    badge.style.display = 'inline-flex';
+                    badge.style.alignItems = 'center';
+                    badge.style.marginLeft = '15px';
+                    badge.style.verticalAlign = 'middle';
+                    badge.style.fontSize = '14px';
+                    badge.style.fontWeight = 'normal';
+                    badge.style.backgroundColor = '#171a21';
+                    badge.style.padding = '4px 10px';
+                    badge.style.borderRadius = '4px';
+                    badge.style.border = '1px solid #3c3d3e';
+
+                    const oldBadge = h1.querySelector('.ssl-link-header');
+                    if (oldBadge) oldBadge.remove();
+                    const nextSibling = h1.nextElementSibling;
+                    if (nextSibling && nextSibling.classList.contains('ssl-link')) nextSibling.remove();
+
+                    badge.classList.add('ssl-link-header');
+                    h1.style.display = 'inline-block';
+                    h1.after(badge);
+                } else {
+                    // Standard Grid/List View Logic (NOT Product Page Header)
+                    // Refactor v2.4.8: Create Sibling Link to avoid nested A tags
+                    // ... (Existing logic for tiles) ...
+                    let targetContainer = element;
+                    // Ensure parent is relative so we can position absolute over the tile
+                    if (window.getComputedStyle(targetContainer).position === 'static') {
+                        targetContainer.style.position = 'relative';
+                    }
+
+                    // Create real A tag
+                    const linkContainer = document.createElement('a');
+                    linkContainer.className = link.className + ' humble-home-steam-link';
+                    linkContainer.innerHTML = link.innerHTML;
+                    linkContainer.title = link.title;
+                    linkContainer.href = `https://store.steampowered.com/app/${appId}`;
+                    linkContainer.target = '_blank';
+
+                    // Apply standard badge styles + absolute positioning with Layout Fixes (v2.3.10)
+                    linkContainer.style.cssText = link.style.cssText;
+                    linkContainer.style.position = 'absolute';
+                    // v2.4.4: Top-Left Positioning (User Request)
+                    linkContainer.style.top = '0';
+                    linkContainer.style.left = '0';
+                    linkContainer.style.bottom = 'auto'; // Reset bottom
+                    linkContainer.style.zIndex = '200000'; // High Z-Index
+                    linkContainer.style.cursor = 'pointer';
+                    linkContainer.style.pointerEvents = 'auto';
+                    linkContainer.style.borderTopLeftRadius = '4px';
+                    linkContainer.style.borderBottomRightRadius = '4px';
+
+                    // Layout Fixes - Prevent "Vertical Strip" Issue (v2.3.11)
+                    linkContainer.style.setProperty('display', 'inline-flex', 'important');
+                    linkContainer.style.setProperty('flex-direction', 'row', 'important');
+                    linkContainer.style.setProperty('align-items', 'center', 'important');
+                    linkContainer.style.setProperty('justify-content', 'flex-start', 'important');
+                    linkContainer.style.setProperty('width', 'auto', 'important');
+                    linkContainer.style.setProperty('max-width', 'none', 'important');
+                    linkContainer.style.setProperty('height', 'auto', 'important');
+                    linkContainer.style.setProperty('white-space', 'nowrap', 'important');
+                    linkContainer.style.backgroundColor = '#171a21'; // Solid Steam Dark (no rgba)
+                    linkContainer.style.opacity = '1.0'; // Force Opaque
+                    linkContainer.style.padding = '2px 4px';
+                    linkContainer.style.lineHeight = 'normal';
+                    linkContainer.style.boxShadow = '1px 1px 3px rgba(0,0,0,0.5)';
+
+                    // Also enforce on children if needed
+                    Array.from(linkContainer.children).forEach(child => {
+                        child.style.display = 'inline-block';
+                        child.style.verticalAlign = 'middle';
+                        child.style.opacity = '1.0';
+                    });
+
+                    if (DEBUG) console.log(`[Game Store Enhancer] Rendering Sibling Badge for "${gameName}"`, targetContainer);
+                    targetContainer.appendChild(linkContainer);
                 }
 
-            }
-
-            if (isNewStats) {
-                // DEBUG: Trace Success Block
-                if (DEBUG || gameName.toLowerCase().includes('reanimal')) {
-                    console.log(`[Game Store Enhancer DEBUG] Success Block Reached - "${gameName}" (Unique: ${uniqueId})`);
-                    console.log(`[Game Store Enhancer DEBUG] Stats before: Total=${stats.total}, Counted=${stats.countedSet.has(uniqueId)}`);
+                if (isNewStats) {
+                    // DEBUG: Trace Success Block
+                    if (DEBUG || gameName.toLowerCase().includes('reanimal')) {
+                        console.log(`[Game Store Enhancer DEBUG] Success Block Reached - "${gameName}" (Unique: ${uniqueId})`);
+                        console.log(`[Game Store Enhancer DEBUG] Stats before: Total=${stats.total}, Counted=${stats.countedSet.has(uniqueId)}`);
+                    }
+                    if (!stats.countedSet.has(uniqueId)) { // v1.28
+                        stats.total++;
+                        stats.countedSet.add(uniqueId);
+                        updateStatsUI();
+                    }
+                    element.dataset.sslStatsCounted = "true";
                 }
-                if (!stats.countedSet.has(uniqueId)) { // v1.28
-                    stats.total++;
-                    stats.countedSet.add(uniqueId);
-                    updateStatsUI();
-                }
-                element.dataset.sslStatsCounted = "true";
             }
         } catch (e) {
             console.error(e);
