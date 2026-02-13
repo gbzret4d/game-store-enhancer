@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.4.5
+// @version      2.4.6
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -307,13 +307,19 @@
 
         /* Humble Home Link - Top Left on Image */
         .humble-home-steam-link {
-            z-index: 20 !important;
+            z-index: 200000 !important; /* Extremely high to sit on top of everything */
             position: absolute !important;
             top: 0 !important;
             left: 0 !important;
             bottom: auto !important;
             border-top-left-radius: 4px;
             border-bottom-right-radius: 4px;
+            opacity: 1 !important; /* Force Full Opacity */
+            pointer-events: auto !important; /* Ensure clickable */
+        }
+        
+        .humble-home-steam-link * {
+            opacity: 1 !important; /* Ensure children are opaque */
         }
 
         /* v2.1.8: Refined Border Styling (Box-Shadow for cleaner look) */
@@ -1702,7 +1708,8 @@
                     linkContainer.style.setProperty('max-width', 'none', 'important');
                     linkContainer.style.setProperty('height', 'auto', 'important');
                     linkContainer.style.setProperty('white-space', 'nowrap', 'important');
-                    linkContainer.style.backgroundColor = 'rgba(23, 26, 33, 0.95)';
+                    linkContainer.style.backgroundColor = '#171a21'; // Solid Steam Dark (no rgba)
+                    linkContainer.style.opacity = '1.0'; // Force Opaque
                     linkContainer.style.padding = '2px 4px';
                     linkContainer.style.lineHeight = 'normal';
                     linkContainer.style.boxShadow = '1px 1px 3px rgba(0,0,0,0.5)';
@@ -1711,12 +1718,14 @@
                     Array.from(linkContainer.children).forEach(child => {
                         child.style.display = 'inline-block';
                         child.style.verticalAlign = 'middle';
+                        child.style.opacity = '1.0';
                     });
 
                     // Handle click manually (same as link)
                     linkContainer.addEventListener('click', (e) => {
                         e.preventDefault();
                         e.stopPropagation();
+                        e.stopImmediatePropagation(); // Crucial for Humble
                         window.open(`https://store.steampowered.com/app/${appId}`, '_blank');
                     });
 
