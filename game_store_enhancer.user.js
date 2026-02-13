@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.4.14
+// @version      2.4.15
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -535,7 +535,29 @@
             { label: 'No Data', val: stats.no_data }
         ];
         lines.forEach(l => { html += `<div>${l.label}: <span class="val">${l.val}</span></div>`; });
+
+        // v2.4.15: Add Refresh Button
+        html += `<div style="margin-top: 8px; text-align: center;">
+             <button id="ssl-refresh-btn" style="
+                 background: #333; color: #fff; border: 1px solid #555; 
+                 padding: 4px 8px; cursor: pointer; font-size: 10px; border-radius: 2px;">
+                 Refresh Data
+             </button></div>`;
+
         panel.innerHTML = html;
+
+        // Add Event Listener
+        setTimeout(() => {
+            const btn = document.getElementById('ssl-refresh-btn');
+            if (btn) {
+                btn.onclick = () => {
+                    if (confirm('Clear Steam UserData Cache and Reload?')) {
+                        setStoredValue('steam_userdata', null);
+                        window.location.reload();
+                    }
+                };
+            }
+        }, 100);
     }
 
     function createSteamLink(appData) {
@@ -1645,18 +1667,20 @@
                     fetchSteamUserData(),
                     fetchSteamReviews(appId)
                 ]).then(([userdata, reviews]) => {
-                    const owned = userdata.ownedApps.includes(appId);
-                    const wishlisted = userdata.wishlist.includes(appId);
-                    const ignored = userdata.ignored && userdata.ignored[appId];
+
+                    const appIdNum = parseInt(appId);
+                    const owned = userdata.ownedApps.includes(appIdNum);
+                    const wishlisted = userdata.wishlist.includes(appIdNum);
+                    const ignored = userdata.ignored && userdata.ignored[appIdNum];
 
                     // Debugging for User Report (Reanimal / Resident Evil)
                     const titleLower = title.toLowerCase();
                     if (titleLower.includes('reanimal') || titleLower.includes('resident evil')) {
                         console.group(`[Game Store Enhancer DEBUG] ${title}`);
                         console.log(`Title: "${title}"`);
-                        console.log(`Found AppID: ${appId} (${result ? result.name : 'No Result'})`);
-                        console.log(`Owned Check: ${owned} (AppID present in UserData: ${userdata.ownedApps.includes(parseInt(appId))})`);
-                        console.log(`Wishlist Check: ${wishlisted} (AppID present in UserData: ${userdata.wishlist.includes(parseInt(appId))})`);
+                        console.log(`Found AppID: ${appId} (Parsed: ${appIdNum})`);
+                        console.log(`Owned Check: ${owned} (In List: ${userdata.ownedApps.includes(appIdNum)})`);
+                        console.log(`Wishlist Check: ${wishlisted} (In List: ${userdata.wishlist.includes(appIdNum)})`);
                         console.log(`Parsed UserData:`, { owned_count: userdata.ownedApps.length, wishlist_count: userdata.wishlist.length });
                         console.groupEnd();
                     }
