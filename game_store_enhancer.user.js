@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.4.4
+// @version      2.4.5
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -1641,7 +1641,10 @@
 
                     if (owned) {
                         tile.classList.add('ssl-container-owned');
-                        tile.style.opacity = '0.6';
+                        // v2.4.5: Only dim the image, not the whole tile (so badge stays opaque)
+                        const img = tile.querySelector('img');
+                        if (img) img.style.opacity = '0.6';
+                        else tile.style.opacity = '0.6'; // Fallback
                     } else if (wishlisted) {
                         tile.classList.add('ssl-container-wishlist');
                         tile.style.border = '2px solid #3c9bf0'; // Explicit Blue Border
