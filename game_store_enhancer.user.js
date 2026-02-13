@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.4.16
+// @version      2.4.17
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -1682,6 +1682,12 @@
                     const wishlisted = userdata.wishlist.includes(appIdNum);
                     const ignored = userdata.ignored && userdata.ignored[appIdNum];
 
+                    // Update Total Stats (v2.4.17)
+                    if (!stats.countedSet.has(appIdNum)) {
+                        stats.total++;
+                        stats.countedSet.add(appIdNum);
+                    }
+
                     // Debugging for User Report (Reanimal / Resident Evil)
                     const titleLower = title.toLowerCase();
                     if (titleLower.includes('reanimal') || titleLower.includes('resident evil')) {
@@ -1706,6 +1712,7 @@
                         // v2.4.14: Use Outline instead of Border to avoid layout shift
                         tile.style.outline = '2px solid #5cb85c';
                         tile.style.outlineOffset = '-2px';
+                        tile.style.zIndex = '10'; // Ensure it's above background
                     } else if (wishlisted) {
                         tile.classList.add('ssl-container-wishlist');
                         tile.style.position = 'relative'; // Ensure pseudo-element border works
@@ -1713,6 +1720,13 @@
                         // v2.4.14: Use Outline instead of Border
                         tile.style.outline = '2px solid #3c9bf0';
                         tile.style.outlineOffset = '-2px';
+                        tile.style.zIndex = '10'; // Ensure it's above background
+                    } else {
+                        // Debug: Why is it missing?
+                        const titleLower = title.toLowerCase();
+                        if (titleLower.includes('reanimal')) {
+                            console.warn(`[Game Store Enhancer] 'REANIMAL' not detected as Owned or Wishlisted. Checked AppID: ${appIdNum}`);
+                        }
                     }
 
                     // v2.4.3: Product Page Enhancements (H1 targeting)
