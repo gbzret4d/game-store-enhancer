@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.4.9
+// @version      2.4.10
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -1762,7 +1762,8 @@
 
         // 2. Click "View Page" / "Enter" Button
         // Steam has used various IDs/Classes over the years.
-        const btn = document.querySelector('#age_gate_btn_continue') ||
+        const btn = document.getElementById('view_product_page_btn') || // Variant 2 (No Year)
+            document.querySelector('#age_gate_btn_continue') ||
             document.querySelector('.age_gate_btn_continue') ||
             document.querySelector('.btn_medium.btn_green_white_innerfade') || // Classic "Enter" button
             document.querySelector('a[onclick*="ViewProductPage"]');
