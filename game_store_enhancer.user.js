@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.4.7
+// @version      2.4.8
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -1680,11 +1680,22 @@
                     const appData = { ...result, owned, wishlisted, ignored, reviews };
                     const link = createSteamLink(appData);
 
-                    // Convert to SPAN if tile is an A tag to avoid invalid nesting
-                    const linkContainer = document.createElement('span');
+                    // Refactor v2.4.8: Create Sibling Link to avoid nested A tags
+                    // We must append to the PARENT of the tile, and position it over the tile.
+                    let targetContainer = tile.parentElement;
+
+                    // Ensure parent is relative so we can position absolute over the tile
+                    if (window.getComputedStyle(targetContainer).position === 'static') {
+                        targetContainer.style.position = 'relative';
+                    }
+
+                    // Create real A tag
+                    const linkContainer = document.createElement('a');
                     linkContainer.className = link.className + ' humble-home-steam-link';
                     linkContainer.innerHTML = link.innerHTML;
                     linkContainer.title = link.title;
+                    linkContainer.href = `https://store.steampowered.com/app/${appId}`;
+                    linkContainer.target = '_blank';
 
                     // Apply standard badge styles + absolute positioning with Layout Fixes (v2.3.10)
                     linkContainer.style.cssText = link.style.cssText;
@@ -1693,7 +1704,7 @@
                     linkContainer.style.top = '0';
                     linkContainer.style.left = '0';
                     linkContainer.style.bottom = 'auto'; // Reset bottom
-                    linkContainer.style.zIndex = '100000';
+                    linkContainer.style.zIndex = '200000'; // High Z-Index
                     linkContainer.style.cursor = 'pointer';
                     linkContainer.style.pointerEvents = 'auto';
                     linkContainer.style.borderTopLeftRadius = '4px';
@@ -1721,29 +1732,8 @@
                         child.style.opacity = '1.0';
                     });
 
-                    // Handle click manually (Capture Phase to prevent Parent Hijacking)
-                    ['click', 'mousedown', 'mouseup'].forEach(eventType => {
-                        linkContainer.addEventListener(eventType, (e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            e.stopImmediatePropagation();
-                            if (eventType === 'click') {
-                                window.open(`https://store.steampowered.com/app/${appId}`, '_blank');
-                            }
-                        }, true); // <--- Capture Phase is critical here
-                    });
-
-                    // 5. Append to TILE Root (Fix Stacking Context)
-                    // We append directly to the tile to ensure our z-index works against sibling overlays.
-                    // If we append to image-container, we are trapped in its stacking context which might be below an overlay.
-                    let targetContainer = tile;
-
-                    // Ensure target is relative so absolute positioning works
-                    if (window.getComputedStyle(targetContainer).position === 'static') {
-                        targetContainer.style.position = 'relative';
-                    }
-
-                    if (DEBUG) console.log(`[Game Store Enhancer] Rendering Badge for "${title}" inside TILE root`, targetContainer);
+                    // Add to DOM as Sibling
+                    if (DEBUG) console.log(`[Game Store Enhancer] Rendering Sibling Badge for "${title}"`, targetContainer);
                     targetContainer.appendChild(linkContainer);
 
 
