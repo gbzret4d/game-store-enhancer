@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.5.4
+// @version      2.5.5
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -241,7 +241,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.22'; // v2.5.4: Robust Selectors
+    const CACHE_VERSION = '2.23'; // v2.5.5: Fuzzy Search Logic
 
     // Styles
     const css = `
@@ -945,9 +945,35 @@
                     try {
                         const parser = new DOMParser();
                         const doc = parser.parseFromString(response.responseText, "text/html");
-                        const item = doc.querySelector('#search_resultsRows a.search_result_row');
+                        // v2.5.5: Fuzzy Search (Iterate all results)
+                        const items = doc.querySelectorAll('#search_resultsRows a.search_result_row');
+                        if (items.length > 0) {
+                            let bestMatch = null;
+                            let maxSim = 0;
+                            const searchName = term.toLowerCase();
 
-                        if (item) {
+                            for (const row of items) {
+                                const titleEl = row.querySelector('.title');
+                                if (!titleEl) continue;
+                                const name = titleEl.textContent.trim();
+                                const sim = getSimilarity(searchName, name);
+
+                                // Debug: Trace search candidates if "reanimal" is involved
+                                if (DEBUG && searchName.includes('reanimal')) {
+                                    console.log(`[Game Store Enhancer DEBUG] Search Candidate: "${name}" (Sim: ${sim.toFixed(2)})`);
+                                }
+
+                                if (sim > maxSim) {
+                                    maxSim = sim;
+                                    bestMatch = row;
+                                }
+                                if (sim === 1.0) break; // Perfect match found
+                            }
+
+                            // Use best match, or fallback to first if no good match (heuristic)
+                            // If maxSim is very low (< 0.3), it might be garbage, but better than nothing?
+                            const item = bestMatch || items[0];
+
                             const id = item.getAttribute('data-ds-appid');
                             // Determine type (bundle, sub, app)
                             let type = 'app';
@@ -965,6 +991,11 @@
                             if (discountEl) discount = parseInt(discountEl.innerText.replace('-', ''));
 
                             const result = { id, type, name, tiny_image: img, price, discount };
+
+                            if (DEBUG && searchName.includes('reanimal')) {
+                                console.log(`[Game Store Enhancer DEBUG] Selected Result: "${result.name}" (ID: ${result.id})`);
+                            }
+
                             resolve(result);
                         } else {
                             console.log(`[Game Store Enhancer] No results for "${term}"`);
