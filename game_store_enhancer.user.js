@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.4.15
+// @version      2.4.16
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -412,22 +412,20 @@
         /* Stats Panel */
         #ssl-stats {
             position: fixed;
-            top: 15%;
-            right: 0;
-            background: rgba(23, 26, 33, 0.95);
-            color: #c7d5e0;
-            padding: 12px;
-            border-radius: 8px 0 0 8px;
-            box-shadow: -2px 2px 10px rgba(0,0,0,0.5);
-            z-index: 99999;
-            font-size: 11px;
-            line-height: 1.4;
-            min-width: 140px;
-            border: 1px solid #3c3d3e;
-            border-right: none;
-            pointer-events: none;
-            transition: opacity 0.3s, right 0.3s;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.8);
+            color: #fff;
+            padding: 10px;
+            border-radius: 4px;
+            z-index: 100000; /* High Z-index */
+            font-size: 12px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            pointer-events: auto !important; /* Ensure clickable */
         }
+        #ssl-stats h4 { margin: 0 0 5px 0; font-size: 14px; text-decoration: underline; color: #66c0f4; }
+        #ssl-stats div { margin-bottom: 2px; }
+        #ssl-stats .val { float: right; margin-left: 10px; font-weight: bold; color: #a4d007; }
         #ssl-stats:hover {
             opacity: 1;
             right: 0;
@@ -536,10 +534,21 @@
         ];
         lines.forEach(l => { html += `<div>${l.label}: <span class="val">${l.val}</span></div>`; });
 
-        // v2.4.15: Add Refresh Button
+        // v2.4.16: Add Timestamp & Refresh Button
+        const cachedUserData = getStoredValue('steam_userdata', null);
+        if (cachedUserData && cachedUserData.timestamp) {
+            const date = new Date(cachedUserData.timestamp);
+            html += `<div style="margin-top:4px; font-size:10px; color:#aaa; border-top:1px solid #555; paddingTop:4px;">
+                        Last Updated:<br>${date.toLocaleTimeString()} (${date.toLocaleDateString()})
+                     </div>`;
+        } else {
+            html += `<div style="margin-top:4px; font-size:10px; color:#aaa;">No Data Cached</div>`;
+        }
+
         html += `<div style="margin-top: 8px; text-align: center;">
              <button id="ssl-refresh-btn" style="
                  background: #333; color: #fff; border: 1px solid #555; 
+                 pointer-events: auto; /* Force clickable */
                  padding: 4px 8px; cursor: pointer; font-size: 10px; border-radius: 2px;">
                  Refresh Data
              </button></div>`;
