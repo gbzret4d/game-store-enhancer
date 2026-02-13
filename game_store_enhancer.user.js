@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.4.11
+// @version      2.4.12
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -157,8 +157,11 @@
             // GOG IDs don't match Steam, so we rely on Name Search.
             // But we can filter out non-game pages if needed.
         },
-
-
+        'store.steampowered.com': {
+            name: 'Steam',
+            selectors: [], // No game enhancements needed on Steam itself yet
+            ignoreUrl: null
+        }
     };
 
 
