@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.4.8
+// @version      2.4.9
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -9,6 +9,7 @@
 // @match        https://dailyindiegame.com/*
 // @match        https://www.dailyindiegame.com/*
 // @match        https://www.gog.com/*
+// @match        https://store.steampowered.com/agecheck/*
 
 // @icon         https://store.steampowered.com/favicon.ico
 // @updateURL    https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/game_store_enhancer.user.js
@@ -1745,6 +1746,39 @@
     function scanHomepage() {
         scanHomepageBundles();
         scanHomepageGames();
+    }
+
+    // v2.4.9: Steam Age Check Bypass Logic
+    function handleAgeCheck() {
+        console.log('[Game Store Enhancer] Checking for Age Gate...');
+
+        // 1. Dropdown Case (Year Selection)
+        const yearDropdown = document.getElementById('ageYear');
+        if (yearDropdown) {
+            console.log('[Game Store Enhancer] Found Year Dropdown. Selecting 2000...');
+            yearDropdown.value = '2000';
+            yearDropdown.dispatchEvent(new Event('change'));
+        }
+
+        // 2. Click "View Page" / "Enter" Button
+        // Steam has used various IDs/Classes over the years.
+        const btn = document.querySelector('#age_gate_btn_continue') ||
+            document.querySelector('.age_gate_btn_continue') ||
+            document.querySelector('.btn_medium.btn_green_white_innerfade') || // Classic "Enter" button
+            document.querySelector('a[onclick*="ViewProductPage"]');
+
+        if (btn) {
+            console.log('[Game Store Enhancer] Bypassing Age Check (Clicking Button)...');
+            btn.click();
+        } else {
+            console.log('[Game Store Enhancer] No continue button found immediately.');
+        }
+    }
+
+    // v2.4.9: Age Check Bypass
+    if (window.location.hostname === 'store.steampowered.com' && window.location.pathname.startsWith('/agecheck')) {
+        handleAgeCheck();
+        return; // Stop other processing on age check page
     }
 
     // v2.1.14: Init Cache then Scan
