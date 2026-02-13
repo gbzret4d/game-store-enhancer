@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.5.1
+// @version      2.5.2
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -236,7 +236,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.19'; // v2.5.1: Syntax Error Fix
+    const CACHE_VERSION = '2.20'; // v2.5.2: Fix Stats & Syntax
 
     // Styles
     const css = `
@@ -511,7 +511,7 @@
 
     // --- State & UI ---
     // v1.28: Add countedSet for deduplication
-    const stats = { total: 0, owned: 0, wishlist: 0, ignored: 0, missing: 0, no_data: 0, countedSet: new Set() };
+    let stats = { total: 0, owned: 0, wishlist: 0, ignored: 0, missing: 0, no_data: 0, countedSet: new Set() };
 
     function updateStatsUI() {
         let panel = document.getElementById('ssl-stats');
@@ -1141,6 +1141,11 @@
             gameName = nameEl.getAttribute('title').trim();
         }
 
+        // DEBUG: Trace Stats Functionality
+        if (DEBUG || gameName.toLowerCase().includes('reanimal')) {
+            console.log(`[Game Store Enhancer DEBUG] Processing "${gameName}". Current Stats Total: ${stats.total}`);
+        }
+
         if (!gameName) {
             if (DEBUG && currentConfig.name === 'IndieGala') {
                 console.log('[Game Store Enhancer] [DEBUG] Game Name is EMPTY. Element:', nameEl);
@@ -1447,10 +1452,28 @@
                 }
 
             }
+
+            if (isNewStats) {
+                // DEBUG: Trace Success Block
+                if (DEBUG || gameName.toLowerCase().includes('reanimal')) {
+                    console.log(`[Game Store Enhancer DEBUG] Success Block Reached - "${gameName}" (Unique: ${uniqueId})`);
+                    console.log(`[Game Store Enhancer DEBUG] Stats before: Total=${stats.total}, Counted=${stats.countedSet.has(uniqueId)}`);
+                }
+                if (!stats.countedSet.has(uniqueId)) { // v1.28
+                    stats.total++;
+                    stats.countedSet.add(uniqueId);
+                    updateStatsUI();
+                }
+                element.dataset.sslStatsCounted = "true";
+            }
         } catch (e) {
             console.error(e);
             element.dataset.sslProcessed = "error";
+            // DEBUG: Trace Increment
             if (isNewStats) {
+                if (DEBUG || gameName.toLowerCase().includes('reanimal')) {
+                    console.log(`[Game Store Enhancer DEBUG] Stats Increment Candidate: "${gameName}" (Unique: ${uniqueId}) - InSet: ${stats.countedSet.has(uniqueId)}`);
+                }
                 if (!stats.countedSet.has(uniqueId)) { // v1.28
                     stats.no_data++;
                     stats.total++;
@@ -1458,7 +1481,6 @@
                     updateStatsUI();
                 }
                 element.dataset.sslStatsCounted = "true";
-
             }
         }
     }
