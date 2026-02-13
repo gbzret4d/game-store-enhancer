@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.4.10
+// @version      2.4.11
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -1760,20 +1760,29 @@
             yearDropdown.dispatchEvent(new Event('change'));
         }
 
-        // 2. Click "View Page" / "Enter" Button
-        // Steam has used various IDs/Classes over the years.
-        const btn = document.getElementById('view_product_page_btn') || // Variant 2 (No Year)
-            document.querySelector('#age_gate_btn_continue') ||
-            document.querySelector('.age_gate_btn_continue') ||
-            document.querySelector('.btn_medium.btn_green_white_innerfade') || // Classic "Enter" button
-            document.querySelector('a[onclick*="ViewProductPage"]');
+        // Helper to find and click the button
+        const tryClickButton = (attempt = 1) => {
+            // Steam has used various IDs/Classes over the years.
+            const btn = document.getElementById('view_product_page_btn') || // Variant 2 (No Year)
+                document.querySelector('#age_gate_btn_continue') ||
+                document.querySelector('.age_gate_btn_continue') ||
+                document.querySelector('.btn_medium.btn_green_white_innerfade') || // Classic "Enter" button
+                document.querySelector('a[onclick*="ViewProductPage"]');
 
-        if (btn) {
-            console.log('[Game Store Enhancer] Bypassing Age Check (Clicking Button)...');
-            btn.click();
-        } else {
-            console.log('[Game Store Enhancer] No continue button found immediately.');
-        }
+            if (btn) {
+                console.log(`[Game Store Enhancer] Bypassing Age Check (Clicking Button) on attempt ${attempt}...`);
+                btn.click();
+            } else {
+                if (attempt < 10) { // Retry for ~2 seconds (10 * 200ms)
+                    console.log(`[Game Store Enhancer] Button not found yet, retrying... (${attempt})`);
+                    setTimeout(() => tryClickButton(attempt + 1), 200);
+                } else {
+                    console.log('[Game Store Enhancer] No continue button found after multiple retries.');
+                }
+            }
+        };
+
+        tryClickButton();
     }
 
     // v2.4.9: Age Check Bypass
