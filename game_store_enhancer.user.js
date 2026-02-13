@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.4.12
+// @version      2.4.13
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -1651,13 +1651,24 @@
 
                     if (owned) {
                         tile.classList.add('ssl-container-owned');
+                        tile.style.position = 'relative'; // Ensure pseudo-element border works
+                        stats.owned++; // Update stats
                         // v2.4.5: Only dim the image, not the whole tile (so badge stays opaque)
                         const img = tile.querySelector('img');
                         if (img) img.style.opacity = '0.6';
                         else tile.style.opacity = '0.6'; // Fallback
                     } else if (wishlisted) {
                         tile.classList.add('ssl-container-wishlist');
+                        tile.style.position = 'relative'; // Ensure pseudo-element border works
+                        stats.wishlist++; // Update stats
                         tile.style.border = '2px solid #3c9bf0'; // Explicit Blue Border
+                    }
+
+                    // Debugging for User Report (Reanimal / Resident Evil)
+                    if (title.includes('Reanimal') || title.includes('Resident Evil')) {
+                        console.log(`[Game Store Enhancer DEBUG] "${title}" - AppID: ${appId}, Owned: ${owned}, Wishlisted: ${wishlisted}`);
+                        console.log('UserData Owned List includes:', userdata.ownedApps.includes(appId));
+                        console.log('UserData Wishlist includes:', userdata.wishlist.includes(appId));
                     }
 
                     // v2.4.3: Product Page Enhancements (H1 targeting)
@@ -1749,6 +1760,7 @@
     function scanHomepage() {
         scanHomepageBundles();
         scanHomepageGames();
+        setTimeout(updateStatsUI, 1000); // Update stats after scan (delayed to allow async fetches)
     }
 
     // v2.4.9: Steam Age Check Bypass Logic
