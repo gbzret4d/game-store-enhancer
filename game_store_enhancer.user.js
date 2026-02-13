@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.4.13
+// @version      2.4.14
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -1649,6 +1649,18 @@
                     const wishlisted = userdata.wishlist.includes(appId);
                     const ignored = userdata.ignored && userdata.ignored[appId];
 
+                    // Debugging for User Report (Reanimal / Resident Evil)
+                    const titleLower = title.toLowerCase();
+                    if (titleLower.includes('reanimal') || titleLower.includes('resident evil')) {
+                        console.group(`[Game Store Enhancer DEBUG] ${title}`);
+                        console.log(`Title: "${title}"`);
+                        console.log(`Found AppID: ${appId} (${result ? result.name : 'No Result'})`);
+                        console.log(`Owned Check: ${owned} (AppID present in UserData: ${userdata.ownedApps.includes(parseInt(appId))})`);
+                        console.log(`Wishlist Check: ${wishlisted} (AppID present in UserData: ${userdata.wishlist.includes(parseInt(appId))})`);
+                        console.log(`Parsed UserData:`, { owned_count: userdata.ownedApps.length, wishlist_count: userdata.wishlist.length });
+                        console.groupEnd();
+                    }
+
                     if (owned) {
                         tile.classList.add('ssl-container-owned');
                         tile.style.position = 'relative'; // Ensure pseudo-element border works
@@ -1657,18 +1669,17 @@
                         const img = tile.querySelector('img');
                         if (img) img.style.opacity = '0.6';
                         else tile.style.opacity = '0.6'; // Fallback
+
+                        // v2.4.14: Use Outline instead of Border to avoid layout shift
+                        tile.style.outline = '2px solid #5cb85c';
+                        tile.style.outlineOffset = '-2px';
                     } else if (wishlisted) {
                         tile.classList.add('ssl-container-wishlist');
                         tile.style.position = 'relative'; // Ensure pseudo-element border works
                         stats.wishlist++; // Update stats
-                        tile.style.border = '2px solid #3c9bf0'; // Explicit Blue Border
-                    }
-
-                    // Debugging for User Report (Reanimal / Resident Evil)
-                    if (title.includes('Reanimal') || title.includes('Resident Evil')) {
-                        console.log(`[Game Store Enhancer DEBUG] "${title}" - AppID: ${appId}, Owned: ${owned}, Wishlisted: ${wishlisted}`);
-                        console.log('UserData Owned List includes:', userdata.ownedApps.includes(appId));
-                        console.log('UserData Wishlist includes:', userdata.wishlist.includes(appId));
+                        // v2.4.14: Use Outline instead of Border
+                        tile.style.outline = '2px solid #3c9bf0';
+                        tile.style.outlineOffset = '-2px';
                     }
 
                     // v2.4.3: Product Page Enhancements (H1 targeting)
