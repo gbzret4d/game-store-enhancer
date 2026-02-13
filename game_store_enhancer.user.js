@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.5.3
+// @version      2.5.4
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -49,6 +49,11 @@
                 { container: '.product-header', title: 'h1' },
                 { container: '.product-hero', title: 'h1' },
                 { container: '[class*="product-detail"]', title: 'h1' },
+                // v2.5.4: Robust Product Page Header Targeting
+                // v2.5.4: General Product Page Wrappers
+                { container: '.entity-info-container', title: 'h1' },
+                { container: '#main', title: 'h1' },
+                { container: 'main', title: 'h1' },
                 // v2.1.13: Homepage Support
                 { container: '.full-tile-view', title: '.item-title' }, // Featured
                 { container: '.product-tile', title: '.item-title' },   // Store/Bundle
@@ -236,7 +241,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.21'; // v2.5.3: H1 Logic Fix
+    const CACHE_VERSION = '2.22'; // v2.5.4: Robust Selectors
 
     // Styles
     const css = `
