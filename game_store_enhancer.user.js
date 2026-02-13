@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.5.0
+// @version      2.5.1
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -236,7 +236,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.18'; // v2.5.0: Stats Fixes & Product Page Visuals
+    const CACHE_VERSION = '2.19'; // v2.5.1: Syntax Error Fix
 
     // Styles
     const css = `
@@ -1371,6 +1371,81 @@
                     }
                 }
 
+
+                // Debugging for User Report (Reanimal / Resident Evil)
+                const titleLower = gameName.toLowerCase();
+                const appIdNum = parseInt(appId);
+                if (titleLower.includes('reanimal') || titleLower.includes('resident evil')) {
+                    console.group(`[Game Store Enhancer DEBUG] ${gameName}`);
+                    console.log(`Title: "${gameName}"`);
+                    console.log(`Found AppID: ${appId} (Parsed: ${appIdNum})`);
+                    console.log(`Owned Check: ${owned} (In List: ${userData.ownedApps.includes(appIdNum)})`);
+                    console.log(`Wishlist Check: ${wishlisted} (In List: ${userData.wishlist.some(w => (w === appIdNum || w.appid === appIdNum))})`);
+                    // v2.5.0: Enhanced Debugging for Packages
+                    console.log(`Parsed UserData:`, {
+                        owned_count: userData.ownedApps.length,
+                        wishlist_count: userData.wishlist.length,
+                        package_count: userData.ownedPackages ? userData.ownedPackages.length : 0
+                    });
+                    if (userData.ownedPackages && userData.ownedPackages.length > 0) {
+                        console.log(`[DEBUG] User owns ${userData.ownedPackages.length} packages.`);
+                    }
+                    console.groupEnd();
+                }
+
+                if (!owned && !wishlisted) {
+                    if (titleLower.includes('reanimal')) {
+                        console.warn(`[Game Store Enhancer] 'REANIMAL' not detected as Owned or Wishlisted. Checked AppID: ${appIdNum}`);
+                    }
+                }
+
+                // v2.5.0: Product Page Enhancements (H1 targeting)
+                if (window.location.pathname.startsWith('/store') && !window.location.pathname.endsWith('/store')) {
+                    const h1 = document.querySelector('h1');
+                    // Check if the processed element's title matches H1 (Main Game)
+                    if (h1 && gameName === h1.innerText.trim()) {
+                        // Apply Border Color to H1
+                        if (owned) {
+                            h1.style.border = '2px solid #a4d007'; // Green
+                            h1.style.boxShadow = '0 0 10px rgba(164, 208, 7, 0.2)';
+                        } else if (wishlisted) {
+                            h1.style.border = '2px solid #3c9bf0'; // Blue
+                            h1.style.boxShadow = '0 0 10px rgba(60, 155, 240, 0.2)';
+                        } else if (ignored) {
+                            h1.style.border = '2px solid #d9534f'; // Red
+                        }
+
+                        h1.style.padding = '8px 12px';
+                        h1.style.borderRadius = '6px';
+                        h1.style.display = 'inline-block';
+                        h1.style.width = 'auto';
+                        h1.style.marginRight = '15px';
+
+                        // Badge Placement
+                        const badge = createSteamLink(Object.assign({}, appData, { name: '' }));
+                        badge.className = 'ssl-link';
+                        badge.style.display = 'inline-flex';
+                        badge.style.alignItems = 'center';
+                        badge.style.marginLeft = '15px';
+                        badge.style.verticalAlign = 'middle';
+                        badge.style.fontSize = '14px';
+                        badge.style.fontWeight = 'normal';
+                        badge.style.backgroundColor = '#171a21';
+                        badge.style.padding = '4px 10px';
+                        badge.style.borderRadius = '4px';
+                        badge.style.border = '1px solid #3c3d3e';
+
+                        const oldBadge = h1.querySelector('.ssl-link-header');
+                        if (oldBadge) oldBadge.remove();
+                        const nextSibling = h1.nextElementSibling;
+                        if (nextSibling && nextSibling.classList.contains('ssl-link')) nextSibling.remove();
+
+                        badge.classList.add('ssl-link-header');
+                        h1.style.display = 'inline-block';
+                        h1.after(badge);
+                    }
+                }
+
             }
         } catch (e) {
             console.error(e);
@@ -1753,130 +1828,9 @@
                         }
                     }
 
-                    // v2.5.0: Product Page Enhancements (H1 targeting)
-                    if (window.location.pathname.startsWith('/store') && !window.location.pathname.endsWith('/store')) {
-                        const h1 = document.querySelector('h1');
-                        if (h1 && title === h1.innerText.trim()) {
-                            // Apply Border Color to H1
-                            if (owned) {
-                                h1.style.border = '2px solid #a4d007'; // Green
-                                h1.style.boxShadow = '0 0 10px rgba(164, 208, 7, 0.2)';
-                            } else if (wishlisted) {
-                                h1.style.border = '2px solid #3c9bf0'; // Blue
-                                h1.style.boxShadow = '0 0 10px rgba(60, 155, 240, 0.2)';
-                            } else if (ignored) {
-                                h1.style.border = '2px solid #d9534f'; // Red
-                            }
-
-                            h1.style.padding = '8px 12px'; // More padding for the border
-                            h1.style.borderRadius = '6px';
-                            h1.style.display = 'inline-block'; // Hug content
-                            h1.style.width = 'auto'; // Prevent full width if possible
-                            h1.style.marginRight = '15px'; // Space for badge if inline
-
-                            // Badge Placement Strategy: Append detailed badge to H1 or place after it
-                            // The user wants: Link, Score, Status NEXT to the name.
-                            // We can use the 'link' element we created, but style it to fit the header.
-
-                            const badge = createSteamLink(Object.assign({}, appData, { name: '' })); // No tooltip name needed inside
-                            badge.className = 'ssl-link'; // Reset class
-
-                            // Custom Header Badge Styling
-                            badge.style.display = 'inline-flex';
-                            badge.style.alignItems = 'center';
-                            badge.style.marginLeft = '15px';
-                            badge.style.verticalAlign = 'middle';
-                            badge.style.fontSize = '14px'; // Match header size roughly
-                            badge.style.fontWeight = 'normal';
-                            badge.style.background = 'transparent'; // Integrate with header? or keep dark pill?
-                            // Keep dark pill for contrast
-                            badge.style.backgroundColor = '#171a21';
-                            badge.style.padding = '4px 10px';
-                            badge.style.borderRadius = '4px';
-                            badge.style.border = '1px solid #3c3d3e';
-
-                            // Remove old badge if exists (prevent dupes)
-                            const oldBadge = h1.querySelector('.ssl-link-header');
-                            if (oldBadge) oldBadge.remove();
-                            // Also check sibling
-                            const nextSibling = h1.nextElementSibling;
-                            if (nextSibling && nextSibling.classList.contains('ssl-link')) nextSibling.remove();
-
-                            badge.classList.add('ssl-link-header');
-
-                            // Append to H1 (so it wraps with it) or After? 
-                            // User said "nebem dem spielnamen" (next to game name).
-                            // Appending to H1 might inherit H1 styles (font weight/size). 
-                            // Let's Insert After H1, but ensure they are on same line if possible.
-                            h1.style.display = 'inline-block';
-                            h1.after(badge);
-
-                            // Stop processing standard tile logic for this H1 element to avoid double badges?
-                            // The 'tile' here is likely the container OF the H1 or the product page wrapper.
-                            // We should probably NOT return here, as we might still want the image to dim etc?
-                            // But usually on product page, the "tile" being scanned is the main content area.
-                        }
-                    } else {
-                        // Standard Grid/List View Logic (NOT Product Page Header)
-                        // Refactor v2.4.8: Create Sibling Link to avoid nested A tags
-                        // ... (Existing logic for tiles) ...
-                        let targetContainer = tile.parentElement;
-                        // Ensure parent is relative so we can position absolute over the tile
-                        if (window.getComputedStyle(targetContainer).position === 'static') {
-                            targetContainer.style.position = 'relative';
-                        }
-
-                        // Create real A tag
-                        const linkContainer = document.createElement('a');
-                        linkContainer.className = link.className + ' humble-home-steam-link';
-                        linkContainer.innerHTML = link.innerHTML;
-                        linkContainer.title = link.title;
-                        linkContainer.href = `https://store.steampowered.com/app/${appId}`;
-                        linkContainer.target = '_blank';
-
-                        // Apply standard badge styles + absolute positioning with Layout Fixes (v2.3.10)
-                        linkContainer.style.cssText = link.style.cssText;
-                        linkContainer.style.position = 'absolute';
-                        // v2.4.4: Top-Left Positioning (User Request)
-                        linkContainer.style.top = '0';
-                        linkContainer.style.left = '0';
-                        linkContainer.style.bottom = 'auto'; // Reset bottom
-                        linkContainer.style.zIndex = '200000'; // High Z-Index
-                        linkContainer.style.cursor = 'pointer';
-                        linkContainer.style.pointerEvents = 'auto';
-                        linkContainer.style.borderTopLeftRadius = '4px';
-                        linkContainer.style.borderBottomRightRadius = '4px';
-
-                        // Layout Fixes - Prevent "Vertical Strip" Issue (v2.3.11)
-                        linkContainer.style.setProperty('display', 'inline-flex', 'important');
-                        linkContainer.style.setProperty('flex-direction', 'row', 'important');
-                        linkContainer.style.setProperty('align-items', 'center', 'important');
-                        linkContainer.style.setProperty('justify-content', 'flex-start', 'important');
-                        linkContainer.style.setProperty('width', 'auto', 'important');
-                        linkContainer.style.setProperty('max-width', 'none', 'important');
-                        linkContainer.style.setProperty('height', 'auto', 'important');
-                        linkContainer.style.setProperty('white-space', 'nowrap', 'important');
-                        linkContainer.style.backgroundColor = '#171a21'; // Solid Steam Dark (no rgba)
-                        linkContainer.style.opacity = '1.0'; // Force Opaque
-                        linkContainer.style.padding = '2px 4px';
-                        linkContainer.style.lineHeight = 'normal';
-                        linkContainer.style.boxShadow = '1px 1px 3px rgba(0,0,0,0.5)';
-
-                        // Also enforce on children if needed
-                        Array.from(linkContainer.children).forEach(child => {
-                            child.style.display = 'inline-block';
-                            child.style.verticalAlign = 'middle';
-                            child.style.opacity = '1.0';
-                        });
-
-                        if (DEBUG) console.log(`[Game Store Enhancer] Rendering Sibling Badge for "${title}"`, targetContainer);
-                        targetContainer.appendChild(linkContainer);
-                    }
-                }
-            } catch (e) {
-                console.error('[Game Store Enhancer] Error in processGameElement:', e);
-            }
-        }
+                }).catch(e => console.error(e));
+            });
+        });
     }
 
     function scanHomepage() {
