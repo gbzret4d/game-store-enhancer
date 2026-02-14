@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.5.5
+// @version      2.5.6
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -241,7 +241,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.23'; // v2.5.5: Fuzzy Search Logic
+    const CACHE_VERSION = '2.24'; // v2.5.6: Homepage Badges & Strict Search
 
     // Styles
     const css = `
@@ -970,9 +970,17 @@
                                 if (sim === 1.0) break; // Perfect match found
                             }
 
-                            // Use best match, or fallback to first if no good match (heuristic)
-                            // If maxSim is very low (< 0.3), it might be garbage, but better than nothing?
-                            const item = bestMatch || items[0];
+                            // v2.5.6: Strict Matching - Better NO result than a WRONG result
+                            // User Feedback: "Lieber keine la Zuordnung als eine falsche"
+                            const THRESHOLD = 0.7; // 70% similarity required
+
+                            if (!bestMatch || maxSim < THRESHOLD) {
+                                console.log(`[Game Store Enhancer] No valid match found for "${term}" (Best: "${bestMatch ? bestMatch.querySelector('.title').textContent : 'None'}" @ ${maxSim.toFixed(2)})`);
+                                resolve(null);
+                                return;
+                            }
+
+                            const item = bestMatch;
 
                             const id = item.getAttribute('data-ds-appid');
                             // Determine type (bundle, sub, app)
@@ -1446,13 +1454,13 @@
                     const h1 = nameEl;
                     // Apply Border Color to H1
                     if (owned) {
-                        h1.style.border = '2px solid #a4d007'; // Green
+                        h1.style.border = '4px solid #a4d007'; // Green
                         h1.style.boxShadow = '0 0 10px rgba(164, 208, 7, 0.2)';
                     } else if (wishlisted) {
-                        h1.style.border = '2px solid #3c9bf0'; // Blue
+                        h1.style.border = '4px solid #3c9bf0'; // Blue
                         h1.style.boxShadow = '0 0 10px rgba(60, 155, 240, 0.2)';
                     } else if (ignored) {
-                        h1.style.border = '2px solid #d9534f'; // Red
+                        h1.style.border = '4px solid #d9534f'; // Red
                     }
 
                     h1.style.padding = '8px 12px';
@@ -1493,13 +1501,25 @@
                         targetContainer.style.position = 'relative';
                     }
 
-                    // Create real A tag
-                    const linkContainer = document.createElement('a');
+                    // Create Badge Container (Span if parent is A, else A)
+                    const parentIsAnchor = targetContainer.tagName === 'A';
+                    const linkContainer = document.createElement(parentIsAnchor ? 'span' : 'a');
+
                     linkContainer.className = link.className + ' humble-home-steam-link';
                     linkContainer.innerHTML = link.innerHTML;
                     linkContainer.title = link.title;
-                    linkContainer.href = `https://store.steampowered.com/app/${appId}`;
-                    linkContainer.target = '_blank';
+
+                    if (parentIsAnchor) {
+                        linkContainer.style.cursor = 'pointer';
+                        linkContainer.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            window.open(`https://store.steampowered.com/app/${appId}`, '_blank');
+                        });
+                    } else {
+                        linkContainer.href = `https://store.steampowered.com/app/${appId}`;
+                        linkContainer.target = '_blank';
+                    }
 
                     // Apply standard badge styles + absolute positioning with Layout Fixes (v2.3.10)
                     linkContainer.style.cssText = link.style.cssText;
@@ -1919,17 +1939,30 @@
                         else tile.style.opacity = '0.6'; // Fallback
 
                         // v2.4.14: Use Outline instead of Border to avoid layout shift
-                        tile.style.outline = '2px solid #5cb85c';
-                        tile.style.outlineOffset = '-2px';
+                        tile.style.outline = '4px solid #5cb85c';
+                        tile.style.outlineOffset = '-4px';
                         tile.style.zIndex = '10'; // Ensure it's above background
                     } else if (wishlisted) {
                         tile.classList.add('ssl-container-wishlist');
                         tile.style.position = 'relative'; // Ensure pseudo-element border works
                         if (isNewStat) stats.wishlist++; // Update stats only once per unique game
                         // v2.4.14: Use Outline instead of Border
-                        tile.style.outline = '2px solid #3c9bf0';
-                        tile.style.outlineOffset = '-2px';
+                        tile.style.outline = '4px solid #3c9bf0';
+                        tile.style.outlineOffset = '-4px';
                         tile.style.zIndex = '10'; // Ensure it's above background
+                    } else if (ignored) {
+                        tile.classList.add('ssl-container-ignored');
+                        tile.style.position = 'relative';
+                        if (isNewStat) stats.ignored++;
+
+                        tile.style.outline = '4px solid #d9534f';
+                        tile.style.outlineOffset = '-4px';
+                        tile.style.zIndex = '10';
+
+                        // Dim ignored games significantly
+                        const img = tile.querySelector('img');
+                        if (img) img.style.opacity = '0.3';
+                        else tile.style.opacity = '0.3';
                     } else {
                         // Debug: Why is it missing?
                         const titleLower = title.toLowerCase();
