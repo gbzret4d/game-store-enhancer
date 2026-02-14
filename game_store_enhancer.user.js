@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.5.8
+// @version      2.5.9
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -241,7 +241,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.26'; // v2.5.8: Heuristic Scanning & Debugging
+    const CACHE_VERSION = '2.27'; // v2.5.9: Fix Homepage Badge Layout & Clickability
 
     // Styles
     const css = `
@@ -2043,33 +2043,10 @@
                             linkContainer.innerHTML = badgeLink.innerHTML;
                             linkContainer.title = badgeLink.title;
 
-                            if (parentIsAnchor) {
-                                linkContainer.style.cursor = 'pointer';
-                                linkContainer.addEventListener('click', (e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    window.open(`https://store.steampowered.com/app/${appId}`, '_blank');
-                                });
-                            } else {
-                                linkContainer.href = `https://store.steampowered.com/app/${appId}`;
-                                linkContainer.target = '_blank';
-                            }
-
-                            // Apply standard badge styles + absolute positioning
-                            linkContainer.style.cssText = badgeLink.style.cssText;
-                            linkContainer.style.position = 'absolute';
-                            linkContainer.style.top = '0';
-                            linkContainer.style.left = '0';
-                            linkContainer.style.bottom = 'auto';
-                            linkContainer.style.zIndex = '200000';
-                            linkContainer.style.cursor = 'pointer';
-                            linkContainer.style.pointerEvents = 'auto';
-                            linkContainer.style.borderTopLeftRadius = '4px';
-                            linkContainer.style.borderBottomRightRadius = '4px';
-
-                            // Layout Fixes
+                            // Layout Fixes - Force single line
                             linkContainer.style.setProperty('display', 'inline-flex', 'important');
                             linkContainer.style.setProperty('flex-direction', 'row', 'important');
+                            linkContainer.style.setProperty('flex-wrap', 'nowrap', 'important');
                             linkContainer.style.setProperty('align-items', 'center', 'important');
                             linkContainer.style.setProperty('justify-content', 'flex-start', 'important');
                             linkContainer.style.setProperty('width', 'auto', 'important');
@@ -2082,18 +2059,31 @@
                             linkContainer.style.lineHeight = 'normal';
                             linkContainer.style.boxShadow = '1px 1px 3px rgba(0,0,0,0.5)';
 
-                            // Enforce on children
+                            // Prevent text wrapping in children
                             Array.from(linkContainer.children).forEach(child => {
-                                child.style.display = 'inline-block';
+                                child.style.setProperty('display', 'inline-block', 'important');
+                                child.style.setProperty('white-space', 'nowrap', 'important');
+                                child.style.setProperty('flex-shrink', '0', 'important');
                                 child.style.verticalAlign = 'middle';
                                 child.style.opacity = '1.0';
                             });
 
-                            // Ensure parent is relative
-                            if (window.getComputedStyle(tile).position === 'static') {
-                                tile.style.position = 'relative';
+                            if (parentIsAnchor) {
+                                linkContainer.style.cursor = 'pointer';
+                                // Use multiple events to ensure click is caught
+                                const clickHandler = (e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    e.stopImmediatePropagation();
+                                    window.open(`https://store.steampowered.com/app/${appId}`, '_blank');
+                                    return false;
+                                };
+                                linkContainer.addEventListener('click', clickHandler, true); // Capture phase
+                                linkContainer.addEventListener('mousedown', (e) => e.stopPropagation(), true);
+                            } else {
+                                linkContainer.href = `https://store.steampowered.com/app/${appId}`;
+                                linkContainer.target = '_blank';
                             }
-                            tile.appendChild(linkContainer);
                         }
                     } catch (err) {
                         console.error('[Game Store Enhancer] Error creating badge:', err);
