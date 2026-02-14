@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.5.9
+// @version      2.5.10
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -1962,9 +1962,9 @@
 
             let title = titleEl.innerText.trim();
 
-            // Debugging for User Report (Reanimal)
-            if (title.toUpperCase().includes('REANIMAL')) {
-                console.log(`[Game Store Enhancer] Processing REANIMAL tile. Title: "${title}"`);
+            // Debugging for User Report (Reanimal / Project Zomboid)
+            if (title.toUpperCase().includes('REANIMAL') || title.toUpperCase().includes('PROJECT ZOMBOID')) {
+                console.log(`[Game Store Enhancer] Processing tile. Title: "${title}"`);
                 console.log(`[Game Store Enhancer] Tile Element:`, tile);
             }
 
@@ -2084,6 +2084,25 @@
                                 linkContainer.href = `https://store.steampowered.com/app/${appId}`;
                                 linkContainer.target = '_blank';
                             }
+                            // Fix for Carousel/Grid: Append to the tile itself if no better place found
+                            // For "Featured" carousel, the tile is an Anchor. We can append the span inside it?
+                            // No, if tile is A, we can't append A inside A.
+                            // We created 'span' if parentIsAnchor.
+
+                            // Try to find a good place. Usually the image container or just append to tile.
+                            // On the homepage, tiles often have an image and some text.
+                            // If we append to the tile (which is flex/relative), it might overlay or sit at bottom.
+
+                            // v2.5.9 Fix: "Featured" tiles in carousel are <a> tags.
+                            // We must append the badge CONTAINER (span) to the tile.
+                            tile.appendChild(linkContainer);
+
+                            // Post-append style adjustments (if needed)
+                            linkContainer.style.position = 'absolute';
+                            linkContainer.style.top = '5px';
+                            linkContainer.style.left = '5px';
+                            linkContainer.style.zIndex = '100'; // Ensure visibility
+
                         }
                     } catch (err) {
                         console.error('[Game Store Enhancer] Error creating badge:', err);
