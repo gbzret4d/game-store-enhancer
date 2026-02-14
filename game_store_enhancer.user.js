@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.5.10
+// @version      2.5.11
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -241,7 +241,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.27'; // v2.5.9: Fix Homepage Badge Layout & Clickability
+    const CACHE_VERSION = '2.29'; // v2.5.11: Fix Cache Version & Visuals
 
     // Styles
     const css = `
@@ -598,7 +598,7 @@
         link.target = '_blank';
         link.title = appData.name;
 
-        let html = `<span><img src="https://store.steampowered.com/favicon.ico" style="width:12px; height:12px; vertical-align:middle; margin-right:4px;">STEAM</span>`;
+        let html = `<span style="display:inline-flex; align-items:center; vertical-align:middle;"><img src="https://store.steampowered.com/favicon.ico" style="width:12px; height:12px; margin-right:4px; display:inline-block; vertical-align:middle;">STEAM</span>`;
         if (appData.cards) html += `<span>CARDS</span>`;
         if (appData.owned) html += `<span class="ssl-owned">OWNED</span>`;
         else if (appData.wishlisted) html += `<span class="ssl-wishlist">WISHLIST</span>`;
@@ -1980,9 +1980,14 @@
             // 2. Resolve AppID
             searchSteamGame(title).then(result => {
                 const appId = result ? result.id : null;
+
+                if (title.toUpperCase().includes('PROJECT ZOMBOID')) {
+                    console.log(`[Game Store Enhancer] Zomboid Search Result:`, result);
+                }
+
                 if (!appId) {
-                    if (title.toUpperCase().includes('REANIMAL')) {
-                        console.warn(`[Game Store Enhancer] REANIMAL search failed! No AppID found for title: "${title}"`);
+                    if (title.toUpperCase().includes('REANIMAL') || title.toUpperCase().includes('PROJECT ZOMBOID')) {
+                        console.warn(`[Game Store Enhancer] Search failed! No AppID found for title: "${title}"`);
                     }
                     return;
                 }
