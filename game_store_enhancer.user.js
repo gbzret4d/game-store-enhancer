@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.5.6
+// @version      2.5.7
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -241,7 +241,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.24'; // v2.5.6: Homepage Badges & Strict Search
+    const CACHE_VERSION = '2.25'; // v2.5.7: Fix Homepage Stats & Badges
 
     // Styles
     const css = `
@@ -1442,6 +1442,71 @@
                     console.groupEnd();
                 }
 
+                // v2.5.6: Fix Missing Badges on Homepage (Ported from processGameElement)
+                // NOTE: The 'tile' variable is not defined in this scope. Assuming 'element' is the intended target.
+                const appDataForBadge = { ...result, id: appId, owned, wishlisted, ignored, reviews };
+                const badgeLink = createSteamLink(appDataForBadge);
+
+                // Create Badge Container (Span if parent is A, else A)
+                const parentIsAnchor = element.tagName === 'A';
+                const linkContainer = document.createElement(parentIsAnchor ? 'span' : 'a');
+
+                linkContainer.className = badgeLink.className + ' humble-home-steam-link';
+                linkContainer.innerHTML = badgeLink.innerHTML;
+                linkContainer.title = badgeLink.title;
+
+                if (parentIsAnchor) {
+                    linkContainer.style.cursor = 'pointer';
+                    linkContainer.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        window.open(`https://store.steampowered.com/app/${appId}`, '_blank');
+                    });
+                } else {
+                    linkContainer.href = `https://store.steampowered.com/app/${appId}`;
+                    linkContainer.target = '_blank';
+                }
+
+                // Apply standard badge styles + absolute positioning
+                linkContainer.style.cssText = badgeLink.style.cssText;
+                linkContainer.style.position = 'absolute';
+                linkContainer.style.top = '0';
+                linkContainer.style.left = '0';
+                linkContainer.style.bottom = 'auto';
+                linkContainer.style.zIndex = '200000';
+                linkContainer.style.cursor = 'pointer';
+                linkContainer.style.pointerEvents = 'auto';
+                linkContainer.style.borderTopLeftRadius = '4px';
+                linkContainer.style.borderBottomRightRadius = '4px';
+
+                // Layout Fixes
+                linkContainer.style.setProperty('display', 'inline-flex', 'important');
+                linkContainer.style.setProperty('flex-direction', 'row', 'important');
+                linkContainer.style.setProperty('align-items', 'center', 'important');
+                linkContainer.style.setProperty('justify-content', 'flex-start', 'important');
+                linkContainer.style.setProperty('width', 'auto', 'important');
+                linkContainer.style.setProperty('max-width', 'none', 'important');
+                linkContainer.style.setProperty('height', 'auto', 'important');
+                linkContainer.style.setProperty('white-space', 'nowrap', 'important');
+                linkContainer.style.backgroundColor = '#171a21';
+                linkContainer.style.opacity = '1.0';
+                linkContainer.style.padding = '2px 4px';
+                linkContainer.style.lineHeight = 'normal';
+                linkContainer.style.boxShadow = '1px 1px 3px rgba(0,0,0,0.5)';
+
+                // Enforce on children
+                Array.from(linkContainer.children).forEach(child => {
+                    child.style.display = 'inline-block';
+                    child.style.verticalAlign = 'middle';
+                    child.style.opacity = '1.0';
+                });
+
+                // Ensure parent is relative
+                if (window.getComputedStyle(element).position === 'static') {
+                    element.style.position = 'relative';
+                }
+                element.appendChild(linkContainer);
+
                 if (!owned && !wishlisted) {
                     if (titleLower.includes('reanimal')) {
                         console.warn(`[Game Store Enhancer] 'REANIMAL' not detected as Owned or Wishlisted. Checked AppID: ${appIdNum}`);
@@ -1929,6 +1994,76 @@
                         console.groupEnd();
                     }
 
+                    // v2.5.6: Fix Missing Badges on Homepage (Ported from processGameElement)
+                    try {
+                        const appDataForBadge = { ...result, id: appId, owned, wishlisted, ignored, reviews };
+                        const badgeLink = createSteamLink(appDataForBadge);
+
+                        if (badgeLink) {
+                            // Create Badge Container (Span if parent is A, else A)
+                            const parentIsAnchor = tile.tagName === 'A';
+                            const linkContainer = document.createElement(parentIsAnchor ? 'span' : 'a');
+
+                            linkContainer.className = badgeLink.className + ' humble-home-steam-link';
+                            linkContainer.innerHTML = badgeLink.innerHTML;
+                            linkContainer.title = badgeLink.title;
+
+                            if (parentIsAnchor) {
+                                linkContainer.style.cursor = 'pointer';
+                                linkContainer.addEventListener('click', (e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    window.open(`https://store.steampowered.com/app/${appId}`, '_blank');
+                                });
+                            } else {
+                                linkContainer.href = `https://store.steampowered.com/app/${appId}`;
+                                linkContainer.target = '_blank';
+                            }
+
+                            // Apply standard badge styles + absolute positioning
+                            linkContainer.style.cssText = badgeLink.style.cssText;
+                            linkContainer.style.position = 'absolute';
+                            linkContainer.style.top = '0';
+                            linkContainer.style.left = '0';
+                            linkContainer.style.bottom = 'auto';
+                            linkContainer.style.zIndex = '200000';
+                            linkContainer.style.cursor = 'pointer';
+                            linkContainer.style.pointerEvents = 'auto';
+                            linkContainer.style.borderTopLeftRadius = '4px';
+                            linkContainer.style.borderBottomRightRadius = '4px';
+
+                            // Layout Fixes
+                            linkContainer.style.setProperty('display', 'inline-flex', 'important');
+                            linkContainer.style.setProperty('flex-direction', 'row', 'important');
+                            linkContainer.style.setProperty('align-items', 'center', 'important');
+                            linkContainer.style.setProperty('justify-content', 'flex-start', 'important');
+                            linkContainer.style.setProperty('width', 'auto', 'important');
+                            linkContainer.style.setProperty('max-width', 'none', 'important');
+                            linkContainer.style.setProperty('height', 'auto', 'important');
+                            linkContainer.style.setProperty('white-space', 'nowrap', 'important');
+                            linkContainer.style.backgroundColor = '#171a21';
+                            linkContainer.style.opacity = '1.0';
+                            linkContainer.style.padding = '2px 4px';
+                            linkContainer.style.lineHeight = 'normal';
+                            linkContainer.style.boxShadow = '1px 1px 3px rgba(0,0,0,0.5)';
+
+                            // Enforce on children
+                            Array.from(linkContainer.children).forEach(child => {
+                                child.style.display = 'inline-block';
+                                child.style.verticalAlign = 'middle';
+                                child.style.opacity = '1.0';
+                            });
+
+                            // Ensure parent is relative
+                            if (window.getComputedStyle(tile).position === 'static') {
+                                tile.style.position = 'relative';
+                            }
+                            tile.appendChild(linkContainer);
+                        }
+                    } catch (err) {
+                        console.error('[Game Store Enhancer] Error creating badge:', err);
+                    }
+
                     if (owned) {
                         tile.classList.add('ssl-container-owned');
                         tile.style.position = 'relative'; // Ensure pseudo-element border works
@@ -1971,6 +2106,7 @@
                         }
                     }
 
+                    if (isNewStat) updateStatsUI();
                 }).catch(e => console.error(e));
             });
         });
