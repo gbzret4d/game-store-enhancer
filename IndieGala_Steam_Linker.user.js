@@ -1,0 +1,646 @@
+// ==UserScript==
+// @name         IndieGala Steam Linker
+// @namespace    https://github.com/gbzret4d/indiegala-steam-linker
+// @version      3.2.4
+// @description  The ultimate fix for IndieGala. Adds Steam links, Review Scores, and Ownership Status. (v3.2.4: Fix Overlay Position)
+// @author       gbzret4d
+// @match        https://www.indiegala.com/*
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=indiegala.com
+// @updateURL    https://github.com/gbzret4d/game-store-enhancer/raw/develop/IndieGala_Steam_Linker.user.js
+// @downloadURL  https://github.com/gbzret4d/game-store-enhancer/raw/develop/IndieGala_Steam_Linker.user.js
+// @connect      store.steampowered.com
+// @connect      steamcommunity.com
+// @grant        GM_xmlhttpRequest
+// @grant        GM_setValue
+// @grant        GM_getValue
+// @grant        GM_addStyle
+// ==/UserScript==
+
+(function () {
+    'use strict';
+
+    // --- Configuration ---
+    const CONFIG = {
+        debug: true,
+        cacheTime: 24 * 60 * 60 * 1000,
+        ignoredOpacity: 0.85,
+        queueInterval: 100
+    };
+
+    // --- CSS ---
+    GM_addStyle(`
+        /* Overlay Strip (Bottom Bar) */
+        .ssl-overlay-bar {
+            position: absolute !important; bottom: 0 !important; left: 0 !important; width: 100% !important;
+            height: 24px !important;
+            background: rgba(0,0,0,0.9) !important; color: white !important;
+            font-size: 11px !important; padding: 0 !important; text-align: center !important;
+            display: flex !important; justify-content: center !important; align-items: center !important;
+            z-index: 900 !important; pointer-events: auto !important; text-decoration: none !important;
+            border-top: 1px solid rgba(255,255,255,0.2) !important;
+            transition: opacity 0.2s !important;
+            line-height: normal !important;
+            /* Match IndieGala's rounded look if useful, but bar is usually straight at bottom */
+            border-bottom-left-radius: inherit !important;
+            border-bottom-right-radius: inherit !important;
+            max-width: 100% !important;
+        }
+        .ssl-overlay-bar:hover { opacity: 1 !important; background: #000 !important; }
+        
+        .ssl-overlay-bar img { 
+            width: 14px !important; 
+            height: 14px !important; 
+            min-width: 14px !important;
+            max-width: 14px !important;
+            margin-right: 5px !important; 
+            vertical-align: middle !important;
+            display: inline-block !important;
+            border: none !important;
+            padding: 0 !important;
+            background: transparent !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+        }
+        
+        .ssl-review { margin-left: 8px; padding: 1px 4px; border-radius: 3px; font-weight: bold; font-size: 10px; }
+        .ssl-review-positive { color: #66C0F4; background: rgba(102, 192, 244, 0.2); }
+        .ssl-review-mixed { color: #a89468; background: rgba(168, 148, 104, 0.2); }
+        .ssl-review-negative { color: #c00; background: rgba(204, 0, 0, 0.2); }
+        .ssl-review-none { display: none !important; } 
+
+        /* PHYSICAL BORDER OVERLAY */
+        .ssl-border-box {
+            position: absolute !important;
+            top: 0 !important; left: 0 !important; width: 100% !important; height: 100% !important;
+            z-index: 850 !important;
+            pointer-events: none !important;
+            background: transparent !important;
+            box-sizing: border-box !important;
+            /* V3.2.3: Match IndieGala's 25px rounded corners */
+            border-radius: 25px !important; 
+        }
+        
+        /* OWNED = GREEN */
+        .ssl-border-box.owned { box-shadow: inset 0 0 0 4px #a4d007 !important; }
+        
+        /* WISHLIST = BLUE - V3.2.3: Reduced to 4px */
+        .ssl-border-box.wishlist { box-shadow: inset 0 0 0 4px #66c0f4 !important; }
+        
+        /* IGNORED = RED */
+        .ssl-border-box.ignored { box-shadow: inset 0 0 0 4px #ff0000 !important; }
+
+        .ssl-ignored-img { 
+            opacity: ${CONFIG.ignoredOpacity} !important; 
+            filter: grayscale(100%) !important; 
+            transition: all 0.3s ease !important;
+        }
+        .ssl-ignored-img:hover {
+            filter: grayscale(0%) !important;
+            opacity: 1 !important;
+        }
+
+        .ssl-bundle-owned { border: 2px solid #a4d007 !important; }
+        .ssl-bundle-wishlist { border: 2px solid #66c0f4 !important; }
+
+        /* V3.2.2+ Fix: No display block */
+        .ssl-relative { position: relative !important; }
+        
+        /* Layout Fixes */
+        .main-list-item figure, 
+        .carousel-item, 
+        .bundles-main-item-col { 
+            min-height: 50px; 
+        } 
+        
+        .carousel-item .bundle-slider-game-info {
+            display: none !important; 
+        }
+        .carousel-item.active .bundle-slider-game-info {
+            display: block !important; 
+        }
+        
+        /* Specific Fix for Product Page Image Container */
+        .store-product-image-container, 
+        .store-product-main-image {
+             position: relative !important;
+        }
+        
+        /* V3.2.4: Ensure Image Containers are Relative for Bar Positioning */
+        .main-list-item figure,
+        .bundle-page-tier-item-col figure,
+        .carousel-item-img-col {
+            position: relative !important;
+        }
+
+        /* DEBUG PANEL */
+        #ssl-debug-panel {
+            position: fixed; bottom: 10px; right: 10px;
+            background: rgba(0,0,0,0.85); color: #fff;
+            padding: 10px; border-radius: 5px;
+            font-family: monospace; font-size: 12px;
+            z-index: 100000; border: 1px solid #444;
+            min-width: 200px;
+            max-width: 300px;
+        }
+        #ssl-debug-panel h4 { margin: 0 0 5px 0; color: #a4d007; font-size: 13px; }
+        #ssl-debug-panel div { margin-bottom: 2px; }
+        #ssl-debug-panel button {
+            background: #444; color: white; border: none;
+            padding: 3px 8px; cursor: pointer; margin-top: 5px; width: 100%;
+            font-size: 11px;
+        }
+        #ssl-debug-panel button:hover { background: #666; }
+        .ssl-status-ok { color: #a4d007; }
+        .ssl-status-warn { color: #f0ad4e; }
+        .ssl-status-err { color: #d9534f; }
+    `);
+
+    // --- State & Cache ---
+    const CACHE = {
+        get: (key) => {
+            const item = GM_getValue(key);
+            if (item && item.expiry > Date.now()) return item.data;
+            return null;
+        },
+        set: (key, data) => {
+            GM_setValue(key, { data, expiry: Date.now() + CONFIG.cacheTime });
+        }
+    };
+
+    const STATE = {
+        userData: CACHE.get('ssl_userdata') || { owned: [], wishlist: [], ignored: [] },
+        requests: [],
+        processing: false,
+        activeRequest: 'None'
+    };
+
+    // --- UI Helpers ---
+    function updateDebugPanel() {
+        let panel = document.getElementById('ssl-debug-panel');
+        if (!panel) {
+            panel = document.createElement('div');
+            panel.id = 'ssl-debug-panel';
+            document.body.appendChild(panel);
+        }
+
+        const ownedCount = STATE.userData.owned ? STATE.userData.owned.length : 0;
+        const wishlistCount = STATE.userData.wishlist ? STATE.userData.wishlist.length : 0;
+        const ignoredCount = STATE.userData.ignored ? STATE.userData.ignored.length : 0;
+
+        panel.innerHTML = `
+            <h4>Steam Linker v3.2.4</h4>
+            <div>Owned: <span class="ssl-status-ok">${ownedCount}</span></div>
+            <div>Wishlist: <span class="ssl-status-ok">${wishlistCount}</span></div>
+            <div>Ignored: <span class="ssl-status-warn">${ignoredCount}</span></div>
+            <div>Queue: ${STATE.requests.length}</div>
+            <div style="font-size:10px; color:#aaa; white-space:nowrap; overflow:hidden;">Active: ${STATE.activeRequest}</div>
+            <button id="ssl-force-refresh">Refresh Data</button>
+            <button id="ssl-clear-cache">Reset All</button>
+        `;
+
+        const btnRefresh = document.getElementById('ssl-force-refresh');
+        if (btnRefresh) btnRefresh.onclick = () => {
+            fetchUserData();
+        };
+
+        const btnClear = document.getElementById('ssl-clear-cache');
+        if (btnClear) btnClear.onclick = () => {
+            const keys = GM_listValues();
+            keys.forEach(k => GM_deleteValue(k));
+            location.reload();
+        };
+    }
+
+    // --- API Helpers ---
+    const MATURE_HEADERS = {
+        "Cookie": "birthtime=0; lastagecheckage=1-0-1900; wants_mature_content=1"
+    };
+
+    function queueRequest(name, fn) {
+        STATE.requests.push({ name, fn });
+        updateDebugPanel();
+        if (!STATE.processing) processQueue();
+    }
+
+    function processQueue() {
+        if (STATE.requests.length === 0) {
+            STATE.processing = false;
+            STATE.activeRequest = "Idle";
+            updateDebugPanel();
+            return;
+        }
+        STATE.processing = true;
+
+        const req = STATE.requests[0];
+        STATE.activeRequest = req.name;
+        updateDebugPanel();
+
+        let handled = false;
+
+        const next = () => {
+            if (handled) return;
+            handled = true;
+            STATE.requests.shift();
+            setTimeout(processQueue, CONFIG.queueInterval);
+        };
+
+        setTimeout(() => {
+            if (!handled) {
+                console.warn(`[SSL] Request '${req.name}' timed out - Forcing next`);
+                next();
+            }
+        }, 5000);
+
+        try {
+            req.fn().finally(next);
+        } catch (e) {
+            console.error(e);
+            next();
+        }
+    }
+
+    function fetchUserData() {
+        console.log('[SSL] Fetching User Data...');
+        STATE.activeRequest = "Fetching User Data...";
+        updateDebugPanel();
+
+        queueRequest("UserData", () => new Promise(resolve => {
+            GM_xmlhttpRequest({
+                method: "GET",
+                url: "https://store.steampowered.com/dynamicstore/userdata/",
+                onload: (res) => {
+                    try {
+                        const data = JSON.parse(res.responseText);
+                        STATE.userData.owned = data.rgOwnedApps || [];
+                        STATE.userData.ignored = Object.keys(data.rgIgnoredApps || {});
+                        updateDebugPanel();
+                    } catch (e) { }
+                    resolve();
+                },
+                onerror: resolve,
+                ontimeout: resolve
+            });
+        }));
+
+        queueRequest("Wishlist", () => new Promise(resolve => {
+            GM_xmlhttpRequest({
+                method: "GET",
+                url: "https://steamcommunity.com/my/wishlistdata/?p=0",
+                onload: (res) => {
+                    try {
+                        const data = JSON.parse(res.responseText);
+                        STATE.userData.wishlist = Object.keys(data || {});
+                        CACHE.set('ssl_userdata', STATE.userData);
+                        updateDebugPanel();
+                    } catch (e) { }
+                    resolve();
+                },
+                onerror: resolve,
+                ontimeout: resolve
+            });
+        }));
+    }
+
+    // --- Title Cleaner ---
+    function cleanTitle(title) {
+        let cleaned = title;
+        // FIXED: Removed the aggressive hyhen/suffix stripper specific for Hentai/DLCs
+        const removePatterns = [
+            /Pre-Purchase/gi,
+            /Deluxe Edition/gi,
+            /with Early Purchase Bonus/gi,
+            /Steam Key/gi,
+            /Season Pass/gi,
+            /Complete Edition/gi,
+            /GOTY/gi
+        ];
+
+        removePatterns.forEach(regex => {
+            cleaned = cleaned.replace(regex, "");
+        });
+
+        return cleaned.trim().replace(/\s\s+/g, ' ');
+    }
+
+    function searchSteam(term) {
+        const cleanedTerm = cleanTitle(term);
+        const cacheKey = `ssl_id_${cleanedTerm}`;
+        const cached = CACHE.get(cacheKey);
+        if (cached) return Promise.resolve(cached);
+
+        return new Promise(resolve => {
+            queueRequest(`Search: ${cleanedTerm.substring(0, 15)}...`, () => new Promise(subResolve => {
+                GM_xmlhttpRequest({
+                    method: "GET",
+                    url: `https://store.steampowered.com/api/storesearch/?term=${encodeURIComponent(cleanedTerm)}&l=english&cc=us`,
+                    headers: MATURE_HEADERS,
+                    timeout: 4000,
+                    onload: (res) => {
+                        let foundId = null;
+                        try {
+                            const data = JSON.parse(res.responseText);
+                            if (data.items && data.items.length > 0) foundId = data.items[0].id;
+                        } catch (e) { }
+
+                        if (foundId) {
+                            CACHE.set(cacheKey, foundId);
+                            subResolve();
+                            resolve(foundId);
+                        } else {
+                            searchSteamFallback(cleanedTerm, subResolve, resolve, cacheKey);
+                        }
+                    },
+                    onerror: () => { searchSteamFallback(cleanedTerm, subResolve, resolve, cacheKey); },
+                    ontimeout: () => { searchSteamFallback(cleanedTerm, subResolve, resolve, cacheKey); }
+                });
+            }));
+        });
+    }
+
+    function searchSteamFallback(term, subResolve, resolve, cacheKey) {
+        GM_xmlhttpRequest({
+            method: "GET",
+            url: `https://store.steampowered.com/search/?term=${encodeURIComponent(term)}&ignore_preferences=1&category1=998`,
+            headers: MATURE_HEADERS,
+            timeout: 4000,
+            onload: (res) => {
+                let id = null;
+                try {
+                    const match = res.responseText.match(/href="https:\/\/store\.steampowered\.com\/app\/(\d+)/);
+                    if (match) id = match[1];
+                } catch (e) { }
+
+                if (id) {
+                    CACHE.set(cacheKey, id);
+                } else {
+                    CACHE.set(cacheKey, '404');
+                }
+                subResolve();
+                resolve(id);
+            },
+            onerror: () => { subResolve(); resolve(null); },
+            ontimeout: () => { subResolve(); resolve(null); }
+        });
+    }
+
+    function getReviewScore(appId) {
+        const cacheKey = `ssl_review_${appId}`;
+        const cached = CACHE.get(cacheKey);
+        if (cached) return Promise.resolve(cached);
+
+        return new Promise(resolve => {
+            queueRequest(`Review: ${appId}`, () => new Promise(subResolve => {
+                GM_xmlhttpRequest({
+                    method: "GET",
+                    url: `https://store.steampowered.com/appreviews/${appId}?json=1&day_range=365&language=all`,
+                    headers: MATURE_HEADERS,
+                    timeout: 4000,
+                    onload: (res) => {
+                        try {
+                            const data = JSON.parse(res.responseText);
+                            const summary = data.query_summary;
+
+                            let percent = 0;
+                            if (summary.total_reviews > 0) {
+                                percent = Math.floor((summary.total_positive / summary.total_reviews) * 100);
+                            } else {
+                                percent = -1;
+                            }
+
+                            const score = {
+                                percent: percent,
+                                total: summary.total_reviews,
+                                desc: summary.review_score_desc
+                            };
+                            CACHE.set(cacheKey, score);
+                            subResolve();
+                            resolve(score);
+                        } catch (e) { subResolve(); resolve(null); }
+                    },
+                    onerror: () => { subResolve(); resolve(null); },
+                    ontimeout: () => { subResolve(); resolve(null); }
+                });
+            }));
+        });
+    }
+
+    // --- Scanners ---
+
+    function scanGrid() {
+        const candidates = document.querySelectorAll(`
+            .bundle-page-tier-item-col figure, 
+            .main-list-results-item figure,
+            .flickity-slider figure,
+            .slick-slide figure,
+            .carousel-item,
+            .bundle-slider-game-data-item
+        `);
+
+        candidates.forEach(element => {
+            // Check if already processed
+            if (element.dataset.sslProcessed) return;
+
+            // Find container (Card)
+            const container = element.closest('.bundle-page-tier-item-col') ||
+                element.closest('.main-list-results-item') ||
+                element.closest('.carousel-cell') ||
+                element.closest('.slick-slide') ||
+                element.parentElement;
+
+            const effectiveContainer = element.classList.contains('carousel-item') ? element : (container || element.parentElement);
+
+            if (!effectiveContainer) return;
+
+            // Prevent double box
+            if (effectiveContainer.querySelector('.ssl-border-box')) return;
+
+            // Ensure BOTH have relative positioning
+            effectiveContainer.classList.add('ssl-relative'); // For Border
+            element.classList.add('ssl-relative'); // For Overlay Bar (Image Container)
+
+            let title = null;
+
+            const titleEl = effectiveContainer.querySelector('h3, h2, .bundle-page-tier-item-title, .main-list-results-item-title, .title, .item-title-text, .bundle-slider-game-title');
+            if (titleEl) title = titleEl.textContent.trim();
+
+            if (!title) {
+                const fig = effectiveContainer.querySelector('figcaption');
+                if (fig) title = fig.textContent.trim();
+            }
+
+            if (!title) {
+                const img = element.querySelector('img');
+                if (img && img.alt && img.alt.length > 2) title = img.alt;
+            }
+
+            if (!title) return;
+
+            element.dataset.sslProcessed = "pending";
+
+            searchSteam(title).then(id => {
+                if (id && id !== '404') {
+                    // Split Injection: Border -> Container, Bar -> Image
+                    injectGame(effectiveContainer, element, id);
+                } else {
+                    element.dataset.sslProcessed = "done_no_id";
+                }
+            });
+        });
+    }
+
+    // NEW: Scan Single Product Page
+    // On product page, imgContainer IS the image container AND often the whole visual block
+    function scanProductPage() {
+        if (!location.href.includes('/store/game/')) return;
+
+        const header = document.querySelector('.store-product-header-flex h1.font-kanit, h1');
+        const imgContainer = document.querySelector('.store-product-image-container, .store-product-main-image, .media-caption-medium');
+
+        if (!header || !imgContainer || imgContainer.dataset.sslProcessed) return;
+
+        const title = header.textContent.trim();
+        imgContainer.dataset.sslProcessed = "pending";
+        imgContainer.classList.add('ssl-relative');
+
+        searchSteam(title).then(id => {
+            if (id && id !== '404') {
+                // Here, container and image container are likely the same or very close
+                injectGame(imgContainer, imgContainer, id);
+            }
+        });
+    }
+
+    // UPDATED: Now accepts cardContainer AND imgContainer
+    function injectGame(cardContainer, imgContainer, appId) {
+        const isOwned = STATE.userData.owned.includes(parseInt(appId));
+        const isWishlist = STATE.userData.wishlist.includes(String(appId));
+        const isIgnored = STATE.userData.ignored.includes(String(appId));
+
+        // 1. Physical Border Box -> Goes to WHOLE CARD (cardContainer)
+        const borderBox = document.createElement('div');
+        borderBox.className = 'ssl-border-box';
+
+        // Strict Priority: Owned > Wishlist > Ignored
+        let hasStatus = false;
+        if (isOwned) {
+            borderBox.classList.add('owned');
+            hasStatus = true;
+        } else if (isWishlist) {
+            borderBox.classList.add('wishlist');
+            hasStatus = true;
+        } else if (isIgnored) {
+            borderBox.classList.add('ignored');
+            const img = cardContainer.querySelector('img'); // Gray out image
+            if (img) img.classList.add('ssl-ignored-img');
+            hasStatus = true;
+        }
+
+        if (hasStatus) {
+            cardContainer.appendChild(borderBox);
+        }
+
+        // 2. Overlay Bar -> Goes to IMAGE (imgContainer)
+        const overlay = document.createElement('a');
+        overlay.href = `https://store.steampowered.com/app/${appId}`;
+        overlay.className = 'ssl-overlay-bar';
+        overlay.target = '_blank';
+        overlay.innerHTML = `<img src="https://store.steampowered.com/favicon.ico"> STEAM`;
+
+        imgContainer.appendChild(overlay);
+
+        getReviewScore(appId).then(score => {
+            if (score && typeof score.percent === 'number') {
+                const badge = document.createElement('span');
+                badge.className = 'ssl-review';
+
+                if (score.percent === -1 || score.total === 0) {
+                    // Do nothing
+                } else {
+                    badge.textContent = `${score.percent}%`;
+                    if (score.percent >= 70) badge.classList.add('ssl-review-positive');
+                    else if (score.percent >= 40) badge.classList.add('ssl-review-mixed');
+                    else badge.classList.add('ssl-review-negative');
+                    overlay.appendChild(badge);
+                }
+            }
+        });
+
+        // Mark both as processed
+        cardContainer.dataset.sslProcessed = "done";
+        imgContainer.dataset.sslProcessed = "done";
+    }
+
+    // --- Bundle Overview Scanner ---
+    function scanBundlesOverview() {
+        const bundles = document.querySelectorAll('.bundles-main-item-col, .container-item, .item-main-container, .main-list-item');
+
+        bundles.forEach(bundle => {
+            if (bundle.dataset.sslProcessed) return;
+
+            const link = bundle.querySelector('a[href*="/bundle/"]');
+            if (!link) return;
+
+            bundle.dataset.sslProcessed = "pending";
+            bundle.classList.add('ssl-relative');
+
+            queueRequest(`Scan Bundle: ${link.href.split('/').pop()}`, () => new Promise(resolve => {
+                GM_xmlhttpRequest({
+                    method: "GET",
+                    url: link.href,
+                    headers: MATURE_HEADERS,
+                    onload: (res) => {
+                        try {
+                            const text = res.responseText;
+                            const pageIds = new Set();
+
+                            const matchesApp = text.matchAll(/store\.steampowered\.com\/app\/(\d+)/g);
+
+                            for (const m of matchesApp) pageIds.add(m[1]);
+
+                            let hasOwned = false;
+                            let hasWishlist = false;
+                            let hasIgnored = false;
+
+                            for (const id of pageIds) {
+                                const idStr = String(id);
+                                const idInt = parseInt(id);
+                                if (STATE.userData.wishlist.includes(idStr)) hasWishlist = true;
+                                if (STATE.userData.owned.includes(idInt)) hasOwned = true;
+                                if (STATE.userData.ignored.includes(idStr)) hasIgnored = true;
+                            }
+
+                            // Strict Priority: Owned > Wishlist > Ignored
+                            if (hasOwned || hasWishlist || hasIgnored) {
+                                const bundleBox = document.createElement('div');
+                                bundleBox.className = 'ssl-border-box';
+
+                                if (hasOwned) bundleBox.classList.add('owned');
+                                else if (hasWishlist) bundleBox.classList.add('wishlist');
+                                else if (hasIgnored) bundleBox.classList.add('ignored');
+
+                                bundle.appendChild(bundleBox);
+                            }
+
+                        } catch (e) { console.error(e); }
+                        resolve();
+                    },
+                    onerror: resolve,
+                    ontimeout: resolve
+                });
+            }));
+            bundle.dataset.sslProcessed = "done";
+        });
+    }
+
+    // --- Init ---
+    updateDebugPanel();
+    setTimeout(fetchUserData, 1000);
+
+    // Main Loop
+    setInterval(() => {
+        scanGrid();
+        if (location.href.includes('/store/game/')) scanProductPage();
+        if (location.href.includes('/') || location.href.includes('/bundles')) scanBundlesOverview();
+    }, 2000);
+
+})();

@@ -3,11 +3,13 @@
 
 
 ## Feature Requests
+- [ ] **IndieGala Support**: Add support for store and bundle pages.
 - [ ] **Steam Age Check Bypass**: Implement a function to automatically pass the Steam age check (e.g. by setting `birthtime` cookie) to fetch data for age-gated games.
 
 ## Design & UI Improvements
 - [ ] **Settings Menu**: Add a configuration menu to the userscript to allow users to toggle features.
     - Toggle colored borders on/off.
+    - Toggle **Age Check Bypass** (IndieGala).
 - [ ] **Visual Tweaks**:
     - Allow customization of status colors (e.g. Owned, Wishlist, Ignored).
 
@@ -42,9 +44,20 @@
 - [ ] **Custom Tags**: User-defined tags ("Played on Console", "Junk").
 - [ ] **Multi-User Check**: Check if a friend owns the game (by entering SteamID).
 
-## 📊 Data & Export
-- [ ] **Export Function**: Button "Export Page to CSV/JSON" to list all games on the current page.
 - [ ] **Sum Calculator**: Calculate real value of a bundle (Steam Price Sum vs Bundle Price).
+
+## 🏗️ Architecture & Polishing
+- [ ] **Refactoring**: Split the large `game_store_enhancer.user.js` into modular files (API, UI, Sites) and add a build step (Webpack/Rollup).
+- [ ] **Settings Menu**: Implement a user-friendly configuration UI (toggle features, custom colors).
+
+## 🚀 Distribution (The "Pro" Step)
+- [ ] **Browser Extension**: Convert the Userscript into a full Chrome/Firefox Add-on.
+    - *Expert Note*: Allows better permissions handling, popup UI for settings, and cleaner installation for non-tech users.
+
+## 💾 Database Strategy
+- [ ] **Mapping Database**: Host a `database.json` on GitHub Records (Raw URL).
+    - *Why*: Free, high uptime, easy to update via Pull Requests. No own server needed.
+    - *Content*: `{"Prey Digital Deluxe": 480490, ...}`
 
 ## 🐧 Linux / Steam Deck Advanced
 - [ ] **Launcher Warning**: Warn about external launchers (EA App, Ubisoft Connect) on the Deck.

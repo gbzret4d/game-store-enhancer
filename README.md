@@ -1,6 +1,24 @@
 # Game Store Enhancer (formerly Steam Store Linker)
 
+> [!CAUTION]
+> **DEVELOP / BETA VERSIONS**
+> The `develop` branch contains experimental code (e.g. `1.37-DEV`).
+> **DO NOT USE** unless you are helping with testing. These versions **will break things**, contain debug logs, and might be unstable.
+> Stick to the `main` branch for the stable experience.
+
 A Tampermonkey Userscript that enhances **Humble Bundle**, **Fanatical**, **DailyIndieGame**, and **GOG.com** with Steam data.
+
+
+
+
+
+
+> **Update (v3.0.7)**: IndieGala Standalone Script now includes a **Stats/Debug Panel** (bottom right) to confirm if Steam data is loaded properly. Also fixes "null%" and Store/Bundle selectors.
+
+
+
+
+
 It displays your **Ownership Status**, **Wishlist**, **Steam User Reviews**, **Deck Compatibility**, and links directly to the Steam store.
 
 ## Features
@@ -74,10 +92,18 @@ This script is not affiliated with Humble Bundle, Fanatical, DailyIndieGame, GOG
 ## To-Do
 
 - [ ] Add settings panel to toggle features (e.g. Hide Owned Games).
-- [ ] Support more bundle sites (e.g. Indiegala, GOG, DailyIndieGame, SteamGifts).
-- [ ] Implement "External Database Mapping" (JSON on GitHub) to manually potential fix missing/wrong links for complex bundles.
-- [ ] Add option to filter Steam reviews by purchase type (Steam Purchasers vs. Key Activations).
-- [ ] Improve performance on very large pages.
+- **External Database Integration**: 
+    - Uses a self-hosted `steam_apps.min.json` (updated every 6 hours via GitHub Actions) to map game names to Steam AppIDs without relying on the slow Steam Search API.
+    - **Note**: The database update workflow requires a `STEAM_API_KEY` in GitHub Secrets.
+- **Homepage Bundle Scanner** (New in v2.2.0):
+    - **Best Effort**: Scans Humble Bundle homepage tiles for known game names.
+    - **Visuals**: Adds blue/green status markers (Wishlist/Owned) directly to bundle tiles.
+- **IndieGala Support**: Full support for Store, Bundles, and Giveaway pages.
+- **Metacritic / OpenCritic**: Display review scores alongside Steam ratings.
+- **Support more bundle sites**: (e.g. SteamGifts).
+- **External Database Mapping**: Implemented via `steam_apps.min.json`.
+- **Add option to filter Steam reviews**: by purchase type (Steam Purchasers vs. Key Activations).
+- **Improve performance**: on very large pages.
 
 ## License
 
