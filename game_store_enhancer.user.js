@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.5.7
+// @version      2.5.8
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -241,7 +241,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.25'; // v2.5.7: Fix Homepage Stats & Badges
+    const CACHE_VERSION = '2.26'; // v2.5.8: Heuristic Scanning & Debugging
 
     // Styles
     const css = `
@@ -1887,7 +1887,12 @@
     async function scanHomepageGames() {
         if (window.location.pathname !== '/' && !window.location.pathname.startsWith('/store')) return;
 
-        // v2.3.0: Broadened Selectors for Dynamic Tiles
+        // v2.5.8: Heuristic Scanning for Generic Tiles (High On Life 2, etc.)
+        // Instead of strict classes, we look for any 'A' tag that looks like a game tile (image + price)
+        const candidates = document.querySelectorAll('a[href*="/store/"]');
+        const tiles = [];
+
+        // 1. Add known selectors
         const selector = [
             '.full-tile-view',
             '.entity-block-container',
@@ -1896,7 +1901,26 @@
             '.takeover-tile-view'
         ].join(', ');
 
-        const tiles = document.querySelectorAll(selector);
+        document.querySelectorAll(selector).forEach(t => tiles.push(t));
+
+        // 2. Add Heuristic Candidates (Generic 'div' wrappers or direct 'a' tags)
+        candidates.forEach(a => {
+            // Must have an image and a price to be considered a game tile
+            // And must NOT already be in the list
+            if (tiles.includes(a)) return;
+
+            // Check for Price
+            const hasPrice = a.querySelector('.price, .current-price, .price-button, .entity-pricing-details') ||
+                /[€$£¥]/.test(a.innerText);
+
+            // Check for Image
+            const hasImage = a.querySelector('img, .entity-image');
+
+            if (hasPrice && hasImage) {
+                // It's likely a game tile. Use the 'a' as the container.
+                tiles.push(a);
+            }
+        });
 
         tiles.forEach(tile => {
             if (tile.dataset.gseGameScanned) return;
@@ -1938,6 +1962,12 @@
 
             let title = titleEl.innerText.trim();
 
+            // Debugging for User Report (Reanimal)
+            if (title.toUpperCase().includes('REANIMAL')) {
+                console.log(`[Game Store Enhancer] Processing REANIMAL tile. Title: "${title}"`);
+                console.log(`[Game Store Enhancer] Tile Element:`, tile);
+            }
+
             // Extract Link (robust)
             let href = "";
             const linkEl = tile.querySelector('a');
@@ -1950,7 +1980,12 @@
             // 2. Resolve AppID
             searchSteamGame(title).then(result => {
                 const appId = result ? result.id : null;
-                if (!appId) return;
+                if (!appId) {
+                    if (title.toUpperCase().includes('REANIMAL')) {
+                        console.warn(`[Game Store Enhancer] REANIMAL search failed! No AppID found for title: "${title}"`);
+                    }
+                    return;
+                }
 
                 // 3. Fetch Data & Status (Unified)
                 Promise.all([
