@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.5.14
+// @version      2.5.15
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -241,7 +241,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.32'; // v2.5.14: 16px Height Fix
+    const CACHE_VERSION = '2.33'; // v2.5.15: Optical Alignment
 
     // Styles
     const css = `
@@ -598,8 +598,8 @@
         link.target = '_blank';
         link.title = appData.name;
 
-        // v2.5.14: Proven Fix via Browser Test. Height 16px allows perfect 2px top/bottom gap. No text padding.
-        let html = `<span style="display:inline-flex; align-items:center; height:16px;"><img src="https://store.steampowered.com/favicon.ico" style="width:12px; height:12px; margin-right:4px; display:block;"><span style="display:block; line-height:1; font-size:11px;">STEAM</span></span>`;
+        // v2.5.15: Optical Nudge. 16px Height + 1px text padding for Sofia Pro/Montserrat visual centering.
+        let html = `<span style="display:inline-flex; align-items:center; height:16px;"><img src="https://store.steampowered.com/favicon.ico" style="width:12px; height:12px; margin-right:4px; display:block;"><span style="display:block; line-height:1; font-size:11px; padding-top:1px;">STEAM</span></span>`;
         if (appData.cards) html += `<span>CARDS</span>`;
         if (appData.owned) html += `<span class="ssl-owned">OWNED</span>`;
         else if (appData.wishlisted) html += `<span class="ssl-wishlist">WISHLIST</span>`;
