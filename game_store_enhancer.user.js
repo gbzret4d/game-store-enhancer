@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.5.11
+// @version      2.5.12
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -241,7 +241,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.29'; // v2.5.11: Fix Cache Version & Visuals
+    const CACHE_VERSION = '2.30'; // v2.5.12: Click Trap & Alignment
 
     // Styles
     const css = `
@@ -598,7 +598,8 @@
         link.target = '_blank';
         link.title = appData.name;
 
-        let html = `<span style="display:inline-flex; align-items:center; vertical-align:middle;"><img src="https://store.steampowered.com/favicon.ico" style="width:12px; height:12px; margin-right:4px; display:inline-block; vertical-align:middle;">STEAM</span>`;
+        // v2.5.12: Flexbox for perfect vertical centering
+        let html = `<span style="display:inline-flex; align-items:center; line-height:1;"><img src="https://store.steampowered.com/favicon.ico" style="width:12px; height:12px; margin-right:4px; display:block;">STEAM</span>`;
         if (appData.cards) html += `<span>CARDS</span>`;
         if (appData.owned) html += `<span class="ssl-owned">OWNED</span>`;
         else if (appData.wishlisted) html += `<span class="ssl-wishlist">WISHLIST</span>`;
@@ -2075,16 +2076,26 @@
 
                             if (parentIsAnchor) {
                                 linkContainer.style.cursor = 'pointer';
-                                // Use multiple events to ensure click is caught
-                                const clickHandler = (e) => {
+                                // v2.5.12: Hardcore Click Trap
+                                // Humble uses complex event delegation. We must stop EVERYTHING in Capture Phase.
+                                const stopEvent = (e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
                                     e.stopImmediatePropagation();
-                                    window.open(`https://store.steampowered.com/app/${appId}`, '_blank');
                                     return false;
                                 };
-                                linkContainer.addEventListener('click', clickHandler, true); // Capture phase
-                                linkContainer.addEventListener('mousedown', (e) => e.stopPropagation(), true);
+                                const openSteam = (e) => {
+                                    stopEvent(e);
+                                    // Only left click (0) or middle click (1)
+                                    if (e.button === 0 || e.button === 1) {
+                                        window.open(`https://store.steampowered.com/app/${appId}`, '_blank');
+                                    }
+                                };
+
+                                linkContainer.addEventListener('click', openSteam, true);
+                                linkContainer.addEventListener('mousedown', stopEvent, true);
+                                linkContainer.addEventListener('mouseup', stopEvent, true);
+                                linkContainer.addEventListener('auxclick', openSteam, true); // Catch middle clicks
                             } else {
                                 linkContainer.href = `https://store.steampowered.com/app/${appId}`;
                                 linkContainer.target = '_blank';
