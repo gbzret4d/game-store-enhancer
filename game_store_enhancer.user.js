@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.5.24
+// @version      2.6.0
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -247,7 +247,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.43'; // v2.5.24: Deep Debug Choice
+    const CACHE_VERSION = '2.50'; // v2.6.0: Humble Refactor
 
     // Styles
     const css = `
@@ -1688,630 +1688,707 @@
         }
     }
 
-    function scanPage() {
-        if (currentConfig.isExcluded && currentConfig.isExcluded()) return;
+    // --- Humble Bundle Specific Logic (v2.6.0) ---
+
+    async function scanHumbleChoice() {
+        // Strict Scanner for /membership/home
+        const cards = document.querySelectorAll('.content-choice');
+        if (DEBUG) console.log(`[Game Store Enhancer] Choice Scanner found ${cards.length} cards.`);
+
+        for (const card of cards) {
+            if (card.dataset.sslProcessed) continue;
+
+            const titleEl = card.querySelector('.content-choice-title');
+            if (titleEl) {
+                // Choice Page always uses the title element text
+                // Force simple mode to false, validation is implicit by selector
+                await processGameElement(card, null, false, null);
+                // We pass null for nameSelector because we manually found titleEl, 
+                // but processGameElement expects a selector string OR we can modify it to accept an element?
+                // Actually processGameElement takes (element, nameSelector, ...). 
+                // Let's rely on standard processGameElement but ensuring it finds the title.
+                // Re-reading processGameElement: it ignores nameSelector if it can't find it? 
+                // No, it uses it to find the name element.
+                // Let's just call it normally with the known selector.
+            }
+        }
+
+        // Use the standard processor but with the known valid selector
+        cards.forEach(card => {
+            processGameElement(card, '.content-choice-title', false, null);
+        });
+    }
+
+    async function scanHumbleHome() {
+        // Re-use the existing ScanHomepageGames logic which is already specialized
+        // But ensures it only runs on home
+        await scanHomepageGames();
+    }
+
+    async function scanHumbleGeneric() {
+        // Fallback to config selectors for Store/Bundles
         if (!currentConfig.selectors) return;
-
-        // v2.5.22: Debug Choice Page
-        if (window.location.pathname.includes('/membership/home')) {
-            console.log('[Game Store Enhancer] scanPage() running on Choice Page...');
-        }
-
-
-
-
-
-
-        // v2.0.12: Scan Bundle Overview & Tier Items
-        // v2.0.28: IndieGalaHandler Init
-        // v2.0.31: IndieGala is now handled by a separate script as per user request.
-        /*
-        if (currentConfig.name === 'IndieGala') {
-            IndieGalaHandler.init();
-            return;
-        }
-        */
-
         currentConfig.selectors.forEach(strat => {
+            // Skip Choice/Home specific selectors if they are still in list (optional optimization)
             const elements = document.querySelectorAll(strat.container);
-
-            // v2.5.24: Debug Choice Page Element Discovery
-            if (window.location.pathname.includes('/membership/home') && strat.container === '.content-choice') {
-                console.log(`[Game Store Enhancer] Choice Debug: Selector "${strat.container}" found ${elements.length} elements.`);
-            }
-
-            if (DEBUG && currentConfig.name === 'IndieGala') {
-                console.log(`[Game Store Enhancer] [DEBUG] Selector "${strat.container}" found ${elements.length} elements.`);
-            }
             elements.forEach(el => {
                 processGameElement(el, strat.title, strat.forceSimple, strat.externalTitle);
             });
         });
 
-        // v2.4.1: Auto Age Check
-        if (currentConfig.name === 'Humble Bundle') {
-            if (document.querySelector('.age-check-form') || window.location.href.includes('agecheck')) {
-                const yearSelect = document.querySelector('select[name="year"]');
-                const enterBtn = document.querySelector('button[type="submit"], input[type="submit"]');
-                if (yearSelect) {
-                    yearSelect.value = '1990';
-                    yearSelect.dispatchEvent(new Event('change'));
-                }
-                if (enterBtn) enterBtn.click();
+        // Auto Age Check (Generic)
+        if (document.querySelector('.age-check-form') || window.location.href.includes('agecheck')) {
+            const yearSelect = document.querySelector('select[name="year"]');
+            const enterBtn = document.querySelector('button[type="submit"], input[type="submit"]');
+            if (yearSelect) {
+                yearSelect.value = '1990';
+                yearSelect.dispatchEvent(new Event('change'));
             }
+            if (enterBtn) enterBtn.click();
         }
     }
+
+    async function scanHumbleBundle() {
+        const path = window.location.pathname;
+
+        // 1. Choice Page
+        if (path.includes('/membership/home')) {
+            return scanHumbleChoice();
+        }
+
+        // 2. Homepage (root or /home)
+        if (path === '/' || path === '/home') {
+            // Homepage also needs bundles scan
+            scanHomepageBundles();
+            return scanHumbleHome();
+        }
+
+        // 3. Generic (Store, Bundles)
+        return scanHumbleGeneric();
+    }
+    if (currentConfig.isExcluded && currentConfig.isExcluded()) return;
+    if (!currentConfig.selectors) return;
+
+    // v2.5.22: Debug Choice Page
+    if (window.location.pathname.includes('/membership/home')) {
+        console.log('[Game Store Enhancer] scanPage() running on Choice Page...');
+    }
+
+
+
+
+
+
+    // v2.0.12: Scan Bundle Overview & Tier Items
+    // v2.0.28: IndieGalaHandler Init
+    // v2.0.31: IndieGala is now handled by a separate script as per user request.
+    /*
+    if (currentConfig.name === 'IndieGala') {
+        IndieGalaHandler.init();
+        return;
+    }
+    */
+
+    currentConfig.selectors.forEach(strat => {
+        const elements = document.querySelectorAll(strat.container);
+
+        // v2.5.24: Debug Choice Page Element Discovery
+        if (window.location.pathname.includes('/membership/home') && strat.container === '.content-choice') {
+            console.log(`[Game Store Enhancer] Choice Debug: Selector "${strat.container}" found ${elements.length} elements.`);
+        }
+
+        if (DEBUG && currentConfig.name === 'IndieGala') {
+            console.log(`[Game Store Enhancer] [DEBUG] Selector "${strat.container}" found ${elements.length} elements.`);
+        }
+        elements.forEach(el => {
+            processGameElement(el, strat.title, strat.forceSimple, strat.externalTitle);
+        });
+    });
+
+    // v2.4.1: Auto Age Check
+    if (currentConfig.name === 'Humble Bundle') {
+        if (document.querySelector('.age-check-form') || window.location.href.includes('agecheck')) {
+            const yearSelect = document.querySelector('select[name="year"]');
+            const enterBtn = document.querySelector('button[type="submit"], input[type="submit"]');
+            if (yearSelect) {
+                yearSelect.value = '1990';
+                yearSelect.dispatchEvent(new Event('change'));
+            }
+            if (enterBtn) enterBtn.click();
+        }
+    }
+}
 
 
 
 
     // --- Observer ---
     const observer = new MutationObserver((mutations) => {
-        let shouldScan = false;
-        mutations.forEach(m => { if (m.addedNodes.length > 0) shouldScan = true; });
-        if (shouldScan) {
-            if (window.sslScanTimeout) clearTimeout(window.sslScanTimeout);
-            window.sslScanTimeout = setTimeout(scanPage, 500);
-        }
+    let shouldScan = false;
+    mutations.forEach(m => { if (m.addedNodes.length > 0) shouldScan = true; });
+    if (shouldScan) {
+        if (window.sslScanTimeout) clearTimeout(window.sslScanTimeout);
+        window.sslScanTimeout = setTimeout(scanPage, 500);
+    }
+});
+
+observer.observe(document.body, { childList: true, subtree: true });
+
+
+// --- Homepage Bundle Scanner (v2.1.14 / v2.2.0) ---
+const BUNDLE_CACHE_KEY = 'gse_bundle_cache';
+const BUNDLE_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 Hours
+
+function getBundleCache() {
+    try {
+        const raw = GM_getValue(BUNDLE_CACHE_KEY, '{}');
+        return JSON.parse(raw);
+    } catch (e) { return {}; }
+}
+
+function setBundleCache(url, gameIds) {
+    const cache = getBundleCache();
+    cache[url] = { timestamp: Date.now(), games: gameIds };
+    GM_setValue(BUNDLE_CACHE_KEY, JSON.stringify(cache));
+}
+
+async function fetchBundleContents(url) {
+    return new Promise(resolve => {
+        GM_xmlhttpRequest({
+            method: 'GET',
+            url: url,
+            onload: (res) => {
+                try {
+                    const text = res.responseText;
+                    // Regex to find "machine_name" (e.g. "machine_name": "prey_digitaldeluxe")
+                    // Or better yet, look for the 'models' blob if possible, but regex is faster/lighter than DOM parsing
+                    // Pattern: "machine_name":\s*"([^"]+)"
+                    const machineNames = [];
+                    const regex = /"machine_name":\s*"([^"]+)"/g;
+                    let match;
+                    while ((match = regex.exec(text)) !== null) {
+                        machineNames.push(match[1]);
+                    }
+                    resolve([...new Set(machineNames)]); // Unique IDs
+                } catch (e) { resolve([]); }
+            },
+            onerror: () => resolve([])
+        });
     });
+}
 
-    observer.observe(document.body, { childList: true, subtree: true });
+async function scanHomepageBundles() {
+    if (window.location.pathname !== '/') return;
 
+    // Find Bundle Tiles (using the same selectors we added for titles)
+    const tiles = document.querySelectorAll('.full-tile-view a, .mosaic-tile, .product-tile a');
+    const cache = getBundleCache();
 
-    // --- Homepage Bundle Scanner (v2.1.14 / v2.2.0) ---
-    const BUNDLE_CACHE_KEY = 'gse_bundle_cache';
-    const BUNDLE_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 Hours
+    // Helper to check user status against a list of machine names
+    const checkStatus = (machineNames) => {
+        let wishlisted = 0;
+        let owned = 0;
+        let total = machineNames.length;
 
-    function getBundleCache() {
-        try {
-            const raw = GM_getValue(BUNDLE_CACHE_KEY, '{}');
-            return JSON.parse(raw);
-        } catch (e) { return {}; }
-    }
+        // We need to map Machine Name -> AppID. 
+        // This is tricky without the Asset Scanner.
+        // HOWEVER, we can check the 'steam_app_cache' if we have it, OR just rely on the fact
+        // that we might not have the ID yet. 
+        // BUT, wait! 'steam_userdata' is keyed by AppID. 
+        // We need AppIDs. 
+        // The bundle page source usually contains 'steam_app_id' as well!
+        // Let's optimize the Regex to find 'steam_app_id'.
+        return { wishlisted: 0, owned: 0 }; // Placeholder until we fix the AppID extraction
+    };
 
-    function setBundleCache(url, gameIds) {
-        const cache = getBundleCache();
-        cache[url] = { timestamp: Date.now(), games: gameIds };
-        GM_setValue(BUNDLE_CACHE_KEY, JSON.stringify(cache));
-    }
-
-    async function fetchBundleContents(url) {
+    // Refined Fetch for AppIDs
+    const fetchBundleAppIds = (url) => {
+        if (cache[url] && (Date.now() - cache[url].timestamp < BUNDLE_CACHE_TTL)) {
+            return Promise.resolve(cache[url].games); // These should be AppIDs now
+        }
         return new Promise(resolve => {
             GM_xmlhttpRequest({
                 method: 'GET',
                 url: url,
                 onload: (res) => {
-                    try {
-                        const text = res.responseText;
-                        // Regex to find "machine_name" (e.g. "machine_name": "prey_digitaldeluxe")
-                        // Or better yet, look for the 'models' blob if possible, but regex is faster/lighter than DOM parsing
-                        // Pattern: "machine_name":\s*"([^"]+)"
-                        const machineNames = [];
-                        const regex = /"machine_name":\s*"([^"]+)"/g;
-                        let match;
-                        while ((match = regex.exec(text)) !== null) {
-                            machineNames.push(match[1]);
-                        }
-                        resolve([...new Set(machineNames)]); // Unique IDs
-                    } catch (e) { resolve([]); }
+                    const text = res.responseText;
+                    const appIds = [];
+
+                    // Strategy 1: Look for "steam_app_id": 12345 (Standard JSON)
+                    let regex = /"steam_app_id":\s*(\d+)/g;
+                    let match;
+                    while ((match = regex.exec(text)) !== null) appIds.push(parseInt(match[1]));
+
+                    // Strategy 2: Look for steam_app_id: 12345 (JS Object keys)
+                    regex = /steam_app_id:\s*(\d+)/g;
+                    while ((match = regex.exec(text)) !== null) appIds.push(parseInt(match[1]));
+
+                    // Strategy 3: Look for machine_name if App ID is missing? 
+                    // No, stick to App IDs for now as they are reliable for comparisons.
+                    // But if we find NO App IDs, maybe we should try finding the "products" blob?
+                    // For now, simple regex is usually enough if the source contains the data.
+
+                    const unique = [...new Set(appIds)];
+                    if (unique.length > 0) setBundleCache(url, unique);
+                    resolve(unique);
                 },
                 onerror: () => resolve([])
             });
+
         });
-    }
+    };
 
-    async function scanHomepageBundles() {
-        if (window.location.pathname !== '/') return;
+    for (const tile of tiles) {
+        let container = tile.closest('.full-tile-view, .mosaic-tile, .product-tile');
+        if (!container) continue;
 
-        // Find Bundle Tiles (using the same selectors we added for titles)
-        const tiles = document.querySelectorAll('.full-tile-view a, .mosaic-tile, .product-tile a');
-        const cache = getBundleCache();
+        // Avoid re-processing
+        if (container.dataset.gseBundleScanned) continue;
 
-        // Helper to check user status against a list of machine names
-        const checkStatus = (machineNames) => {
-            let wishlisted = 0;
-            let owned = 0;
-            let total = machineNames.length;
-
-            // We need to map Machine Name -> AppID. 
-            // This is tricky without the Asset Scanner.
-            // HOWEVER, we can check the 'steam_app_cache' if we have it, OR just rely on the fact
-            // that we might not have the ID yet. 
-            // BUT, wait! 'steam_userdata' is keyed by AppID. 
-            // We need AppIDs. 
-            // The bundle page source usually contains 'steam_app_id' as well!
-            // Let's optimize the Regex to find 'steam_app_id'.
-            return { wishlisted: 0, owned: 0 }; // Placeholder until we fix the AppID extraction
-        };
-
-        // Refined Fetch for AppIDs
-        const fetchBundleAppIds = (url) => {
-            if (cache[url] && (Date.now() - cache[url].timestamp < BUNDLE_CACHE_TTL)) {
-                return Promise.resolve(cache[url].games); // These should be AppIDs now
-            }
-            return new Promise(resolve => {
-                GM_xmlhttpRequest({
-                    method: 'GET',
-                    url: url,
-                    onload: (res) => {
-                        const text = res.responseText;
-                        const appIds = [];
-
-                        // Strategy 1: Look for "steam_app_id": 12345 (Standard JSON)
-                        let regex = /"steam_app_id":\s*(\d+)/g;
-                        let match;
-                        while ((match = regex.exec(text)) !== null) appIds.push(parseInt(match[1]));
-
-                        // Strategy 2: Look for steam_app_id: 12345 (JS Object keys)
-                        regex = /steam_app_id:\s*(\d+)/g;
-                        while ((match = regex.exec(text)) !== null) appIds.push(parseInt(match[1]));
-
-                        // Strategy 3: Look for machine_name if App ID is missing? 
-                        // No, stick to App IDs for now as they are reliable for comparisons.
-                        // But if we find NO App IDs, maybe we should try finding the "products" blob?
-                        // For now, simple regex is usually enough if the source contains the data.
-
-                        const unique = [...new Set(appIds)];
-                        if (unique.length > 0) setBundleCache(url, unique);
-                        resolve(unique);
-                    },
-                    onerror: () => resolve([])
-                });
-
-            });
-        };
-
-        for (const tile of tiles) {
-            let container = tile.closest('.full-tile-view, .mosaic-tile, .product-tile');
-            if (!container) continue;
-
-            // Avoid re-processing
-            if (container.dataset.gseBundleScanned) continue;
-
-            const href = tile.href || tile.parentElement.href;
-            // 1. Filter Non-Game Bundles from URL
-            if (!href || (!href.includes('/games/') && !href.includes('/software/') && !href.includes('humble_choice'))) {
-                // Check for generic 'bundle' path but EXCLUDE books/software explicit paths
-                if (href.includes('/books/') || href.includes('/software/')) return;
-                // If it's just /bundles/something, we might want to check it ONLY if the user wants?
-                // User said "ignore books/software".
-                if (!href.includes('/games/') && !href.includes('humble_choice')) return;
-            }
-
-            // v2.4.0: Exclude IGN Plus
-            if (tile.innerText.toLowerCase().includes('ign plus')) return;
-
-            // Mark as scanning
-            container.dataset.gseBundleScanned = "pending";
-
-            fetchBundleAppIds(href).then(appIds => {
-                if (!appIds || appIds.length === 0) return;
-
-                // Compare with User Data
-                const userdata = getStoredValue('steam_userdata', { owned: [], wishlist: [] });
-                const wishlistedCount = appIds.filter(id => {
-                    if (userdata.wishlist.includes(id)) return true;
-                    if (userdata.owned.includes(id)) return false;
-                    return false;
-                }).length;
-                const ownedCount = appIds.filter(id => userdata.owned.includes(id)).length;
-                const totalCount = appIds.length;
-
-                // Visual Feedback
-                if (wishlistedCount > 0) {
-                    container.classList.add('ssl-container-wishlist');
-                    const badge = document.createElement('div');
-                    badge.className = 'ssl-bundle-status ssl-status-wishlist';
-                    badge.innerHTML = `<span class="ssl-status-icon">♥</span> ${wishlistedCount}`;
-                    badge.title = `${wishlistedCount} Wishlisted Item(s)`;
-                    container.style.position = 'relative';
-                    container.appendChild(badge);
-                } else if (ownedCount === totalCount && totalCount > 0) {
-                    container.classList.add('ssl-container-owned');
-                    const badge = document.createElement('div');
-                    badge.className = 'ssl-bundle-status ssl-status-owned';
-                    badge.innerHTML = `<span class="ssl-status-icon">✓</span> Owned`;
-                    container.style.position = 'relative';
-                    container.appendChild(badge);
-                } else if (ownedCount > 0) {
-                    // Partial Ownership (Optional: Orange/Blue mix?)
-                    // For now, let's just show owned count if significant? 
-                    // Or maybe just leave it clean. 
-                }
-
-                container.dataset.gseBundleScanned = "true";
-            });
+        const href = tile.href || tile.parentElement.href;
+        // 1. Filter Non-Game Bundles from URL
+        if (!href || (!href.includes('/games/') && !href.includes('/software/') && !href.includes('humble_choice'))) {
+            // Check for generic 'bundle' path but EXCLUDE books/software explicit paths
+            if (href.includes('/books/') || href.includes('/software/')) return;
+            // If it's just /bundles/something, we might want to check it ONLY if the user wants?
+            // User said "ignore books/software".
+            if (!href.includes('/games/') && !href.includes('humble_choice')) return;
         }
-    }
 
-    // --- Homepage Game Scanner (v2.3.2 - Fixed) ---
-    async function scanHomepageGames() {
-        if (window.location.pathname !== '/' && !window.location.pathname.startsWith('/store')) return;
+        // v2.4.0: Exclude IGN Plus
+        if (tile.innerText.toLowerCase().includes('ign plus')) return;
 
-        // v2.5.8: Heuristic Scanning for Generic Tiles (High On Life 2, etc.)
-        // Instead of strict classes, we look for any 'A' tag that looks like a game tile (image + price)
-        const candidates = document.querySelectorAll('a[href*="/store/"]');
-        const tiles = [];
+        // Mark as scanning
+        container.dataset.gseBundleScanned = "pending";
 
-        // 1. Add known selectors
-        const selector = [
-            '.full-tile-view',
-            '.entity-block-container',
-            '.mosaic-tile',
-            '.game-tile',
-            '.takeover-tile-view'
-        ].join(', ');
+        fetchBundleAppIds(href).then(appIds => {
+            if (!appIds || appIds.length === 0) return;
 
-        document.querySelectorAll(selector).forEach(t => tiles.push(t));
+            // Compare with User Data
+            const userdata = getStoredValue('steam_userdata', { owned: [], wishlist: [] });
+            const wishlistedCount = appIds.filter(id => {
+                if (userdata.wishlist.includes(id)) return true;
+                if (userdata.owned.includes(id)) return false;
+                return false;
+            }).length;
+            const ownedCount = appIds.filter(id => userdata.owned.includes(id)).length;
+            const totalCount = appIds.length;
 
-        // 2. Add Heuristic Candidates (Generic 'div' wrappers or direct 'a' tags)
-        candidates.forEach(a => {
-            // Must have an image and a price to be considered a game tile
-            // And must NOT already be in the list
-            if (tiles.includes(a)) return;
-
-            // Check for Price
-            const hasPrice = a.querySelector('.price, .current-price, .price-button, .entity-pricing-details') ||
-                /[€$£¥]/.test(a.innerText);
-
-            // Check for Image
-            const hasImage = a.querySelector('img, .entity-image');
-
-            if (hasPrice && hasImage) {
-                // It's likely a game tile. Use the 'a' as the container.
-                tiles.push(a);
+            // Visual Feedback
+            if (wishlistedCount > 0) {
+                container.classList.add('ssl-container-wishlist');
+                const badge = document.createElement('div');
+                badge.className = 'ssl-bundle-status ssl-status-wishlist';
+                badge.innerHTML = `<span class="ssl-status-icon">♥</span> ${wishlistedCount}`;
+                badge.title = `${wishlistedCount} Wishlisted Item(s)`;
+                container.style.position = 'relative';
+                container.appendChild(badge);
+            } else if (ownedCount === totalCount && totalCount > 0) {
+                container.classList.add('ssl-container-owned');
+                const badge = document.createElement('div');
+                badge.className = 'ssl-bundle-status ssl-status-owned';
+                badge.innerHTML = `<span class="ssl-status-icon">✓</span> Owned`;
+                container.style.position = 'relative';
+                container.appendChild(badge);
+            } else if (ownedCount > 0) {
+                // Partial Ownership (Optional: Orange/Blue mix?)
+                // For now, let's just show owned count if significant? 
+                // Or maybe just leave it clean. 
             }
+
+            container.dataset.gseBundleScanned = "true";
         });
+    }
+}
 
-        tiles.forEach(tile => {
-            if (tile.dataset.gseGameScanned) return;
+// --- Homepage Game Scanner (v2.3.2 - Fixed) ---
+async function scanHomepageGames() {
+    if (window.location.pathname !== '/' && !window.location.pathname.startsWith('/store')) return;
 
-            // Heuristic v2: If no price class, look for any price-like text
-            let priceEl = tile.querySelector('.price, .current-price, .price-button, .entity-pricing-details');
-            if (!priceEl) {
-                // Fallback: Find any element with a currency symbol
-                // This is risky but necessary if classes are missing
-                const candidates = tile.querySelectorAll('span, div');
-                for (const c of candidates) {
-                    if (/[€$£¥]/.test(c.innerText)) {
-                        priceEl = c;
-                        break;
-                    }
+    // v2.5.8: Heuristic Scanning for Generic Tiles (High On Life 2, etc.)
+    // Instead of strict classes, we look for any 'A' tag that looks like a game tile (image + price)
+    const candidates = document.querySelectorAll('a[href*="/store/"]');
+    const tiles = [];
+
+    // 1. Add known selectors
+    const selector = [
+        '.full-tile-view',
+        '.entity-block-container',
+        '.mosaic-tile',
+        '.game-tile',
+        '.takeover-tile-view'
+    ].join(', ');
+
+    document.querySelectorAll(selector).forEach(t => tiles.push(t));
+
+    // 2. Add Heuristic Candidates (Generic 'div' wrappers or direct 'a' tags)
+    candidates.forEach(a => {
+        // Must have an image and a price to be considered a game tile
+        // And must NOT already be in the list
+        if (tiles.includes(a)) return;
+
+        // Check for Price
+        const hasPrice = a.querySelector('.price, .current-price, .price-button, .entity-pricing-details') ||
+            /[€$£¥]/.test(a.innerText);
+
+        // Check for Image
+        const hasImage = a.querySelector('img, .entity-image');
+
+        if (hasPrice && hasImage) {
+            // It's likely a game tile. Use the 'a' as the container.
+            tiles.push(a);
+        }
+    });
+
+    tiles.forEach(tile => {
+        if (tile.dataset.gseGameScanned) return;
+
+        // Heuristic v2: If no price class, look for any price-like text
+        let priceEl = tile.querySelector('.price, .current-price, .price-button, .entity-pricing-details');
+        if (!priceEl) {
+            // Fallback: Find any element with a currency symbol
+            // This is risky but necessary if classes are missing
+            const candidates = tile.querySelectorAll('span, div');
+            for (const c of candidates) {
+                if (/[€$£¥]/.test(c.innerText)) {
+                    priceEl = c;
+                    break;
                 }
             }
+        }
 
-            // If still no price and not explicitly a store tile, skip
-            if (!priceEl && !tile.className.includes('store')) return;
+        // If still no price and not explicitly a store tile, skip
+        if (!priceEl && !tile.className.includes('store')) return;
 
-            tile.dataset.gseGameScanned = "true";
+        tile.dataset.gseGameScanned = "true";
 
-            // v2.5.16: strict Deduplication - If we already have a badge, abort.
-            if (tile.querySelector('.ssl-link') || tile.querySelector('.humble-home-steam-link')) return;
+        // v2.5.16: strict Deduplication - If we already have a badge, abort.
+        if (tile.querySelector('.ssl-link') || tile.querySelector('.humble-home-steam-link')) return;
 
 
 
-            // 1. Extract Info - Retry Logic
-            let titleEl = tile.querySelector('.js-tile-label, .tile-label, .entity-title, .human-name, .name');
-            if (!titleEl) {
-                // Fallback: The title is usually the first significant text that isn't the price
-                const spans = tile.querySelectorAll('span');
-                for (const s of spans) {
-                    const text = s.innerText.trim();
-                    if (text.length > 2 && !/[€$£¥]/.test(text) && !text.includes('OFF')) {
-                        titleEl = s;
-                        break;
-                    }
+        // 1. Extract Info - Retry Logic
+        let titleEl = tile.querySelector('.js-tile-label, .tile-label, .entity-title, .human-name, .name');
+        if (!titleEl) {
+            // Fallback: The title is usually the first significant text that isn't the price
+            const spans = tile.querySelectorAll('span');
+            for (const s of spans) {
+                const text = s.innerText.trim();
+                if (text.length > 2 && !/[€$£¥]/.test(text) && !text.includes('OFF')) {
+                    titleEl = s;
+                    break;
                 }
             }
+        }
 
-            if (!titleEl) return;
+        if (!titleEl) return;
 
-            let title = titleEl.innerText.trim();
+        let title = titleEl.innerText.trim();
 
-            // Debugging for User Report (Reanimal / Project Zomboid)
-            if (title.toUpperCase().includes('REANIMAL') || title.toUpperCase().includes('PROJECT ZOMBOID')) {
-                console.log(`[Game Store Enhancer] Processing tile. Title: "${title}"`);
-                console.log(`[Game Store Enhancer] Tile Element:`, tile);
+        // Debugging for User Report (Reanimal / Project Zomboid)
+        if (title.toUpperCase().includes('REANIMAL') || title.toUpperCase().includes('PROJECT ZOMBOID')) {
+            console.log(`[Game Store Enhancer] Processing tile. Title: "${title}"`);
+            console.log(`[Game Store Enhancer] Tile Element:`, tile);
+        }
+
+        // Extract Link (robust)
+        let href = "";
+        const linkEl = tile.querySelector('a');
+        if (tile.tagName === 'A') href = tile.href;
+        else if (linkEl) href = linkEl.href;
+
+        // Skip non-game links if possible
+        if (href && (href.includes('/books/') || href.includes('/software/'))) return;
+
+        // 2. Resolve AppID
+        searchSteamGame(title).then(result => {
+            const appId = result ? result.id : null;
+
+            if (title.toUpperCase().includes('PROJECT ZOMBOID')) {
+                console.log(`[Game Store Enhancer] Zomboid Search Result:`, result);
             }
 
-            // Extract Link (robust)
-            let href = "";
-            const linkEl = tile.querySelector('a');
-            if (tile.tagName === 'A') href = tile.href;
-            else if (linkEl) href = linkEl.href;
+            if (!appId) {
+                if (title.toUpperCase().includes('REANIMAL') || title.toUpperCase().includes('PROJECT ZOMBOID')) {
+                    console.warn(`[Game Store Enhancer] Search failed! No AppID found for title: "${title}"`);
+                }
+                return;
+            }
 
-            // Skip non-game links if possible
-            if (href && (href.includes('/books/') || href.includes('/software/'))) return;
+            // 3. Fetch Data & Status (Unified)
+            Promise.all([
+                fetchSteamUserData(),
+                fetchSteamReviews(appId)
+            ]).then(([userdata, reviews]) => {
 
-            // 2. Resolve AppID
-            searchSteamGame(title).then(result => {
-                const appId = result ? result.id : null;
+                const appIdNum = parseInt(appId);
+                const owned = userdata.ownedApps.includes(appIdNum);
+                // v2.5.0: Robust Wishlist Check (Handle both [123] and [{appid:123}] formats)
+                const wishlisted = userdata.wishlist.some(w => (w === appIdNum || w.appid === appIdNum));
+                const ignored = userdata.ignored && userdata.ignored[appIdNum];
 
-                if (title.toUpperCase().includes('PROJECT ZOMBOID')) {
-                    console.log(`[Game Store Enhancer] Zomboid Search Result:`, result);
+                // Update Total Stats (v2.4.17)
+                // v2.5.0: Fix Duplicate Counting - Only count if not already processed for stats
+                const isNewStat = !stats.countedSet.has(appIdNum);
+                if (isNewStat) {
+                    stats.total++;
+                    stats.countedSet.add(appIdNum);
                 }
 
-                if (!appId) {
-                    if (title.toUpperCase().includes('REANIMAL') || title.toUpperCase().includes('PROJECT ZOMBOID')) {
-                        console.warn(`[Game Store Enhancer] Search failed! No AppID found for title: "${title}"`);
+                // Debugging for User Report (Reanimal / Resident Evil)
+                const titleLower = title.toLowerCase();
+                if (titleLower.includes('reanimal') || titleLower.includes('resident evil')) {
+                    console.group(`[Game Store Enhancer DEBUG] ${title}`);
+                    console.log(`Title: "${title}"`);
+                    console.log(`Found AppID: ${appId} (Parsed: ${appIdNum})`);
+                    console.log(`Owned Check: ${owned} (In List: ${userdata.ownedApps.includes(appIdNum)})`);
+                    console.log(`Wishlist Check: ${wishlisted} (In List: ${userdata.wishlist.some(w => (w === appIdNum || w.appid === appIdNum))})`);
+                    // v2.5.0: Enhanced Debugging for Packages
+                    console.log(`Parsed UserData:`, {
+                        owned_count: userdata.ownedApps.length,
+                        wishlist_count: userdata.wishlist.length,
+                        package_count: userdata.ownedPackages ? userdata.ownedPackages.length : 0
+                    });
+                    if (userdata.ownedPackages && userdata.ownedPackages.length > 0) {
+                        // Check if AppID is in any User Packages (Not possible without map, but we can dump top packages or something?)
+                        // Or just log that we HAVE packages.
+                        console.log(`[DEBUG] User owns ${userdata.ownedPackages.length} packages. (Checking match is separate)`);
                     }
-                    return;
+                    console.groupEnd();
                 }
 
-                // 3. Fetch Data & Status (Unified)
-                Promise.all([
-                    fetchSteamUserData(),
-                    fetchSteamReviews(appId)
-                ]).then(([userdata, reviews]) => {
+                // v2.5.6: Fix Missing Badges on Homepage (Ported from processGameElement)
+                try {
+                    const appDataForBadge = { ...result, id: appId, owned, wishlisted, ignored, reviews };
+                    // v2.5.16: Use Safe Flexbox HTML for Homepage Badge too
+                    const badgeLink = createSteamLink(appDataForBadge);
+                    // Modify HTML to match v2.5.16 Safe Flex (explicit override just in case, but createSteamLink should handle it)
+                    badgeLink.innerHTML = `<span style="display:inline-flex; align-items:center; height:16px;"><img src="https://store.steampowered.com/favicon.ico" style="width:12px; height:12px; margin-right:4px; display:block;"><span style="display:block; line-height:12px; font-size:11px;">STEAM</span></span>`;
 
-                    const appIdNum = parseInt(appId);
-                    const owned = userdata.ownedApps.includes(appIdNum);
-                    // v2.5.0: Robust Wishlist Check (Handle both [123] and [{appid:123}] formats)
-                    const wishlisted = userdata.wishlist.some(w => (w === appIdNum || w.appid === appIdNum));
-                    const ignored = userdata.ignored && userdata.ignored[appIdNum];
+                    if (badgeLink) {
+                        // Create Badge Container (Span if parent is A, else A)
+                        const parentIsAnchor = tile.tagName === 'A';
+                        const linkContainer = document.createElement(parentIsAnchor ? 'span' : 'a');
 
-                    // Update Total Stats (v2.4.17)
-                    // v2.5.0: Fix Duplicate Counting - Only count if not already processed for stats
-                    const isNewStat = !stats.countedSet.has(appIdNum);
-                    if (isNewStat) {
-                        stats.total++;
-                        stats.countedSet.add(appIdNum);
-                    }
+                        linkContainer.className = badgeLink.className + ' humble-home-steam-link';
+                        linkContainer.innerHTML = badgeLink.innerHTML;
+                        linkContainer.title = badgeLink.title;
 
-                    // Debugging for User Report (Reanimal / Resident Evil)
-                    const titleLower = title.toLowerCase();
-                    if (titleLower.includes('reanimal') || titleLower.includes('resident evil')) {
-                        console.group(`[Game Store Enhancer DEBUG] ${title}`);
-                        console.log(`Title: "${title}"`);
-                        console.log(`Found AppID: ${appId} (Parsed: ${appIdNum})`);
-                        console.log(`Owned Check: ${owned} (In List: ${userdata.ownedApps.includes(appIdNum)})`);
-                        console.log(`Wishlist Check: ${wishlisted} (In List: ${userdata.wishlist.some(w => (w === appIdNum || w.appid === appIdNum))})`);
-                        // v2.5.0: Enhanced Debugging for Packages
-                        console.log(`Parsed UserData:`, {
-                            owned_count: userdata.ownedApps.length,
-                            wishlist_count: userdata.wishlist.length,
-                            package_count: userdata.ownedPackages ? userdata.ownedPackages.length : 0
+                        // Layout Fixes - Force single line
+                        linkContainer.style.setProperty('display', 'inline-flex', 'important');
+                        linkContainer.style.setProperty('flex-direction', 'row', 'important');
+                        linkContainer.style.setProperty('flex-wrap', 'nowrap', 'important');
+                        linkContainer.style.setProperty('align-items', 'center', 'important');
+                        linkContainer.style.setProperty('justify-content', 'flex-start', 'important');
+                        linkContainer.style.setProperty('width', 'auto', 'important');
+                        linkContainer.style.setProperty('max-width', 'none', 'important');
+                        linkContainer.style.setProperty('height', 'auto', 'important');
+                        linkContainer.style.setProperty('white-space', 'nowrap', 'important');
+                        linkContainer.style.backgroundColor = '#171a21';
+                        linkContainer.style.opacity = '1.0';
+                        linkContainer.style.padding = '2px 4px';
+                        linkContainer.style.lineHeight = 'normal';
+                        linkContainer.style.boxShadow = '1px 1px 3px rgba(0,0,0,0.5)';
+
+                        // Prevent text wrapping in children
+                        Array.from(linkContainer.children).forEach(child => {
+                            child.style.setProperty('display', 'inline-block', 'important');
+                            child.style.setProperty('white-space', 'nowrap', 'important');
+                            child.style.setProperty('flex-shrink', '0', 'important');
+                            child.style.verticalAlign = 'middle';
+                            child.style.opacity = '1.0';
                         });
-                        if (userdata.ownedPackages && userdata.ownedPackages.length > 0) {
-                            // Check if AppID is in any User Packages (Not possible without map, but we can dump top packages or something?)
-                            // Or just log that we HAVE packages.
-                            console.log(`[DEBUG] User owns ${userdata.ownedPackages.length} packages. (Checking match is separate)`);
+
+                        if (parentIsAnchor) {
+                            linkContainer.style.cursor = 'pointer';
+                            // v2.5.12: Hardcore Click Trap
+                            // Humble uses complex event delegation. We must stop EVERYTHING in Capture Phase.
+                            // v2.5.17: Relaxed Click Trap
+                            // We MUST stop propagation to prevent Humble's tile click.
+                            // But we should NOT preventDefault on mousedown, as it might block the click event itself.
+                            // v2.5.19: Restore Hardcore Click Trap
+                            // We MUST stop everything to ensure the click goes to us and not the tile.
+                            const stopEvent = (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                e.stopImmediatePropagation();
+                                return false;
+                            };
+                            const openSteam = (e) => {
+                                stopEvent(e);
+                                // Only left click (0) or middle click (1)
+                                if (e.button === 0 || e.button === 1) {
+                                    window.open(`https://store.steampowered.com/app/${appId}`, '_blank');
+                                }
+                            };
+
+                            linkContainer.addEventListener('click', openSteam, true);
+                            linkContainer.addEventListener('mousedown', stopEvent, true);
+                            linkContainer.addEventListener('mouseup', stopEvent, true);
+                            linkContainer.addEventListener('auxclick', openSteam, true); // Catch middle clicks
+                        } else {
+                            linkContainer.href = `https://store.steampowered.com/app/${appId}`;
+                            linkContainer.target = '_blank';
                         }
-                        console.groupEnd();
-                    }
+                        // Fix for Carousel/Grid: Append to the tile itself if no better place found
+                        // For "Featured" carousel, the tile is an Anchor. We can append the span inside it?
+                        // No, if tile is A, we can't append A inside A.
+                        // We created 'span' if parentIsAnchor.
 
-                    // v2.5.6: Fix Missing Badges on Homepage (Ported from processGameElement)
-                    try {
-                        const appDataForBadge = { ...result, id: appId, owned, wishlisted, ignored, reviews };
-                        // v2.5.16: Use Safe Flexbox HTML for Homepage Badge too
-                        const badgeLink = createSteamLink(appDataForBadge);
-                        // Modify HTML to match v2.5.16 Safe Flex (explicit override just in case, but createSteamLink should handle it)
-                        badgeLink.innerHTML = `<span style="display:inline-flex; align-items:center; height:16px;"><img src="https://store.steampowered.com/favicon.ico" style="width:12px; height:12px; margin-right:4px; display:block;"><span style="display:block; line-height:12px; font-size:11px;">STEAM</span></span>`;
+                        // Try to find a good place. Usually the image container or just append to tile.
+                        // On the homepage, tiles often have an image and some text.
+                        // If we append to the tile (which is flex/relative), it might overlay or sit at bottom.
 
-                        if (badgeLink) {
-                            // Create Badge Container (Span if parent is A, else A)
-                            const parentIsAnchor = tile.tagName === 'A';
-                            const linkContainer = document.createElement(parentIsAnchor ? 'span' : 'a');
+                        // v2.5.18: Targeting Image Container for Bottom-Left of IMAGE (not card)
+                        // Try to find the image container
+                        const imgContainer = tile.querySelector('.image-container, .choice-image-container, .img-container, figure, .entity-image, .full-tile-view-image-container');
 
-                            linkContainer.className = badgeLink.className + ' humble-home-steam-link';
-                            linkContainer.innerHTML = badgeLink.innerHTML;
-                            linkContainer.title = badgeLink.title;
-
-                            // Layout Fixes - Force single line
-                            linkContainer.style.setProperty('display', 'inline-flex', 'important');
-                            linkContainer.style.setProperty('flex-direction', 'row', 'important');
-                            linkContainer.style.setProperty('flex-wrap', 'nowrap', 'important');
-                            linkContainer.style.setProperty('align-items', 'center', 'important');
-                            linkContainer.style.setProperty('justify-content', 'flex-start', 'important');
-                            linkContainer.style.setProperty('width', 'auto', 'important');
-                            linkContainer.style.setProperty('max-width', 'none', 'important');
-                            linkContainer.style.setProperty('height', 'auto', 'important');
-                            linkContainer.style.setProperty('white-space', 'nowrap', 'important');
-                            linkContainer.style.backgroundColor = '#171a21';
-                            linkContainer.style.opacity = '1.0';
-                            linkContainer.style.padding = '2px 4px';
-                            linkContainer.style.lineHeight = 'normal';
-                            linkContainer.style.boxShadow = '1px 1px 3px rgba(0,0,0,0.5)';
-
-                            // Prevent text wrapping in children
-                            Array.from(linkContainer.children).forEach(child => {
-                                child.style.setProperty('display', 'inline-block', 'important');
-                                child.style.setProperty('white-space', 'nowrap', 'important');
-                                child.style.setProperty('flex-shrink', '0', 'important');
-                                child.style.verticalAlign = 'middle';
-                                child.style.opacity = '1.0';
-                            });
-
-                            if (parentIsAnchor) {
-                                linkContainer.style.cursor = 'pointer';
-                                // v2.5.12: Hardcore Click Trap
-                                // Humble uses complex event delegation. We must stop EVERYTHING in Capture Phase.
-                                // v2.5.17: Relaxed Click Trap
-                                // We MUST stop propagation to prevent Humble's tile click.
-                                // But we should NOT preventDefault on mousedown, as it might block the click event itself.
-                                // v2.5.19: Restore Hardcore Click Trap
-                                // We MUST stop everything to ensure the click goes to us and not the tile.
-                                const stopEvent = (e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    e.stopImmediatePropagation();
-                                    return false;
-                                };
-                                const openSteam = (e) => {
-                                    stopEvent(e);
-                                    // Only left click (0) or middle click (1)
-                                    if (e.button === 0 || e.button === 1) {
-                                        window.open(`https://store.steampowered.com/app/${appId}`, '_blank');
-                                    }
-                                };
-
-                                linkContainer.addEventListener('click', openSteam, true);
-                                linkContainer.addEventListener('mousedown', stopEvent, true);
-                                linkContainer.addEventListener('mouseup', stopEvent, true);
-                                linkContainer.addEventListener('auxclick', openSteam, true); // Catch middle clicks
-                            } else {
-                                linkContainer.href = `https://store.steampowered.com/app/${appId}`;
-                                linkContainer.target = '_blank';
-                            }
-                            // Fix for Carousel/Grid: Append to the tile itself if no better place found
-                            // For "Featured" carousel, the tile is an Anchor. We can append the span inside it?
-                            // No, if tile is A, we can't append A inside A.
-                            // We created 'span' if parentIsAnchor.
-
-                            // Try to find a good place. Usually the image container or just append to tile.
-                            // On the homepage, tiles often have an image and some text.
-                            // If we append to the tile (which is flex/relative), it might overlay or sit at bottom.
-
-                            // v2.5.18: Targeting Image Container for Bottom-Left of IMAGE (not card)
-                            // Try to find the image container
-                            const imgContainer = tile.querySelector('.image-container, .choice-image-container, .img-container, figure, .entity-image, .full-tile-view-image-container');
-
-                            if (imgContainer) {
-                                imgContainer.style.position = 'relative'; // Ensure relative context
-                                imgContainer.appendChild(linkContainer);
-                            } else {
-                                // Fallback to tile if no image container found
-                                // v2.5.21: Sibling Injection Strategy for <a> Tiles
-                                // If the tile itself is an <a> tag, we CANNOT append another <a> tag inside it.
-                                // We must find the parent, make it relative, and append the badge as a sibling positioned over the tile.
-                                if (tile.tagName === 'A') {
-                                    const parent = tile.parentElement;
-                                    if (parent) {
-                                        parent.style.position = 'relative';
-                                        linkContainer.style.bottom = '4px'; // Slight offset from bottom
-                                        linkContainer.style.left = '4px';   // Slight offset from left
-                                        // Ensure it sits on top of the tile
-                                        linkContainer.style.zIndex = '1000';
-                                        linkContainer.style.pointerEvents = 'auto'; // Force clickable
-                                        parent.appendChild(linkContainer);
-                                    } else {
-                                        // Worst case: append to tile (might be unclickable)
-                                        tile.appendChild(linkContainer);
-                                    }
+                        if (imgContainer) {
+                            imgContainer.style.position = 'relative'; // Ensure relative context
+                            imgContainer.appendChild(linkContainer);
+                        } else {
+                            // Fallback to tile if no image container found
+                            // v2.5.21: Sibling Injection Strategy for <a> Tiles
+                            // If the tile itself is an <a> tag, we CANNOT append another <a> tag inside it.
+                            // We must find the parent, make it relative, and append the badge as a sibling positioned over the tile.
+                            if (tile.tagName === 'A') {
+                                const parent = tile.parentElement;
+                                if (parent) {
+                                    parent.style.position = 'relative';
+                                    linkContainer.style.bottom = '4px'; // Slight offset from bottom
+                                    linkContainer.style.left = '4px';   // Slight offset from left
+                                    // Ensure it sits on top of the tile
+                                    linkContainer.style.zIndex = '1000';
+                                    linkContainer.style.pointerEvents = 'auto'; // Force clickable
+                                    parent.appendChild(linkContainer);
                                 } else {
+                                    // Worst case: append to tile (might be unclickable)
                                     tile.appendChild(linkContainer);
                                 }
+                            } else {
+                                tile.appendChild(linkContainer);
                             }
-
-                            // Post-append style adjustments (v2.5.17: Bottom Left Enforced via CSS class, but ensure inline styles don't conflict)
-                            // v2.5.21: Only apply if we didn't do Sibling Injection (which sets its own styles)
-                            if (!linkContainer.parentElement || linkContainer.parentElement === imgContainer || (tile.tagName !== 'A' && linkContainer.parentElement === tile)) {
-                                linkContainer.style.position = 'absolute';
-                                linkContainer.style.top = 'auto';
-                                linkContainer.style.bottom = '0';
-                                linkContainer.style.left = '0';
-                                linkContainer.style.zIndex = '100';
-                            }
-
                         }
-                    } catch (err) {
-                        console.error('[Game Store Enhancer] Error creating badge:', err);
-                    }
 
-                    if (owned) {
-                        tile.classList.add('ssl-container-owned');
-                        tile.style.position = 'relative'; // Ensure pseudo-element border works
-                        if (isNewStat) stats.owned++; // Update stats only once per unique game
-                        // v2.4.5: Only dim the image, not the whole tile (so badge stays opaque)
-                        const img = tile.querySelector('img');
-                        if (img) img.style.opacity = '0.6';
-                        else tile.style.opacity = '0.6'; // Fallback
-
-                        // v2.4.14: Use Outline instead of Border to avoid layout shift
-                        tile.style.outline = '4px solid #5cb85c';
-                        tile.style.outlineOffset = '-4px';
-                        tile.style.zIndex = '10'; // Ensure it's above background
-                    } else if (wishlisted) {
-                        tile.classList.add('ssl-container-wishlist');
-                        tile.style.position = 'relative'; // Ensure pseudo-element border works
-                        if (isNewStat) stats.wishlist++; // Update stats only once per unique game
-                        // v2.4.14: Use Outline instead of Border
-                        tile.style.outline = '4px solid #3c9bf0';
-                        tile.style.outlineOffset = '-4px';
-                        tile.style.zIndex = '10'; // Ensure it's above background
-                    } else if (ignored) {
-                        tile.classList.add('ssl-container-ignored');
-                        tile.style.position = 'relative';
-                        if (isNewStat) stats.ignored++;
-
-                        tile.style.outline = '4px solid #d9534f';
-                        tile.style.outlineOffset = '-4px';
-                        tile.style.zIndex = '10';
-
-                        // Dim ignored games significantly
-                        const img = tile.querySelector('img');
-                        if (img) img.style.opacity = '0.3';
-                        else tile.style.opacity = '0.3';
-                    } else {
-                        // Debug: Why is it missing?
-                        const titleLower = title.toLowerCase();
-                        if (titleLower.includes('reanimal')) {
-                            console.warn(`[Game Store Enhancer] 'REANIMAL' not detected as Owned or Wishlisted. Checked AppID: ${appIdNum}`);
+                        // Post-append style adjustments (v2.5.17: Bottom Left Enforced via CSS class, but ensure inline styles don't conflict)
+                        // v2.5.21: Only apply if we didn't do Sibling Injection (which sets its own styles)
+                        if (!linkContainer.parentElement || linkContainer.parentElement === imgContainer || (tile.tagName !== 'A' && linkContainer.parentElement === tile)) {
+                            linkContainer.style.position = 'absolute';
+                            linkContainer.style.top = 'auto';
+                            linkContainer.style.bottom = '0';
+                            linkContainer.style.left = '0';
+                            linkContainer.style.zIndex = '100';
                         }
+
                     }
-
-                    if (isNewStat) updateStatsUI();
-                }).catch(e => console.error(e));
-            });
-        });
-    }
-
-    function scanHomepage() {
-        scanHomepageBundles();
-        scanHomepageGames();
-        setTimeout(updateStatsUI, 1000); // Update stats after scan (delayed to allow async fetches)
-    }
-
-    // v2.4.9: Steam Age Check Bypass Logic
-    function handleAgeCheck() {
-        console.log('[Game Store Enhancer] Checking for Age Gate...');
-
-        // 1. Dropdown Case (Year Selection)
-        const yearDropdown = document.getElementById('ageYear');
-        if (yearDropdown) {
-            console.log('[Game Store Enhancer] Found Year Dropdown. Selecting 2000...');
-            yearDropdown.value = '2000';
-            yearDropdown.dispatchEvent(new Event('change'));
-        }
-
-        // Helper to find and click the button
-        const tryClickButton = (attempt = 1) => {
-            // Steam has used various IDs/Classes over the years.
-            const btn = document.getElementById('view_product_page_btn') || // Variant 2 (No Year)
-                document.querySelector('#age_gate_btn_continue') ||
-                document.querySelector('.age_gate_btn_continue') ||
-                document.querySelector('.btn_medium.btn_green_white_innerfade') || // Classic "Enter" button
-                document.querySelector('a[onclick*="ViewProductPage"]');
-
-            if (btn) {
-                console.log(`[Game Store Enhancer] Bypassing Age Check (Clicking Button) on attempt ${attempt}...`);
-                btn.click();
-            } else {
-                if (attempt < 10) { // Retry for ~2 seconds (10 * 200ms)
-                    console.log(`[Game Store Enhancer] Button not found yet, retrying... (${attempt})`);
-                    setTimeout(() => tryClickButton(attempt + 1), 200);
-                } else {
-                    console.log('[Game Store Enhancer] No continue button found after multiple retries.');
+                } catch (err) {
+                    console.error('[Game Store Enhancer] Error creating badge:', err);
                 }
+
+                if (owned) {
+                    tile.classList.add('ssl-container-owned');
+                    tile.style.position = 'relative'; // Ensure pseudo-element border works
+                    if (isNewStat) stats.owned++; // Update stats only once per unique game
+                    // v2.4.5: Only dim the image, not the whole tile (so badge stays opaque)
+                    const img = tile.querySelector('img');
+                    if (img) img.style.opacity = '0.6';
+                    else tile.style.opacity = '0.6'; // Fallback
+
+                    // v2.4.14: Use Outline instead of Border to avoid layout shift
+                    tile.style.outline = '4px solid #5cb85c';
+                    tile.style.outlineOffset = '-4px';
+                    tile.style.zIndex = '10'; // Ensure it's above background
+                } else if (wishlisted) {
+                    tile.classList.add('ssl-container-wishlist');
+                    tile.style.position = 'relative'; // Ensure pseudo-element border works
+                    if (isNewStat) stats.wishlist++; // Update stats only once per unique game
+                    // v2.4.14: Use Outline instead of Border
+                    tile.style.outline = '4px solid #3c9bf0';
+                    tile.style.outlineOffset = '-4px';
+                    tile.style.zIndex = '10'; // Ensure it's above background
+                } else if (ignored) {
+                    tile.classList.add('ssl-container-ignored');
+                    tile.style.position = 'relative';
+                    if (isNewStat) stats.ignored++;
+
+                    tile.style.outline = '4px solid #d9534f';
+                    tile.style.outlineOffset = '-4px';
+                    tile.style.zIndex = '10';
+
+                    // Dim ignored games significantly
+                    const img = tile.querySelector('img');
+                    if (img) img.style.opacity = '0.3';
+                    else tile.style.opacity = '0.3';
+                } else {
+                    // Debug: Why is it missing?
+                    const titleLower = title.toLowerCase();
+                    if (titleLower.includes('reanimal')) {
+                        console.warn(`[Game Store Enhancer] 'REANIMAL' not detected as Owned or Wishlisted. Checked AppID: ${appIdNum}`);
+                    }
+                }
+
+                if (isNewStat) updateStatsUI();
+            }).catch(e => console.error(e));
+        });
+    });
+}
+
+function scanHomepage() {
+    scanHomepageBundles();
+    scanHomepageGames();
+    setTimeout(updateStatsUI, 1000); // Update stats after scan (delayed to allow async fetches)
+}
+
+// v2.4.9: Steam Age Check Bypass Logic
+function handleAgeCheck() {
+    console.log('[Game Store Enhancer] Checking for Age Gate...');
+
+    // 1. Dropdown Case (Year Selection)
+    const yearDropdown = document.getElementById('ageYear');
+    if (yearDropdown) {
+        console.log('[Game Store Enhancer] Found Year Dropdown. Selecting 2000...');
+        yearDropdown.value = '2000';
+        yearDropdown.dispatchEvent(new Event('change'));
+    }
+
+    // Helper to find and click the button
+    const tryClickButton = (attempt = 1) => {
+        // Steam has used various IDs/Classes over the years.
+        const btn = document.getElementById('view_product_page_btn') || // Variant 2 (No Year)
+            document.querySelector('#age_gate_btn_continue') ||
+            document.querySelector('.age_gate_btn_continue') ||
+            document.querySelector('.btn_medium.btn_green_white_innerfade') || // Classic "Enter" button
+            document.querySelector('a[onclick*="ViewProductPage"]');
+
+        if (btn) {
+            console.log(`[Game Store Enhancer] Bypassing Age Check (Clicking Button) on attempt ${attempt}...`);
+            btn.click();
+        } else {
+            if (attempt < 10) { // Retry for ~2 seconds (10 * 200ms)
+                console.log(`[Game Store Enhancer] Button not found yet, retrying... (${attempt})`);
+                setTimeout(() => tryClickButton(attempt + 1), 200);
+            } else {
+                console.log('[Game Store Enhancer] No continue button found after multiple retries.');
             }
-        };
-
-        tryClickButton();
-    }
-
-    // v2.4.9: Age Check Bypass
-    if (window.location.hostname === 'store.steampowered.com' && window.location.pathname.startsWith('/agecheck')) {
-        handleAgeCheck();
-        return; // Stop other processing on age check page
-    }
-
-    // v2.1.14: Init Cache then Scan
-    setTimeout(() => {
-        fetchSteamAppCache();
-        scanPage(); // Normal Store Pages
-        if (window.location.pathname === '/' || window.location.pathname.startsWith('/store')) {
-            scanHomepage(); // Homepage Specifics
         }
-    }, 10); // Fast start
+    };
 
-})();
+    tryClickButton();
+}
+
+// v2.4.9: Age Check Bypass
+if (window.location.hostname === 'store.steampowered.com' && window.location.pathname.startsWith('/agecheck')) {
+    handleAgeCheck();
+    return; // Stop other processing on age check page
+}
+
+// v2.1.14: Init Cache then Scan
+setTimeout(() => {
+    fetchSteamAppCache();
+    scanPage(); // Normal Store Pages
+    if (window.location.pathname === '/' || window.location.pathname.startsWith('/store')) {
+        scanHomepage(); // Homepage Specifics
+    }
+}, 10); // Fast start
+
+}) ();
