@@ -1,7 +1,9 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.5.21
+// @version      2.5.22
+// ...
+const CACHE_VERSION = '2.41'; // v2.5.22: Debug Choice & Refine CSS
 // ...
 const CACHE_VERSION = '2.40'; // v2.5.21: Sibling Injection & Image Targeting
 // ...
@@ -251,7 +253,7 @@ const CACHE_VERSION = '2.39'; // v2.5.20: Choice Page Fix
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.40'; // v2.5.21: Sibling Injection & Image Targeting
+    const CACHE_VERSION = '2.41'; // v2.5.22: Debug Choice & Refine CSS
 
     // Styles
     const css = `
@@ -1685,6 +1687,11 @@ const CACHE_VERSION = '2.39'; // v2.5.20: Choice Page Fix
         if (currentConfig.isExcluded && currentConfig.isExcluded()) return;
         if (!currentConfig.selectors) return;
 
+        // v2.5.22: Debug Choice Page
+        if (window.location.pathname.includes('/membership/home')) {
+            console.log('[Game Store Enhancer] scanPage() running on Choice Page...');
+        }
+
 
 
 
@@ -2164,6 +2171,7 @@ const CACHE_VERSION = '2.39'; // v2.5.20: Choice Page Fix
                                         linkContainer.style.left = '4px';   // Slight offset from left
                                         // Ensure it sits on top of the tile
                                         linkContainer.style.zIndex = '1000';
+                                        linkContainer.style.pointerEvents = 'auto'; // Force clickable
                                         parent.appendChild(linkContainer);
                                     } else {
                                         // Worst case: append to tile (might be unclickable)
