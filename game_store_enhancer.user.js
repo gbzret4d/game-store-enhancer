@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.5.18
+// @version      2.5.19
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -247,7 +247,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.37'; // v2.5.18: Image Container Targeting
+    const CACHE_VERSION = '2.38'; // v2.5.19: Hard Dedupe (Disable processGameElement on Home)
 
     // Styles
     const css = `
@@ -1121,17 +1121,10 @@
         // v1.27: Visibility Check
         if (element.offsetParent === null) return;
 
-        // v2.5.18: Homepage/Choice Deduplication
-        // If we are on Home/Choice, we SKIP the generic selectors (like tier-item-view) 
-        // to let scanHomepageGames handle the fancy badging.
+        // v2.5.19: HARD DEAD END. If we are on Homepage or Choice, we DO NOT run this function for generic tiles.
+        // We rely entirely on scanHomepageGames for these pages to avoid duplicates.
         if (isHumbleHomeOrChoise()) {
-            const isGenericContainer = element.classList.contains('tier-item-view') ||
-                element.classList.contains('entity-block-container') ||
-                element.classList.contains('full-tile-view');
-            // Allow if it's NOT one of the tiles handled by scanHomepageGames, 
-            // BUT scanHomepageGames handles basically all of these.
-            // So, if we identify overlapping selectors, we abort here.
-            if (isGenericContainer) return;
+            return;
         }
 
         // v1.6: Persistence Check - If marked 'true' but link is gone (wiped by another script), reset and retry.
@@ -2114,19 +2107,16 @@
                                 // v2.5.17: Relaxed Click Trap
                                 // We MUST stop propagation to prevent Humble's tile click.
                                 // But we should NOT preventDefault on mousedown, as it might block the click event itself.
-                                const stopProp = (e) => {
-                                    e.stopPropagation();
-                                    e.stopImmediatePropagation();
-                                };
-                                const stopAndPrevent = (e) => {
+                                // v2.5.19: Restore Hardcore Click Trap
+                                // We MUST stop everything to ensure the click goes to us and not the tile.
+                                const stopEvent = (e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
                                     e.stopImmediatePropagation();
                                     return false;
                                 };
-
                                 const openSteam = (e) => {
-                                    stopAndPrevent(e);
+                                    stopEvent(e);
                                     // Only left click (0) or middle click (1)
                                     if (e.button === 0 || e.button === 1) {
                                         window.open(`https://store.steampowered.com/app/${appId}`, '_blank');
@@ -2134,8 +2124,8 @@
                                 };
 
                                 linkContainer.addEventListener('click', openSteam, true);
-                                linkContainer.addEventListener('mousedown', stopProp, true); // Only stop prop
-                                linkContainer.addEventListener('mouseup', stopProp, true);
+                                linkContainer.addEventListener('mousedown', stopEvent, true);
+                                linkContainer.addEventListener('mouseup', stopEvent, true);
                                 linkContainer.addEventListener('auxclick', openSteam, true); // Catch middle clicks
                             } else {
                                 linkContainer.href = `https://store.steampowered.com/app/${appId}`;
