@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.6.6
+// @version      2.6.7
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -247,7 +247,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.56'; // v2.6.6: Syntax Fix again
+    const CACHE_VERSION = '2.57'; // v2.6.7: Scope Fix
 
     // Styles
     const css = `
@@ -2227,113 +2227,110 @@
                                 linkContainer.href = `https://store.steampowered.com/app/${appId}`;
                                 linkContainer.target = '_blank';
                             }
-                        } else {
-                            linkContainer.href = `https://store.steampowered.com/app/${appId}`;
-                            linkContainer.target = '_blank';
-                        }
-                        // Fix for Carousel/Grid: Append to the tile itself if no better place found
-                        // For "Featured" carousel, the tile is an Anchor. We can append the span inside it?
-                        // No, if tile is A, we can't append A inside A.
-                        // We created 'span' if parentIsAnchor.
 
-                        // Try to find a good place. Usually the image container or just append to tile.
-                        // On the homepage, tiles often have an image and some text.
-                        // If we append to the tile (which is flex/relative), it might overlay or sit at bottom.
+                            // Fix for Carousel/Grid: Append to the tile itself if no better place found
+                            // For "Featured" carousel, the tile is an Anchor. We can append the span inside it?
+                            // No, if tile is A, we can't append A inside A.
+                            // We created 'span' if parentIsAnchor.
 
-                        // v2.5.18: Targeting Image Container for Bottom-Left of IMAGE (not card)
-                        // Try to find the image container
-                        const imgContainer = tile.querySelector('.image-container, .choice-image-container, .img-container, figure, .entity-image, .full-tile-view-image-container');
+                            // Try to find a good place. Usually the image container or just append to tile.
+                            // On the homepage, tiles often have an image and some text.
+                            // If we append to the tile (which is flex/relative), it might overlay or sit at bottom.
 
-                        if (imgContainer) {
-                            imgContainer.style.position = 'relative'; // Ensure relative context
-                            imgContainer.appendChild(linkContainer);
-                        } else {
-                            // Fallback to tile if no image container found
-                            // v2.5.21: Sibling Injection Strategy for <a> Tiles
-                            // If the tile itself is an <a> tag, we CANNOT append another <a> tag inside it.
-                            // We must find the parent, make it relative, and append the badge as a sibling positioned over the tile.
-                            if (tile.tagName === 'A') {
-                                const parent = tile.parentElement;
-                                if (parent) {
-                                    parent.style.position = 'relative';
-                                    linkContainer.style.bottom = '4px'; // Slight offset from bottom
-                                    linkContainer.style.left = '4px';   // Slight offset from left
-                                    // Ensure it sits on top of the tile
-                                    linkContainer.style.zIndex = '2147483647'; // v2.6.5: Max Integer Z-Index
-                                    linkContainer.style.pointerEvents = 'auto'; // Force clickable
-                                    linkContainer.style.position = 'absolute'; // Ensure it's absolute within the relative parent
+                            // v2.5.18: Targeting Image Container for Bottom-Left of IMAGE (not card)
+                            // Try to find the image container
+                            const imgContainer = tile.querySelector('.image-container, .choice-image-container, .img-container, figure, .entity-image, .full-tile-view-image-container');
 
-                                    // v2.6.3: Mouse Down Trap for Sibling Injection too?
-                                    // Actually if it's a sibling, the click shouldn't bubble to the tile?
-                                    // But just in case, let's ensure the styles are robust.
-                                    parent.appendChild(linkContainer);
+                            if (imgContainer) {
+                                imgContainer.style.position = 'relative'; // Ensure relative context
+                                imgContainer.appendChild(linkContainer);
+                            } else {
+                                // Fallback to tile if no image container found
+                                // v2.5.21: Sibling Injection Strategy for <a> Tiles
+                                // If the tile itself is an <a> tag, we CANNOT append another <a> tag inside it.
+                                // We must find the parent, make it relative, and append the badge as a sibling positioned over the tile.
+                                if (tile.tagName === 'A') {
+                                    const parent = tile.parentElement;
+                                    if (parent) {
+                                        parent.style.position = 'relative';
+                                        linkContainer.style.bottom = '4px'; // Slight offset from bottom
+                                        linkContainer.style.left = '4px';   // Slight offset from left
+                                        // Ensure it sits on top of the tile
+                                        linkContainer.style.zIndex = '2147483647'; // v2.6.5: Max Integer Z-Index
+                                        linkContainer.style.pointerEvents = 'auto'; // Force clickable
+                                        linkContainer.style.position = 'absolute'; // Ensure it's absolute within the relative parent
+
+                                        // v2.6.3: Mouse Down Trap for Sibling Injection too?
+                                        // Actually if it's a sibling, the click shouldn't bubble to the tile?
+                                        // But just in case, let's ensure the styles are robust.
+                                        parent.appendChild(linkContainer);
+                                    } else {
+                                        // Worst case: append to tile (might be unclickable)
+                                        tile.appendChild(linkContainer);
+                                    }
                                 } else {
-                                    // Worst case: append to tile (might be unclickable)
                                     tile.appendChild(linkContainer);
                                 }
-                            } else {
-                                tile.appendChild(linkContainer);
+                            }
+
+                            // Post-append style adjustments (v2.5.17: Bottom Left Enforced via CSS class, but ensure inline styles don't conflict)
+                            // v2.5.21: Only apply if we didn't do Sibling Injection (which sets its own styles)
+                            if (!linkContainer.parentElement || linkContainer.parentElement === imgContainer || (tile.tagName !== 'A' && linkContainer.parentElement === tile)) {
+                                linkContainer.style.position = 'absolute';
+                                linkContainer.style.top = 'auto';
+                                linkContainer.style.bottom = '0';
+                                linkContainer.style.left = '0';
+                                linkContainer.style.zIndex = '2147483647'; // v2.6.5: Max Integer Z-Index
+                            }
+
+                        } catch (err) {
+                            console.error('[Game Store Enhancer] Error creating badge:', err);
+                        }
+
+                        if (owned) {
+                            tile.classList.add('ssl-container-owned');
+                            tile.style.position = 'relative'; // Ensure pseudo-element border works
+                            if (isNewStat) stats.owned++; // Update stats only once per unique game
+                            // v2.4.5: Only dim the image, not the whole tile (so badge stays opaque)
+                            const img = tile.querySelector('img');
+                            if (img) img.style.opacity = '0.6';
+                            else tile.style.opacity = '0.6'; // Fallback
+
+                            // v2.4.14: Use Outline instead of Border to avoid layout shift
+                            tile.style.outline = '4px solid #5cb85c';
+                            tile.style.outlineOffset = '-4px';
+                            tile.style.zIndex = '10'; // Ensure it's above background
+                        } else if (wishlisted) {
+                            tile.classList.add('ssl-container-wishlist');
+                            tile.style.position = 'relative'; // Ensure pseudo-element border works
+                            if (isNewStat) stats.wishlist++; // Update stats only once per unique game
+                            // v2.4.14: Use Outline instead of Border
+                            tile.style.outline = '4px solid #3c9bf0';
+                            tile.style.outlineOffset = '-4px';
+                            tile.style.zIndex = '10'; // Ensure it's above background
+                        } else if (ignored) {
+                            tile.classList.add('ssl-container-ignored');
+                            tile.style.position = 'relative';
+                            if (isNewStat) stats.ignored++;
+
+                            tile.style.outline = '4px solid #d9534f';
+                            tile.style.outlineOffset = '-4px';
+                            tile.style.zIndex = '10';
+
+                            // Dim ignored games significantly
+                            const img = tile.querySelector('img');
+                            if (img) img.style.opacity = '0.3';
+                            else tile.style.opacity = '0.3';
+                        } else {
+                            // Debug: Why is it missing?
+                            const titleLower = title.toLowerCase();
+                            if (titleLower.includes('reanimal')) {
+                                console.warn(`[Game Store Enhancer] 'REANIMAL' not detected as Owned or Wishlisted. Checked AppID: ${appIdNum}`);
                             }
                         }
 
-                        // Post-append style adjustments (v2.5.17: Bottom Left Enforced via CSS class, but ensure inline styles don't conflict)
-                        // v2.5.21: Only apply if we didn't do Sibling Injection (which sets its own styles)
-                        if (!linkContainer.parentElement || linkContainer.parentElement === imgContainer || (tile.tagName !== 'A' && linkContainer.parentElement === tile)) {
-                            linkContainer.style.position = 'absolute';
-                            linkContainer.style.top = 'auto';
-                            linkContainer.style.bottom = '0';
-                            linkContainer.style.left = '0';
-                            linkContainer.style.zIndex = '2147483647'; // v2.6.5: Max Integer Z-Index
-                        }
-
-                    } catch (err) {
-                        console.error('[Game Store Enhancer] Error creating badge:', err);
-                    }
-
-                    if (owned) {
-                        tile.classList.add('ssl-container-owned');
-                        tile.style.position = 'relative'; // Ensure pseudo-element border works
-                        if (isNewStat) stats.owned++; // Update stats only once per unique game
-                        // v2.4.5: Only dim the image, not the whole tile (so badge stays opaque)
-                        const img = tile.querySelector('img');
-                        if (img) img.style.opacity = '0.6';
-                        else tile.style.opacity = '0.6'; // Fallback
-
-                        // v2.4.14: Use Outline instead of Border to avoid layout shift
-                        tile.style.outline = '4px solid #5cb85c';
-                        tile.style.outlineOffset = '-4px';
-                        tile.style.zIndex = '10'; // Ensure it's above background
-                    } else if (wishlisted) {
-                        tile.classList.add('ssl-container-wishlist');
-                        tile.style.position = 'relative'; // Ensure pseudo-element border works
-                        if (isNewStat) stats.wishlist++; // Update stats only once per unique game
-                        // v2.4.14: Use Outline instead of Border
-                        tile.style.outline = '4px solid #3c9bf0';
-                        tile.style.outlineOffset = '-4px';
-                        tile.style.zIndex = '10'; // Ensure it's above background
-                    } else if (ignored) {
-                        tile.classList.add('ssl-container-ignored');
-                        tile.style.position = 'relative';
-                        if (isNewStat) stats.ignored++;
-
-                        tile.style.outline = '4px solid #d9534f';
-                        tile.style.outlineOffset = '-4px';
-                        tile.style.zIndex = '10';
-
-                        // Dim ignored games significantly
-                        const img = tile.querySelector('img');
-                        if (img) img.style.opacity = '0.3';
-                        else tile.style.opacity = '0.3';
-                    } else {
-                        // Debug: Why is it missing?
-                        const titleLower = title.toLowerCase();
-                        if (titleLower.includes('reanimal')) {
-                            console.warn(`[Game Store Enhancer] 'REANIMAL' not detected as Owned or Wishlisted. Checked AppID: ${appIdNum}`);
-                        }
-                    }
-
-                    if (isNewStat) updateStatsUI();
-                }).catch(e => console.error(e));
+                        if (isNewStat) updateStatsUI();
+                    }).catch(e => console.error(e));
             });
         });
     }
