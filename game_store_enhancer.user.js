@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.6.8
+// @version      2.6.9
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -247,7 +247,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.58'; // v2.6.8: Syntax Fix III
+    const CACHE_VERSION = '2.59'; // v2.6.9: Sibling <a> Fix
 
     // Styles
     const css = `
@@ -2252,20 +2252,64 @@
                                 if (tile.tagName === 'A') {
                                     const parent = tile.parentElement;
                                     if (parent) {
-                                        parent.style.position = 'relative';
-                                        linkContainer.style.bottom = '4px'; // Slight offset from bottom
-                                        linkContainer.style.left = '4px';   // Slight offset from left
-                                        // Ensure it sits on top of the tile
-                                        linkContainer.style.zIndex = '2147483647'; // v2.6.5: Max Integer Z-Index
-                                        linkContainer.style.pointerEvents = 'auto'; // Force clickable
-                                        linkContainer.style.position = 'absolute'; // Ensure it's absolute within the relative parent
+                                        // v2.6.9: Sibling Injection with TRUE <a> tag
+                                        // If we are injecting as a sibling, we are outside the tile's <a> tag.
+                                        // We should use a real <a> tag for the badge to ensure native behavior (middle click, status bar)
+                                        // and to prevent the browser from thinking we are clicking the tile.
 
-                                        // v2.6.3: Mouse Down Trap for Sibling Injection too?
-                                        // Actually if it's a sibling, the click shouldn't bubble to the tile?
-                                        // But just in case, let's ensure the styles are robust.
-                                        parent.appendChild(linkContainer);
+                                        const siblingLink = document.createElement('a');
+                                        siblingLink.className = linkContainer.className;
+                                        siblingLink.innerHTML = linkContainer.innerHTML;
+                                        siblingLink.title = linkContainer.title;
+                                        siblingLink.href = `https://store.steampowered.com/app/${appId}`;
+                                        siblingLink.target = '_blank';
+
+                                        // Copy critical styles
+                                        siblingLink.style.cssText = linkContainer.style.cssText;
+                                        siblingLink.style.position = 'absolute';
+                                        siblingLink.style.bottom = '4px';
+                                        siblingLink.style.left = '4px';
+                                        siblingLink.style.zIndex = '2147483647';
+                                        siblingLink.style.pointerEvents = 'auto';
+                                        siblingLink.style.cursor = 'pointer';
+
+                                        // Re-attach Nuclear Click Trap (just to be safe against bubbling to body listeners)
+                                        const killEvent = (e) => {
+                                            e.stopPropagation();
+                                            e.stopImmediatePropagation();
+                                            // Don't preventDefault on click, let the <a> work!
+                                            // But wait, if we preventDefault, we stop the link?
+                                            // We want the link to work.
+                                            // We just want to stop propagation to Humble.
+                                        };
+
+                                        // For an <a> tag, we don't need a click listener to window.open.
+                                        // We just need to stop propagation.
+                                        siblingLink.addEventListener('click', (e) => {
+                                            e.stopPropagation();
+                                            e.stopImmediatePropagation();
+                                        }, true);
+
+                                        siblingLink.addEventListener('mousedown', killEvent, true);
+                                        siblingLink.addEventListener('mouseup', killEvent, true);
+                                        siblingLink.addEventListener('dblclick', killEvent, true);
+                                        siblingLink.addEventListener('auxclick', (e) => {
+                                            e.stopPropagation();
+                                            e.stopImmediatePropagation();
+                                        }, true);
+
+                                        parent.style.position = 'relative';
+                                        parent.appendChild(siblingLink);
+
+                                        // Update linkContainer reference so post-append logic (if any) works?
+                                        // Actually post-append logic (lines 2281+) checks parentElement.
+                                        // siblingLink has a parent. linkContainer does not.
+                                        // So the 'if (!linkContainer.parentElement ...)' block will run for the OLD linkContainer?
+                                        // We need to ensure that block doesn't do anything bad.
+                                        // It sets styles on linkContainer. 
+                                        // Since linkContainer is not in DOM, it doesn't matter.
+                                        // Perfect.
                                     } else {
-                                        // Worst case: append to tile (might be unclickable)
                                         tile.appendChild(linkContainer);
                                     }
                                 } else {
