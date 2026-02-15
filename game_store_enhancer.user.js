@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.5.15
+// @version      2.5.16
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -241,7 +241,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.33'; // v2.5.15: Optical Alignment
+    const CACHE_VERSION = '2.34'; // v2.5.16: Deduplication & Safe Align
 
     // Styles
     const css = `
@@ -598,8 +598,8 @@
         link.target = '_blank';
         link.title = appData.name;
 
-        // v2.5.15: Optical Nudge. 16px Height + 1px text padding for Sofia Pro/Montserrat visual centering.
-        let html = `<span style="display:inline-flex; align-items:center; height:16px;"><img src="https://store.steampowered.com/favicon.ico" style="width:12px; height:12px; margin-right:4px; display:block;"><span style="display:block; line-height:1; font-size:11px; padding-top:1px;">STEAM</span></span>`;
+        // v2.5.16: Safe Flexbox Alignment. Icon 12px, Text Line-Height 12px. No padding.
+        let html = `<span style="display:inline-flex; align-items:center; height:16px;"><img src="https://store.steampowered.com/favicon.ico" style="width:12px; height:12px; margin-right:4px; display:block;"><span style="display:block; line-height:12px; font-size:11px;">STEAM</span></span>`;
         if (appData.cards) html += `<span>CARDS</span>`;
         if (appData.owned) html += `<span class="ssl-owned">OWNED</span>`;
         else if (appData.wishlisted) html += `<span class="ssl-wishlist">WISHLIST</span>`;
@@ -1151,7 +1151,8 @@
         }
 
         // v1.35: Deduplication Check - Prevent multiple badges
-        if (element.querySelector('.ssl-link')) {
+        // v2.5.16: Enhanced Deduplication (Check for ANY badge class)
+        if (element.querySelector('.ssl-link') || element.querySelector('.humble-home-steam-link')) {
             element.dataset.sslProcessed = "true";
             return;
         }
@@ -1945,6 +1946,11 @@
 
             tile.dataset.gseGameScanned = "true";
 
+            // v2.5.16: strict Deduplication - If we already have a badge, abort.
+            if (tile.querySelector('.ssl-link') || tile.querySelector('.humble-home-steam-link')) return;
+
+
+
             // 1. Extract Info - Retry Logic
             let titleEl = tile.querySelector('.js-tile-label, .tile-label, .entity-title, .human-name, .name');
             if (!titleEl) {
@@ -2038,7 +2044,10 @@
                     // v2.5.6: Fix Missing Badges on Homepage (Ported from processGameElement)
                     try {
                         const appDataForBadge = { ...result, id: appId, owned, wishlisted, ignored, reviews };
+                        // v2.5.16: Use Safe Flexbox HTML for Homepage Badge too
                         const badgeLink = createSteamLink(appDataForBadge);
+                        // Modify HTML to match v2.5.16 Safe Flex (explicit override just in case, but createSteamLink should handle it)
+                        badgeLink.innerHTML = `<span style="display:inline-flex; align-items:center; height:16px;"><img src="https://store.steampowered.com/favicon.ico" style="width:12px; height:12px; margin-right:4px; display:block;"><span style="display:block; line-height:12px; font-size:11px;">STEAM</span></span>`;
 
                         if (badgeLink) {
                             // Create Badge Container (Span if parent is A, else A)
