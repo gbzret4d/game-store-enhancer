@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.6.3
+// @version      2.6.4
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -247,7 +247,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.53'; // v2.6.3: Homepage Badges Fix
+    const CACHE_VERSION = '2.54'; // v2.6.4: Homepage Visuals Fix
 
     // Styles
     const css = `
@@ -2153,40 +2153,45 @@
                             linkContainer.innerHTML = badgeLink.innerHTML; // Copy full badge content
                             linkContainer.title = badgeLink.title;
 
-                            // Layout Fixes - Force single line
+                            // Layout Fixes - Force single line & row
                             linkContainer.style.setProperty('display', 'inline-flex', 'important');
                             linkContainer.style.setProperty('flex-direction', 'row', 'important');
                             linkContainer.style.setProperty('flex-wrap', 'nowrap', 'important');
                             linkContainer.style.setProperty('align-items', 'center', 'important');
                             linkContainer.style.setProperty('justify-content', 'flex-start', 'important');
-                            linkContainer.style.setProperty('width', 'auto', 'important');
-                            linkContainer.style.setProperty('max-width', 'none', 'important');
-                            linkContainer.style.setProperty('height', 'auto', 'important');
-                            linkContainer.style.setProperty('white-space', 'nowrap', 'important');
+                            linkContainer.style.setProperty('gap', '4px', 'important'); // Add spacing
                             linkContainer.style.backgroundColor = '#171a21';
-                            linkContainer.style.opacity = '1.0';
-                            linkContainer.style.padding = '2px 4px';
-                            linkContainer.style.lineHeight = 'normal';
-                            linkContainer.style.boxShadow = '1px 1px 3px rgba(0,0,0,0.5)';
+                            linkContainer.style.padding = '4px 6px'; // Slightly larger touch target
+                            linkContainer.style.borderRadius = '4px'; // Make it look like a button
+                            linkContainer.style.lineHeight = '1';
+                            linkContainer.style.boxShadow = '0 2px 4px rgba(0,0,0,0.5)';
 
-                            // Prevent text wrapping in children
-                            Array.from(linkContainer.children).forEach(child => {
-                                child.style.setProperty('display', 'inline-block', 'important');
-                                child.style.setProperty('white-space', 'nowrap', 'important');
-                                child.style.setProperty('flex-shrink', '0', 'important');
-                                child.style.verticalAlign = 'middle';
-                                child.style.opacity = '1.0';
-                            });
+                            // Fix "Text under logo" - Enforce on children
+                            // We need to target the inner spans specifically if possible, 
+                            // but setting styles on container + generic children helps.
+                            const fixChildren = (el) => {
+                                Array.from(el.children).forEach(child => {
+                                    child.style.setProperty('display', 'inline-flex', 'important');
+                                    child.style.setProperty('flex-direction', 'row', 'important');
+                                    child.style.setProperty('align-items', 'center', 'important');
+                                    child.style.setProperty('white-space', 'nowrap', 'important');
+                                    // Fix "Logo not link": prevent children from capturing clicks if container handles it
+                                    // But we need to allow clicks if container is NOT the listener?
+                                    // Here container HAS the listener.
+                                    child.style.pointerEvents = 'none';
+                                });
+                            };
+
+                            // Wait, we need to append first to traverse? No, we have innerHTML.
+                            // But we can't traverse children of innerHTML string.
+                            // We need to parse it? Or just apply global css?
+                            // Let's use the DOM element we created.
+                            // NOTE: linkContainer already has children from innerHTML setter.
+                            fixChildren(linkContainer);
 
                             if (parentIsAnchor) {
                                 linkContainer.style.cursor = 'pointer';
-                                // v2.5.12: Hardcore Click Trap
-                                // Humble uses complex event delegation. We must stop EVERYTHING in Capture Phase.
-                                // v2.5.17: Relaxed Click Trap
-                                // We MUST stop propagation to prevent Humble's tile click.
-                                // But we should NOT preventDefault on mousedown, as it might block the click event itself.
-                                // v2.5.19: Restore Hardcore Click Trap
-                                // We MUST stop everything to ensure the click goes to us and not the tile.
+                                // v2.5.19: Hardcore Click Trap
                                 const stopEvent = (e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
@@ -2195,16 +2200,14 @@
                                 };
                                 const openSteam = (e) => {
                                     stopEvent(e);
-                                    // Only left click (0) or middle click (1)
                                     if (e.button === 0 || e.button === 1) {
                                         window.open(`https://store.steampowered.com/app/${appId}`, '_blank');
                                     }
                                 };
-
                                 linkContainer.addEventListener('click', openSteam, true);
                                 linkContainer.addEventListener('mousedown', stopEvent, true);
                                 linkContainer.addEventListener('mouseup', stopEvent, true);
-                                linkContainer.addEventListener('auxclick', openSteam, true); // Catch middle clicks
+                                linkContainer.addEventListener('auxclick', openSteam, true);
                             } else {
                                 linkContainer.href = `https://store.steampowered.com/app/${appId}`;
                                 linkContainer.target = '_blank';
@@ -2237,7 +2240,7 @@
                                         linkContainer.style.bottom = '4px'; // Slight offset from bottom
                                         linkContainer.style.left = '4px';   // Slight offset from left
                                         // Ensure it sits on top of the tile
-                                        linkContainer.style.zIndex = '1000';
+                                        linkContainer.style.zIndex = '99999';
                                         linkContainer.style.pointerEvents = 'auto'; // Force clickable
                                         linkContainer.style.position = 'absolute'; // Ensure it's absolute within the relative parent
 
@@ -2261,7 +2264,7 @@
                                 linkContainer.style.top = 'auto';
                                 linkContainer.style.bottom = '0';
                                 linkContainer.style.left = '0';
-                                linkContainer.style.zIndex = '1000'; // v2.6.3: Boost z-index
+                                linkContainer.style.zIndex = '99999'; // v2.6.4: Boost z-index max
                             }
 
                         }
