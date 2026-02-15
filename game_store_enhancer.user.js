@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.6.10
+// @version      2.6.11
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -247,7 +247,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.60'; // v2.6.10: Finalizing
+    const CACHE_VERSION = '2.61'; // v2.6.11: Span Click Fix
 
     // Styles
     const css = `
@@ -2194,20 +2194,17 @@
                                 // v2.5.19: Hardcore Click Trap
                                 // v2.6.5: Nuclear Click Trap
                                 // Humble's event delegation is extremely invasive. We must nuke the event.
+                                // v2.6.11: Aligning SPAN logic with Sibling Logic (Force Window Open)
                                 const openSteam = (e) => {
-                                    // Log execution to prove we caught it
-                                    console.log('[Game Store Enhancer] Steam Link Clicked! Attempting to open...', `https://store.steampowered.com/app/${appId}`);
-
+                                    console.log('[Game Store Enhancer] Steam Link Clicked (SPAN)! Opening:', `https://store.steampowered.com/app/${appId}`);
                                     e.preventDefault();
                                     e.stopPropagation();
                                     e.stopImmediatePropagation();
 
-                                    // Only left click (0) or middle click (1)
-                                    if (e.button === 0 || e.button === 1) {
-                                        const win = window.open(`https://store.steampowered.com/app/${appId}`, '_blank');
-                                        if (win) win.focus();
-                                        else console.warn('[Game Store Enhancer] Popup blocked!');
-                                    }
+                                    const win = window.open(`https://store.steampowered.com/app/${appId}`, '_blank');
+                                    if (win) win.focus();
+                                    else console.warn('[Game Store Enhancer] Popup blocked!');
+
                                     return false;
                                 };
 
@@ -2354,6 +2351,8 @@
                         tile.style.outlineOffset = '-4px';
                         tile.style.zIndex = '10'; // Ensure it's above background
                     } else if (ignored) {
+                        // v2.6.10: Add Ignored Border
+                        console.log(`[Game Store Enhancer] Applying IGNORED border to ${title} (ID: ${appId})`);
                         tile.classList.add('ssl-container-ignored');
                         tile.style.position = 'relative';
                         if (isNewStat) stats.ignored++;
@@ -2362,11 +2361,15 @@
                         tile.style.outlineOffset = '-4px';
                         tile.style.zIndex = '10';
 
-                        // Dim ignored games significantly
+                        // Dim ignored games too?
                         const img = tile.querySelector('img');
-                        if (img) img.style.opacity = '0.3';
-                        else tile.style.opacity = '0.3';
+                        if (img) img.style.opacity = '0.4'; // Dimmer than owned
+                        else tile.style.opacity = '0.4';
                     } else {
+                        // Debug if ignored is NOT true but we expected it
+                        if (title.toLowerCase().includes('high on life 2')) {
+                            console.log(`[Game Store Enhancer DEBUG] High on Life 2 statuses: Owned=${owned}, Wish=${wishlisted}, Ignored=${ignored}`);
+                        }
                         // Debug: Why is it missing?
                         const titleLower = title.toLowerCase();
                         if (titleLower.includes('reanimal')) {
