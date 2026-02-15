@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.6.2
+// @version      2.6.3
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -247,7 +247,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.52'; // v2.6.2: Version Check
+    const CACHE_VERSION = '2.53'; // v2.6.3: Homepage Badges Fix
 
     // Styles
     const css = `
@@ -2141,8 +2141,8 @@
                         const appDataForBadge = { ...result, id: appId, owned, wishlisted, ignored, reviews };
                         // v2.5.16: Use Safe Flexbox HTML for Homepage Badge too
                         const badgeLink = createSteamLink(appDataForBadge);
-                        // Modify HTML to match v2.5.16 Safe Flex (explicit override just in case, but createSteamLink should handle it)
-                        badgeLink.innerHTML = `<span style="display:inline-flex; align-items:center; height:16px;"><img src="https://store.steampowered.com/favicon.ico" style="width:12px; height:12px; margin-right:4px; display:block;"><span style="display:block; line-height:12px; font-size:11px;">STEAM</span></span>`;
+                        // v2.6.3: FIX - Do NOT overwrite innerHTML with static text. 
+                        // The user wants full stats (owned, reviews, etc.) on the homepage too.
 
                         if (badgeLink) {
                             // Create Badge Container (Span if parent is A, else A)
@@ -2150,7 +2150,7 @@
                             const linkContainer = document.createElement(parentIsAnchor ? 'span' : 'a');
 
                             linkContainer.className = badgeLink.className + ' humble-home-steam-link';
-                            linkContainer.innerHTML = badgeLink.innerHTML;
+                            linkContainer.innerHTML = badgeLink.innerHTML; // Copy full badge content
                             linkContainer.title = badgeLink.title;
 
                             // Layout Fixes - Force single line
@@ -2239,6 +2239,11 @@
                                         // Ensure it sits on top of the tile
                                         linkContainer.style.zIndex = '1000';
                                         linkContainer.style.pointerEvents = 'auto'; // Force clickable
+                                        linkContainer.style.position = 'absolute'; // Ensure it's absolute within the relative parent
+
+                                        // v2.6.3: Mouse Down Trap for Sibling Injection too?
+                                        // Actually if it's a sibling, the click shouldn't bubble to the tile?
+                                        // But just in case, let's ensure the styles are robust.
                                         parent.appendChild(linkContainer);
                                     } else {
                                         // Worst case: append to tile (might be unclickable)
@@ -2256,7 +2261,7 @@
                                 linkContainer.style.top = 'auto';
                                 linkContainer.style.bottom = '0';
                                 linkContainer.style.left = '0';
-                                linkContainer.style.zIndex = '100';
+                                linkContainer.style.zIndex = '1000'; // v2.6.3: Boost z-index
                             }
 
                         }
