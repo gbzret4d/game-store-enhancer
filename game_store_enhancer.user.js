@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.5.16
+// @version      2.5.17
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -241,7 +241,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.34'; // v2.5.16: Deduplication & Safe Align
+    const CACHE_VERSION = '2.35'; // v2.5.17: Bottom-Left & Click Fix
 
     // Styles
     const css = `
@@ -315,16 +315,21 @@
         }
 
         /* Humble Home Link - Top Left on Image */
+            /* Humble Home Link - Bottom Left on Image (v2.5.17) */
         .humble-home-steam-link {
-            z-index: 200000 !important; /* Extremely high to sit on top of everything */
+            z-index: 200000 !important;
             position: absolute !important;
-            top: 0 !important;
+            top: auto !important;
             left: 0 !important;
-            bottom: auto !important;
-            border-top-left-radius: 4px;
-            border-bottom-right-radius: 4px;
-            opacity: 1 !important; /* Force Full Opacity */
-            pointer-events: auto !important; /* Ensure clickable */
+            bottom: 0 !important;
+            border-top-right-radius: 4px;
+            border-bottom-left-radius: 4px;
+             /* Reset top-left from previous */
+            border-top-left-radius: 0;
+            border-bottom-right-radius: 0;
+            
+            opacity: 1 !important;
+            pointer-events: auto !important;
         }
         
         .humble-home-steam-link * {
@@ -2087,14 +2092,22 @@
                                 linkContainer.style.cursor = 'pointer';
                                 // v2.5.12: Hardcore Click Trap
                                 // Humble uses complex event delegation. We must stop EVERYTHING in Capture Phase.
-                                const stopEvent = (e) => {
+                                // v2.5.17: Relaxed Click Trap
+                                // We MUST stop propagation to prevent Humble's tile click.
+                                // But we should NOT preventDefault on mousedown, as it might block the click event itself.
+                                const stopProp = (e) => {
+                                    e.stopPropagation();
+                                    e.stopImmediatePropagation();
+                                };
+                                const stopAndPrevent = (e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
                                     e.stopImmediatePropagation();
                                     return false;
                                 };
+
                                 const openSteam = (e) => {
-                                    stopEvent(e);
+                                    stopAndPrevent(e);
                                     // Only left click (0) or middle click (1)
                                     if (e.button === 0 || e.button === 1) {
                                         window.open(`https://store.steampowered.com/app/${appId}`, '_blank');
@@ -2102,8 +2115,8 @@
                                 };
 
                                 linkContainer.addEventListener('click', openSteam, true);
-                                linkContainer.addEventListener('mousedown', stopEvent, true);
-                                linkContainer.addEventListener('mouseup', stopEvent, true);
+                                linkContainer.addEventListener('mousedown', stopProp, true); // Only stop prop
+                                linkContainer.addEventListener('mouseup', stopProp, true);
                                 linkContainer.addEventListener('auxclick', openSteam, true); // Catch middle clicks
                             } else {
                                 linkContainer.href = `https://store.steampowered.com/app/${appId}`;
@@ -2122,11 +2135,12 @@
                             // We must append the badge CONTAINER (span) to the tile.
                             tile.appendChild(linkContainer);
 
-                            // Post-append style adjustments (if needed)
+                            // Post-append style adjustments (v2.5.17: Bottom Left Enforced via CSS class, but ensure inline styles don't conflict)
                             linkContainer.style.position = 'absolute';
-                            linkContainer.style.top = '5px';
-                            linkContainer.style.left = '5px';
-                            linkContainer.style.zIndex = '100'; // Ensure visibility
+                            linkContainer.style.top = 'auto';
+                            linkContainer.style.bottom = '0';
+                            linkContainer.style.left = '0';
+                            linkContainer.style.zIndex = '100';
 
                         }
                     } catch (err) {
