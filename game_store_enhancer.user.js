@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.6.4
+// @version      2.6.5
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -247,7 +247,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.54'; // v2.6.4: Homepage Visuals Fix
+    const CACHE_VERSION = '2.55'; // v2.6.5: Nuclear Click Trap
 
     // Styles
     const css = `
@@ -2192,190 +2192,209 @@
                             if (parentIsAnchor) {
                                 linkContainer.style.cursor = 'pointer';
                                 // v2.5.19: Hardcore Click Trap
-                                const stopEvent = (e) => {
+                                // v2.6.5: Nuclear Click Trap
+                                // Humble's event delegation is extremely invasive. We must nuke the event.
+                                const openSteam = (e) => {
+                                    // Log execution to prove we caught it
+                                    console.log('[Game Store Enhancer] Steam Link Clicked! Attempting to open...', `https://store.steampowered.com/app/${appId}`);
+
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    e.stopImmediatePropagation();
+
+                                    // Only left click (0) or middle click (1)
+                                    if (e.button === 0 || e.button === 1) {
+                                        const win = window.open(`https://store.steampowered.com/app/${appId}`, '_blank');
+                                        if (win) win.focus();
+                                        else console.warn('[Game Store Enhancer] Popup blocked!');
+                                    }
+                                    return false;
+                                };
+
+                                const killEvent = (e) => {
                                     e.preventDefault();
                                     e.stopPropagation();
                                     e.stopImmediatePropagation();
                                     return false;
                                 };
-                                const openSteam = (e) => {
-                                    stopEvent(e);
-                                    if (e.button === 0 || e.button === 1) {
-                                        window.open(`https://store.steampowered.com/app/${appId}`, '_blank');
-                                    }
-                                };
+
                                 linkContainer.addEventListener('click', openSteam, true);
-                                linkContainer.addEventListener('mousedown', stopEvent, true);
-                                linkContainer.addEventListener('mouseup', stopEvent, true);
+                                linkContainer.addEventListener('mousedown', killEvent, true);
+                                linkContainer.addEventListener('mouseup', killEvent, true);
                                 linkContainer.addEventListener('auxclick', openSteam, true);
+                                linkContainer.addEventListener('dblclick', killEvent, true);
                             } else {
                                 linkContainer.href = `https://store.steampowered.com/app/${appId}`;
                                 linkContainer.target = '_blank';
                             }
-                            // Fix for Carousel/Grid: Append to the tile itself if no better place found
-                            // For "Featured" carousel, the tile is an Anchor. We can append the span inside it?
-                            // No, if tile is A, we can't append A inside A.
-                            // We created 'span' if parentIsAnchor.
+                        } else {
+                            linkContainer.href = `https://store.steampowered.com/app/${appId}`;
+                            linkContainer.target = '_blank';
+                        }
+                        // Fix for Carousel/Grid: Append to the tile itself if no better place found
+                        // For "Featured" carousel, the tile is an Anchor. We can append the span inside it?
+                        // No, if tile is A, we can't append A inside A.
+                        // We created 'span' if parentIsAnchor.
 
-                            // Try to find a good place. Usually the image container or just append to tile.
-                            // On the homepage, tiles often have an image and some text.
-                            // If we append to the tile (which is flex/relative), it might overlay or sit at bottom.
+                        // Try to find a good place. Usually the image container or just append to tile.
+                        // On the homepage, tiles often have an image and some text.
+                        // If we append to the tile (which is flex/relative), it might overlay or sit at bottom.
 
-                            // v2.5.18: Targeting Image Container for Bottom-Left of IMAGE (not card)
-                            // Try to find the image container
-                            const imgContainer = tile.querySelector('.image-container, .choice-image-container, .img-container, figure, .entity-image, .full-tile-view-image-container');
+                        // v2.5.18: Targeting Image Container for Bottom-Left of IMAGE (not card)
+                        // Try to find the image container
+                        const imgContainer = tile.querySelector('.image-container, .choice-image-container, .img-container, figure, .entity-image, .full-tile-view-image-container');
 
-                            if (imgContainer) {
-                                imgContainer.style.position = 'relative'; // Ensure relative context
-                                imgContainer.appendChild(linkContainer);
-                            } else {
-                                // Fallback to tile if no image container found
-                                // v2.5.21: Sibling Injection Strategy for <a> Tiles
-                                // If the tile itself is an <a> tag, we CANNOT append another <a> tag inside it.
-                                // We must find the parent, make it relative, and append the badge as a sibling positioned over the tile.
-                                if (tile.tagName === 'A') {
-                                    const parent = tile.parentElement;
-                                    if (parent) {
-                                        parent.style.position = 'relative';
-                                        linkContainer.style.bottom = '4px'; // Slight offset from bottom
-                                        linkContainer.style.left = '4px';   // Slight offset from left
-                                        // Ensure it sits on top of the tile
-                                        linkContainer.style.zIndex = '99999';
-                                        linkContainer.style.pointerEvents = 'auto'; // Force clickable
-                                        linkContainer.style.position = 'absolute'; // Ensure it's absolute within the relative parent
+                        if (imgContainer) {
+                            imgContainer.style.position = 'relative'; // Ensure relative context
+                            imgContainer.appendChild(linkContainer);
+                        } else {
+                            // Fallback to tile if no image container found
+                            // v2.5.21: Sibling Injection Strategy for <a> Tiles
+                            // If the tile itself is an <a> tag, we CANNOT append another <a> tag inside it.
+                            // We must find the parent, make it relative, and append the badge as a sibling positioned over the tile.
+                            if (tile.tagName === 'A') {
+                                const parent = tile.parentElement;
+                                if (parent) {
+                                    parent.style.position = 'relative';
+                                    linkContainer.style.bottom = '4px'; // Slight offset from bottom
+                                    linkContainer.style.left = '4px';   // Slight offset from left
+                                    // Ensure it sits on top of the tile
+                                    linkContainer.style.zIndex = '2147483647'; // v2.6.5: Max Integer Z-Index
+                                    linkContainer.style.pointerEvents = 'auto'; // Force clickable
+                                    linkContainer.style.position = 'absolute'; // Ensure it's absolute within the relative parent
 
-                                        // v2.6.3: Mouse Down Trap for Sibling Injection too?
-                                        // Actually if it's a sibling, the click shouldn't bubble to the tile?
-                                        // But just in case, let's ensure the styles are robust.
-                                        parent.appendChild(linkContainer);
-                                    } else {
-                                        // Worst case: append to tile (might be unclickable)
-                                        tile.appendChild(linkContainer);
-                                    }
+                                    // v2.6.3: Mouse Down Trap for Sibling Injection too?
+                                    // Actually if it's a sibling, the click shouldn't bubble to the tile?
+                                    // But just in case, let's ensure the styles are robust.
+                                    parent.appendChild(linkContainer);
                                 } else {
+                                    // Worst case: append to tile (might be unclickable)
                                     tile.appendChild(linkContainer);
                                 }
+                            } else {
+                                tile.appendChild(linkContainer);
                             }
-
-                            // Post-append style adjustments (v2.5.17: Bottom Left Enforced via CSS class, but ensure inline styles don't conflict)
-                            // v2.5.21: Only apply if we didn't do Sibling Injection (which sets its own styles)
-                            if (!linkContainer.parentElement || linkContainer.parentElement === imgContainer || (tile.tagName !== 'A' && linkContainer.parentElement === tile)) {
-                                linkContainer.style.position = 'absolute';
-                                linkContainer.style.top = 'auto';
-                                linkContainer.style.bottom = '0';
-                                linkContainer.style.left = '0';
-                                linkContainer.style.zIndex = '99999'; // v2.6.4: Boost z-index max
-                            }
-
                         }
+
+                        // Post-append style adjustments (v2.5.17: Bottom Left Enforced via CSS class, but ensure inline styles don't conflict)
+                        // v2.5.21: Only apply if we didn't do Sibling Injection (which sets its own styles)
+                        if (!linkContainer.parentElement || linkContainer.parentElement === imgContainer || (tile.tagName !== 'A' && linkContainer.parentElement === tile)) {
+                            linkContainer.style.position = 'absolute';
+                            linkContainer.style.top = 'auto';
+                            linkContainer.style.bottom = '0';
+                            linkContainer.style.left = '0';
+                            linkContainer.style.zIndex = '2147483647'; // v2.6.5: Max Integer Z-Index
+                        }
+
+                    }
                     } catch (err) {
-                        console.error('[Game Store Enhancer] Error creating badge:', err);
+                    console.error('[Game Store Enhancer] Error creating badge:', err);
+                }
+
+                if (owned) {
+                    tile.classList.add('ssl-container-owned');
+                    tile.style.position = 'relative'; // Ensure pseudo-element border works
+                    if (isNewStat) stats.owned++; // Update stats only once per unique game
+                    // v2.4.5: Only dim the image, not the whole tile (so badge stays opaque)
+                    const img = tile.querySelector('img');
+                    if (img) img.style.opacity = '0.6';
+                    else tile.style.opacity = '0.6'; // Fallback
+
+                    // v2.4.14: Use Outline instead of Border to avoid layout shift
+                    tile.style.outline = '4px solid #5cb85c';
+                    tile.style.outlineOffset = '-4px';
+                    tile.style.zIndex = '10'; // Ensure it's above background
+                } else if (wishlisted) {
+                    tile.classList.add('ssl-container-wishlist');
+                    tile.style.position = 'relative'; // Ensure pseudo-element border works
+                    if (isNewStat) stats.wishlist++; // Update stats only once per unique game
+                    // v2.4.14: Use Outline instead of Border
+                    tile.style.outline = '4px solid #3c9bf0';
+                    tile.style.outlineOffset = '-4px';
+                    tile.style.zIndex = '10'; // Ensure it's above background
+                } else if (ignored) {
+                    tile.classList.add('ssl-container-ignored');
+                    tile.style.position = 'relative';
+                    if (isNewStat) stats.ignored++;
+
+                    tile.style.outline = '4px solid #d9534f';
+                    tile.style.outlineOffset = '-4px';
+                    tile.style.zIndex = '10';
+
+                    // Dim ignored games significantly
+                    const img = tile.querySelector('img');
+                    if (img) img.style.opacity = '0.3';
+                    else tile.style.opacity = '0.3';
+                } else {
+                    // Debug: Why is it missing?
+                    const titleLower = title.toLowerCase();
+                    if (titleLower.includes('reanimal')) {
+                        console.warn(`[Game Store Enhancer] 'REANIMAL' not detected as Owned or Wishlisted. Checked AppID: ${appIdNum}`);
                     }
+                }
 
-                    if (owned) {
-                        tile.classList.add('ssl-container-owned');
-                        tile.style.position = 'relative'; // Ensure pseudo-element border works
-                        if (isNewStat) stats.owned++; // Update stats only once per unique game
-                        // v2.4.5: Only dim the image, not the whole tile (so badge stays opaque)
-                        const img = tile.querySelector('img');
-                        if (img) img.style.opacity = '0.6';
-                        else tile.style.opacity = '0.6'; // Fallback
-
-                        // v2.4.14: Use Outline instead of Border to avoid layout shift
-                        tile.style.outline = '4px solid #5cb85c';
-                        tile.style.outlineOffset = '-4px';
-                        tile.style.zIndex = '10'; // Ensure it's above background
-                    } else if (wishlisted) {
-                        tile.classList.add('ssl-container-wishlist');
-                        tile.style.position = 'relative'; // Ensure pseudo-element border works
-                        if (isNewStat) stats.wishlist++; // Update stats only once per unique game
-                        // v2.4.14: Use Outline instead of Border
-                        tile.style.outline = '4px solid #3c9bf0';
-                        tile.style.outlineOffset = '-4px';
-                        tile.style.zIndex = '10'; // Ensure it's above background
-                    } else if (ignored) {
-                        tile.classList.add('ssl-container-ignored');
-                        tile.style.position = 'relative';
-                        if (isNewStat) stats.ignored++;
-
-                        tile.style.outline = '4px solid #d9534f';
-                        tile.style.outlineOffset = '-4px';
-                        tile.style.zIndex = '10';
-
-                        // Dim ignored games significantly
-                        const img = tile.querySelector('img');
-                        if (img) img.style.opacity = '0.3';
-                        else tile.style.opacity = '0.3';
-                    } else {
-                        // Debug: Why is it missing?
-                        const titleLower = title.toLowerCase();
-                        if (titleLower.includes('reanimal')) {
-                            console.warn(`[Game Store Enhancer] 'REANIMAL' not detected as Owned or Wishlisted. Checked AppID: ${appIdNum}`);
-                        }
-                    }
-
-                    if (isNewStat) updateStatsUI();
-                }).catch(e => console.error(e));
-            });
+                if (isNewStat) updateStatsUI();
+            }).catch(e => console.error(e));
         });
-    }
+    });
+}
 
     function scanHomepage() {
-        scanHomepageBundles();
-        scanHomepageGames();
-        setTimeout(updateStatsUI, 1000); // Update stats after scan (delayed to allow async fetches)
+    scanHomepageBundles();
+    scanHomepageGames();
+    setTimeout(updateStatsUI, 1000); // Update stats after scan (delayed to allow async fetches)
+}
+
+// v2.4.9: Steam Age Check Bypass Logic
+function handleAgeCheck() {
+    console.log('[Game Store Enhancer] Checking for Age Gate...');
+
+    // 1. Dropdown Case (Year Selection)
+    const yearDropdown = document.getElementById('ageYear');
+    if (yearDropdown) {
+        console.log('[Game Store Enhancer] Found Year Dropdown. Selecting 2000...');
+        yearDropdown.value = '2000';
+        yearDropdown.dispatchEvent(new Event('change'));
     }
 
-    // v2.4.9: Steam Age Check Bypass Logic
-    function handleAgeCheck() {
-        console.log('[Game Store Enhancer] Checking for Age Gate...');
+    // Helper to find and click the button
+    const tryClickButton = (attempt = 1) => {
+        // Steam has used various IDs/Classes over the years.
+        const btn = document.getElementById('view_product_page_btn') || // Variant 2 (No Year)
+            document.querySelector('#age_gate_btn_continue') ||
+            document.querySelector('.age_gate_btn_continue') ||
+            document.querySelector('.btn_medium.btn_green_white_innerfade') || // Classic "Enter" button
+            document.querySelector('a[onclick*="ViewProductPage"]');
 
-        // 1. Dropdown Case (Year Selection)
-        const yearDropdown = document.getElementById('ageYear');
-        if (yearDropdown) {
-            console.log('[Game Store Enhancer] Found Year Dropdown. Selecting 2000...');
-            yearDropdown.value = '2000';
-            yearDropdown.dispatchEvent(new Event('change'));
-        }
-
-        // Helper to find and click the button
-        const tryClickButton = (attempt = 1) => {
-            // Steam has used various IDs/Classes over the years.
-            const btn = document.getElementById('view_product_page_btn') || // Variant 2 (No Year)
-                document.querySelector('#age_gate_btn_continue') ||
-                document.querySelector('.age_gate_btn_continue') ||
-                document.querySelector('.btn_medium.btn_green_white_innerfade') || // Classic "Enter" button
-                document.querySelector('a[onclick*="ViewProductPage"]');
-
-            if (btn) {
-                console.log(`[Game Store Enhancer] Bypassing Age Check (Clicking Button) on attempt ${attempt}...`);
-                btn.click();
+        if (btn) {
+            console.log(`[Game Store Enhancer] Bypassing Age Check (Clicking Button) on attempt ${attempt}...`);
+            btn.click();
+        } else {
+            if (attempt < 10) { // Retry for ~2 seconds (10 * 200ms)
+                console.log(`[Game Store Enhancer] Button not found yet, retrying... (${attempt})`);
+                setTimeout(() => tryClickButton(attempt + 1), 200);
             } else {
-                if (attempt < 10) { // Retry for ~2 seconds (10 * 200ms)
-                    console.log(`[Game Store Enhancer] Button not found yet, retrying... (${attempt})`);
-                    setTimeout(() => tryClickButton(attempt + 1), 200);
-                } else {
-                    console.log('[Game Store Enhancer] No continue button found after multiple retries.');
-                }
+                console.log('[Game Store Enhancer] No continue button found after multiple retries.');
             }
-        };
-
-        tryClickButton();
-    }
-
-    // v2.4.9: Age Check Bypass
-    if (window.location.hostname === 'store.steampowered.com' && window.location.pathname.startsWith('/agecheck')) {
-        handleAgeCheck();
-        return; // Stop other processing on age check page
-    }
-
-    // v2.1.14: Init Cache then Scan
-    setTimeout(() => {
-        fetchSteamAppCache();
-        scanPage(); // Normal Store Pages
-        if (window.location.pathname === '/' || window.location.pathname.startsWith('/store')) {
-            scanHomepage(); // Homepage Specifics
         }
-    }, 10); // Fast start
+    };
 
-})();
+    tryClickButton();
+}
+
+// v2.4.9: Age Check Bypass
+if (window.location.hostname === 'store.steampowered.com' && window.location.pathname.startsWith('/agecheck')) {
+    handleAgeCheck();
+    return; // Stop other processing on age check page
+}
+
+// v2.1.14: Init Cache then Scan
+setTimeout(() => {
+    fetchSteamAppCache();
+    scanPage(); // Normal Store Pages
+    if (window.location.pathname === '/' || window.location.pathname.startsWith('/store')) {
+        scanHomepage(); // Homepage Specifics
+    }
+}, 10); // Fast start
+
+}) ();
