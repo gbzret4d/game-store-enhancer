@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.6.7
+// @version      2.6.8
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -247,7 +247,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.57'; // v2.6.7: Scope Fix
+    const CACHE_VERSION = '2.58'; // v2.6.8: Syntax Fix III
 
     // Styles
     const css = `
@@ -2283,54 +2283,55 @@
                                 linkContainer.style.zIndex = '2147483647'; // v2.6.5: Max Integer Z-Index
                             }
 
-                        } catch (err) {
-                            console.error('[Game Store Enhancer] Error creating badge:', err);
                         }
+                    } catch (err) {
+                        console.error('[Game Store Enhancer] Error creating badge:', err);
+                    }
 
-                        if (owned) {
-                            tile.classList.add('ssl-container-owned');
-                            tile.style.position = 'relative'; // Ensure pseudo-element border works
-                            if (isNewStat) stats.owned++; // Update stats only once per unique game
-                            // v2.4.5: Only dim the image, not the whole tile (so badge stays opaque)
-                            const img = tile.querySelector('img');
-                            if (img) img.style.opacity = '0.6';
-                            else tile.style.opacity = '0.6'; // Fallback
+                    if (owned) {
+                        tile.classList.add('ssl-container-owned');
+                        tile.style.position = 'relative'; // Ensure pseudo-element border works
+                        if (isNewStat) stats.owned++; // Update stats only once per unique game
+                        // v2.4.5: Only dim the image, not the whole tile (so badge stays opaque)
+                        const img = tile.querySelector('img');
+                        if (img) img.style.opacity = '0.6';
+                        else tile.style.opacity = '0.6'; // Fallback
 
-                            // v2.4.14: Use Outline instead of Border to avoid layout shift
-                            tile.style.outline = '4px solid #5cb85c';
-                            tile.style.outlineOffset = '-4px';
-                            tile.style.zIndex = '10'; // Ensure it's above background
-                        } else if (wishlisted) {
-                            tile.classList.add('ssl-container-wishlist');
-                            tile.style.position = 'relative'; // Ensure pseudo-element border works
-                            if (isNewStat) stats.wishlist++; // Update stats only once per unique game
-                            // v2.4.14: Use Outline instead of Border
-                            tile.style.outline = '4px solid #3c9bf0';
-                            tile.style.outlineOffset = '-4px';
-                            tile.style.zIndex = '10'; // Ensure it's above background
-                        } else if (ignored) {
-                            tile.classList.add('ssl-container-ignored');
-                            tile.style.position = 'relative';
-                            if (isNewStat) stats.ignored++;
+                        // v2.4.14: Use Outline instead of Border to avoid layout shift
+                        tile.style.outline = '4px solid #5cb85c';
+                        tile.style.outlineOffset = '-4px';
+                        tile.style.zIndex = '10'; // Ensure it's above background
+                    } else if (wishlisted) {
+                        tile.classList.add('ssl-container-wishlist');
+                        tile.style.position = 'relative'; // Ensure pseudo-element border works
+                        if (isNewStat) stats.wishlist++; // Update stats only once per unique game
+                        // v2.4.14: Use Outline instead of Border
+                        tile.style.outline = '4px solid #3c9bf0';
+                        tile.style.outlineOffset = '-4px';
+                        tile.style.zIndex = '10'; // Ensure it's above background
+                    } else if (ignored) {
+                        tile.classList.add('ssl-container-ignored');
+                        tile.style.position = 'relative';
+                        if (isNewStat) stats.ignored++;
 
-                            tile.style.outline = '4px solid #d9534f';
-                            tile.style.outlineOffset = '-4px';
-                            tile.style.zIndex = '10';
+                        tile.style.outline = '4px solid #d9534f';
+                        tile.style.outlineOffset = '-4px';
+                        tile.style.zIndex = '10';
 
-                            // Dim ignored games significantly
-                            const img = tile.querySelector('img');
-                            if (img) img.style.opacity = '0.3';
-                            else tile.style.opacity = '0.3';
-                        } else {
-                            // Debug: Why is it missing?
-                            const titleLower = title.toLowerCase();
-                            if (titleLower.includes('reanimal')) {
-                                console.warn(`[Game Store Enhancer] 'REANIMAL' not detected as Owned or Wishlisted. Checked AppID: ${appIdNum}`);
-                            }
+                        // Dim ignored games significantly
+                        const img = tile.querySelector('img');
+                        if (img) img.style.opacity = '0.3';
+                        else tile.style.opacity = '0.3';
+                    } else {
+                        // Debug: Why is it missing?
+                        const titleLower = title.toLowerCase();
+                        if (titleLower.includes('reanimal')) {
+                            console.warn(`[Game Store Enhancer] 'REANIMAL' not detected as Owned or Wishlisted. Checked AppID: ${appIdNum}`);
                         }
+                    }
 
-                        if (isNewStat) updateStatsUI();
-                    }).catch(e => console.error(e));
+                    if (isNewStat) updateStatsUI();
+                }).catch(e => console.error(e));
             });
         });
     }
