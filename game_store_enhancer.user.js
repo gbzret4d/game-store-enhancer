@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.6.5
+// @version      2.6.6
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -247,7 +247,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.55'; // v2.6.5: Nuclear Click Trap
+    const CACHE_VERSION = '2.56'; // v2.6.6: Syntax Fix again
 
     // Styles
     const css = `
@@ -2286,115 +2286,114 @@
                             linkContainer.style.zIndex = '2147483647'; // v2.6.5: Max Integer Z-Index
                         }
 
-                    }
                     } catch (err) {
-                    console.error('[Game Store Enhancer] Error creating badge:', err);
-                }
-
-                if (owned) {
-                    tile.classList.add('ssl-container-owned');
-                    tile.style.position = 'relative'; // Ensure pseudo-element border works
-                    if (isNewStat) stats.owned++; // Update stats only once per unique game
-                    // v2.4.5: Only dim the image, not the whole tile (so badge stays opaque)
-                    const img = tile.querySelector('img');
-                    if (img) img.style.opacity = '0.6';
-                    else tile.style.opacity = '0.6'; // Fallback
-
-                    // v2.4.14: Use Outline instead of Border to avoid layout shift
-                    tile.style.outline = '4px solid #5cb85c';
-                    tile.style.outlineOffset = '-4px';
-                    tile.style.zIndex = '10'; // Ensure it's above background
-                } else if (wishlisted) {
-                    tile.classList.add('ssl-container-wishlist');
-                    tile.style.position = 'relative'; // Ensure pseudo-element border works
-                    if (isNewStat) stats.wishlist++; // Update stats only once per unique game
-                    // v2.4.14: Use Outline instead of Border
-                    tile.style.outline = '4px solid #3c9bf0';
-                    tile.style.outlineOffset = '-4px';
-                    tile.style.zIndex = '10'; // Ensure it's above background
-                } else if (ignored) {
-                    tile.classList.add('ssl-container-ignored');
-                    tile.style.position = 'relative';
-                    if (isNewStat) stats.ignored++;
-
-                    tile.style.outline = '4px solid #d9534f';
-                    tile.style.outlineOffset = '-4px';
-                    tile.style.zIndex = '10';
-
-                    // Dim ignored games significantly
-                    const img = tile.querySelector('img');
-                    if (img) img.style.opacity = '0.3';
-                    else tile.style.opacity = '0.3';
-                } else {
-                    // Debug: Why is it missing?
-                    const titleLower = title.toLowerCase();
-                    if (titleLower.includes('reanimal')) {
-                        console.warn(`[Game Store Enhancer] 'REANIMAL' not detected as Owned or Wishlisted. Checked AppID: ${appIdNum}`);
+                        console.error('[Game Store Enhancer] Error creating badge:', err);
                     }
-                }
 
-                if (isNewStat) updateStatsUI();
-            }).catch(e => console.error(e));
+                    if (owned) {
+                        tile.classList.add('ssl-container-owned');
+                        tile.style.position = 'relative'; // Ensure pseudo-element border works
+                        if (isNewStat) stats.owned++; // Update stats only once per unique game
+                        // v2.4.5: Only dim the image, not the whole tile (so badge stays opaque)
+                        const img = tile.querySelector('img');
+                        if (img) img.style.opacity = '0.6';
+                        else tile.style.opacity = '0.6'; // Fallback
+
+                        // v2.4.14: Use Outline instead of Border to avoid layout shift
+                        tile.style.outline = '4px solid #5cb85c';
+                        tile.style.outlineOffset = '-4px';
+                        tile.style.zIndex = '10'; // Ensure it's above background
+                    } else if (wishlisted) {
+                        tile.classList.add('ssl-container-wishlist');
+                        tile.style.position = 'relative'; // Ensure pseudo-element border works
+                        if (isNewStat) stats.wishlist++; // Update stats only once per unique game
+                        // v2.4.14: Use Outline instead of Border
+                        tile.style.outline = '4px solid #3c9bf0';
+                        tile.style.outlineOffset = '-4px';
+                        tile.style.zIndex = '10'; // Ensure it's above background
+                    } else if (ignored) {
+                        tile.classList.add('ssl-container-ignored');
+                        tile.style.position = 'relative';
+                        if (isNewStat) stats.ignored++;
+
+                        tile.style.outline = '4px solid #d9534f';
+                        tile.style.outlineOffset = '-4px';
+                        tile.style.zIndex = '10';
+
+                        // Dim ignored games significantly
+                        const img = tile.querySelector('img');
+                        if (img) img.style.opacity = '0.3';
+                        else tile.style.opacity = '0.3';
+                    } else {
+                        // Debug: Why is it missing?
+                        const titleLower = title.toLowerCase();
+                        if (titleLower.includes('reanimal')) {
+                            console.warn(`[Game Store Enhancer] 'REANIMAL' not detected as Owned or Wishlisted. Checked AppID: ${appIdNum}`);
+                        }
+                    }
+
+                    if (isNewStat) updateStatsUI();
+                }).catch(e => console.error(e));
+            });
         });
-    });
-}
+    }
 
     function scanHomepage() {
-    scanHomepageBundles();
-    scanHomepageGames();
-    setTimeout(updateStatsUI, 1000); // Update stats after scan (delayed to allow async fetches)
-}
-
-// v2.4.9: Steam Age Check Bypass Logic
-function handleAgeCheck() {
-    console.log('[Game Store Enhancer] Checking for Age Gate...');
-
-    // 1. Dropdown Case (Year Selection)
-    const yearDropdown = document.getElementById('ageYear');
-    if (yearDropdown) {
-        console.log('[Game Store Enhancer] Found Year Dropdown. Selecting 2000...');
-        yearDropdown.value = '2000';
-        yearDropdown.dispatchEvent(new Event('change'));
+        scanHomepageBundles();
+        scanHomepageGames();
+        setTimeout(updateStatsUI, 1000); // Update stats after scan (delayed to allow async fetches)
     }
 
-    // Helper to find and click the button
-    const tryClickButton = (attempt = 1) => {
-        // Steam has used various IDs/Classes over the years.
-        const btn = document.getElementById('view_product_page_btn') || // Variant 2 (No Year)
-            document.querySelector('#age_gate_btn_continue') ||
-            document.querySelector('.age_gate_btn_continue') ||
-            document.querySelector('.btn_medium.btn_green_white_innerfade') || // Classic "Enter" button
-            document.querySelector('a[onclick*="ViewProductPage"]');
+    // v2.4.9: Steam Age Check Bypass Logic
+    function handleAgeCheck() {
+        console.log('[Game Store Enhancer] Checking for Age Gate...');
 
-        if (btn) {
-            console.log(`[Game Store Enhancer] Bypassing Age Check (Clicking Button) on attempt ${attempt}...`);
-            btn.click();
-        } else {
-            if (attempt < 10) { // Retry for ~2 seconds (10 * 200ms)
-                console.log(`[Game Store Enhancer] Button not found yet, retrying... (${attempt})`);
-                setTimeout(() => tryClickButton(attempt + 1), 200);
-            } else {
-                console.log('[Game Store Enhancer] No continue button found after multiple retries.');
-            }
+        // 1. Dropdown Case (Year Selection)
+        const yearDropdown = document.getElementById('ageYear');
+        if (yearDropdown) {
+            console.log('[Game Store Enhancer] Found Year Dropdown. Selecting 2000...');
+            yearDropdown.value = '2000';
+            yearDropdown.dispatchEvent(new Event('change'));
         }
-    };
 
-    tryClickButton();
-}
+        // Helper to find and click the button
+        const tryClickButton = (attempt = 1) => {
+            // Steam has used various IDs/Classes over the years.
+            const btn = document.getElementById('view_product_page_btn') || // Variant 2 (No Year)
+                document.querySelector('#age_gate_btn_continue') ||
+                document.querySelector('.age_gate_btn_continue') ||
+                document.querySelector('.btn_medium.btn_green_white_innerfade') || // Classic "Enter" button
+                document.querySelector('a[onclick*="ViewProductPage"]');
 
-// v2.4.9: Age Check Bypass
-if (window.location.hostname === 'store.steampowered.com' && window.location.pathname.startsWith('/agecheck')) {
-    handleAgeCheck();
-    return; // Stop other processing on age check page
-}
+            if (btn) {
+                console.log(`[Game Store Enhancer] Bypassing Age Check (Clicking Button) on attempt ${attempt}...`);
+                btn.click();
+            } else {
+                if (attempt < 10) { // Retry for ~2 seconds (10 * 200ms)
+                    console.log(`[Game Store Enhancer] Button not found yet, retrying... (${attempt})`);
+                    setTimeout(() => tryClickButton(attempt + 1), 200);
+                } else {
+                    console.log('[Game Store Enhancer] No continue button found after multiple retries.');
+                }
+            }
+        };
 
-// v2.1.14: Init Cache then Scan
-setTimeout(() => {
-    fetchSteamAppCache();
-    scanPage(); // Normal Store Pages
-    if (window.location.pathname === '/' || window.location.pathname.startsWith('/store')) {
-        scanHomepage(); // Homepage Specifics
+        tryClickButton();
     }
-}, 10); // Fast start
 
-}) ();
+    // v2.4.9: Age Check Bypass
+    if (window.location.hostname === 'store.steampowered.com' && window.location.pathname.startsWith('/agecheck')) {
+        handleAgeCheck();
+        return; // Stop other processing on age check page
+    }
+
+    // v2.1.14: Init Cache then Scan
+    setTimeout(() => {
+        fetchSteamAppCache();
+        scanPage(); // Normal Store Pages
+        if (window.location.pathname === '/' || window.location.pathname.startsWith('/store')) {
+            scanHomepage(); // Homepage Specifics
+        }
+    }, 10); // Fast start
+
+})();
