@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.5.17
+// @version      2.5.18
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -169,6 +169,12 @@
         }
     };
 
+    // v2.5.18: Helper to detect Homepage/Choice for Deduplication
+    const isHumbleHomeOrChoise = () => {
+        return window.location.hostname.includes('humblebundle.com') &&
+            (window.location.pathname === '/' || window.location.pathname === '/home' || window.location.pathname.includes('/membership/home'));
+    };
+
 
     // --- Fanatical API Interceptor ---
     const fanatical_cover_map = new Map();
@@ -241,7 +247,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.35'; // v2.5.17: Bottom-Left & Click Fix
+    const CACHE_VERSION = '2.37'; // v2.5.18: Image Container Targeting
 
     // Styles
     const css = `
@@ -1112,8 +1118,21 @@
     let userDataPromise = fetchSteamUserData();
 
     async function processGameElement(element, nameSelector, forceSimpleArg, externalTitleArg) {
-        // v1.27: Visibility Check - Fixes double-counting on Bundle pages (hidden tiers/mobile views)
+        // v1.27: Visibility Check
         if (element.offsetParent === null) return;
+
+        // v2.5.18: Homepage/Choice Deduplication
+        // If we are on Home/Choice, we SKIP the generic selectors (like tier-item-view) 
+        // to let scanHomepageGames handle the fancy badging.
+        if (isHumbleHomeOrChoise()) {
+            const isGenericContainer = element.classList.contains('tier-item-view') ||
+                element.classList.contains('entity-block-container') ||
+                element.classList.contains('full-tile-view');
+            // Allow if it's NOT one of the tiles handled by scanHomepageGames, 
+            // BUT scanHomepageGames handles basically all of these.
+            // So, if we identify overlapping selectors, we abort here.
+            if (isGenericContainer) return;
+        }
 
         // v1.6: Persistence Check - If marked 'true' but link is gone (wiped by another script), reset and retry.
         if (element.dataset.sslProcessed === "true") {
@@ -2131,9 +2150,17 @@
                             // On the homepage, tiles often have an image and some text.
                             // If we append to the tile (which is flex/relative), it might overlay or sit at bottom.
 
-                            // v2.5.9 Fix: "Featured" tiles in carousel are <a> tags.
-                            // We must append the badge CONTAINER (span) to the tile.
-                            tile.appendChild(linkContainer);
+                            // v2.5.18: Targeting Image Container for Bottom-Left of IMAGE (not card)
+                            // Try to find the image container
+                            const imgContainer = tile.querySelector('.image-container, .choice-image-container, .img-container, figure, .entity-image');
+
+                            if (imgContainer) {
+                                imgContainer.style.position = 'relative'; // Ensure relative context
+                                imgContainer.appendChild(linkContainer);
+                            } else {
+                                // Fallback to tile if no image container found
+                                tile.appendChild(linkContainer);
+                            }
 
                             // Post-append style adjustments (v2.5.17: Bottom Left Enforced via CSS class, but ensure inline styles don't conflict)
                             linkContainer.style.position = 'absolute';
