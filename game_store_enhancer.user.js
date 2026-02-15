@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.5.23
+// @version      2.5.24
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -247,7 +247,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.42'; // v2.5.23: Fix Syntax Error
+    const CACHE_VERSION = '2.43'; // v2.5.24: Deep Debug Choice
 
     // Styles
     const css = `
@@ -1184,18 +1184,29 @@
             if (DEBUG && currentConfig.name === 'IndieGala') {
                 console.log('[Game Store Enhancer] [DEBUG] Name element NOT found in container:', element, 'Selector:', nameSelector);
             }
+            if (isChoicePage) {
+                console.log(`[Game Store Enhancer] Choice Debug: Name Element NOT FOUND. Selector: ${nameSelector}`, element);
+            }
             return;
         }
 
         // CustomValidator
         if (currentConfig.isValidGameElement) {
             if (!currentConfig.isValidGameElement(element, nameEl)) {
+                if (isChoicePage) {
+                    console.log('[Game Store Enhancer] Choice Debug: Element REJECTED by isValidGameElement.', nameEl?.textContent);
+                }
                 element.dataset.sslProcessed = "ignored";
                 return;
             }
         }
 
-        if (element.dataset.sslProcessed) return;
+        if (element.dataset.sslProcessed) {
+            if (isChoicePage && element.dataset.sslProcessed !== 'pending') {
+                // console.log(`[Game Store Enhancer] Choice Debug: Element already processed (${element.dataset.sslProcessed})`);
+            }
+            return;
+        }
         element.dataset.sslProcessed = "pending";
 
         let gameName = nameEl.textContent.trim();
@@ -1703,6 +1714,12 @@
 
         currentConfig.selectors.forEach(strat => {
             const elements = document.querySelectorAll(strat.container);
+
+            // v2.5.24: Debug Choice Page Element Discovery
+            if (window.location.pathname.includes('/membership/home') && strat.container === '.content-choice') {
+                console.log(`[Game Store Enhancer] Choice Debug: Selector "${strat.container}" found ${elements.length} elements.`);
+            }
+
             if (DEBUG && currentConfig.name === 'IndieGala') {
                 console.log(`[Game Store Enhancer] [DEBUG] Selector "${strat.container}" found ${elements.length} elements.`);
             }
