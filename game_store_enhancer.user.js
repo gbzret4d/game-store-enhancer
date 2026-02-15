@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.6.1
+// @version      2.6.2
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -247,7 +247,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.51'; // v2.6.1: Syntax Fix
+    const CACHE_VERSION = '2.52'; // v2.6.2: Version Check
 
     // Styles
     const css = `
@@ -1692,6 +1692,7 @@
 
     async function scanHumbleChoice() {
         // Strict Scanner for /membership/home
+        console.log('[Game Store Enhancer] v2.6.2 Choice Scanner Active');
         const cards = document.querySelectorAll('.content-choice');
         if (DEBUG) console.log(`[Game Store Enhancer] Choice Scanner found ${cards.length} cards.`);
 
