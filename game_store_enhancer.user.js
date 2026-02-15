@@ -1,7 +1,9 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.5.20
+// @version      2.5.21
+// ...
+const CACHE_VERSION = '2.40'; // v2.5.21: Sibling Injection & Image Targeting
 // ...
 const CACHE_VERSION = '2.39'; // v2.5.20: Choice Page Fix
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
@@ -249,7 +251,7 @@ const CACHE_VERSION = '2.39'; // v2.5.20: Choice Page Fix
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.39'; // v2.5.20: Choice Page Fix
+    const CACHE_VERSION = '2.40'; // v2.5.21: Sibling Injection & Image Targeting
 
     // Styles
     const css = `
@@ -2144,22 +2146,43 @@ const CACHE_VERSION = '2.39'; // v2.5.20: Choice Page Fix
 
                             // v2.5.18: Targeting Image Container for Bottom-Left of IMAGE (not card)
                             // Try to find the image container
-                            const imgContainer = tile.querySelector('.image-container, .choice-image-container, .img-container, figure, .entity-image');
+                            const imgContainer = tile.querySelector('.image-container, .choice-image-container, .img-container, figure, .entity-image, .full-tile-view-image-container');
 
                             if (imgContainer) {
                                 imgContainer.style.position = 'relative'; // Ensure relative context
                                 imgContainer.appendChild(linkContainer);
                             } else {
                                 // Fallback to tile if no image container found
-                                tile.appendChild(linkContainer);
+                                // v2.5.21: Sibling Injection Strategy for <a> Tiles
+                                // If the tile itself is an <a> tag, we CANNOT append another <a> tag inside it.
+                                // We must find the parent, make it relative, and append the badge as a sibling positioned over the tile.
+                                if (tile.tagName === 'A') {
+                                    const parent = tile.parentElement;
+                                    if (parent) {
+                                        parent.style.position = 'relative';
+                                        linkContainer.style.bottom = '4px'; // Slight offset from bottom
+                                        linkContainer.style.left = '4px';   // Slight offset from left
+                                        // Ensure it sits on top of the tile
+                                        linkContainer.style.zIndex = '1000';
+                                        parent.appendChild(linkContainer);
+                                    } else {
+                                        // Worst case: append to tile (might be unclickable)
+                                        tile.appendChild(linkContainer);
+                                    }
+                                } else {
+                                    tile.appendChild(linkContainer);
+                                }
                             }
 
                             // Post-append style adjustments (v2.5.17: Bottom Left Enforced via CSS class, but ensure inline styles don't conflict)
-                            linkContainer.style.position = 'absolute';
-                            linkContainer.style.top = 'auto';
-                            linkContainer.style.bottom = '0';
-                            linkContainer.style.left = '0';
-                            linkContainer.style.zIndex = '100';
+                            // v2.5.21: Only apply if we didn't do Sibling Injection (which sets its own styles)
+                            if (!linkContainer.parentElement || linkContainer.parentElement === imgContainer || (tile.tagName !== 'A' && linkContainer.parentElement === tile)) {
+                                linkContainer.style.position = 'absolute';
+                                linkContainer.style.top = 'auto';
+                                linkContainer.style.bottom = '0';
+                                linkContainer.style.left = '0';
+                                linkContainer.style.zIndex = '100';
+                            }
 
                         }
                     } catch (err) {
