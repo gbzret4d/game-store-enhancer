@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Humble Bundle Game Store Enhancer
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      0.3.0
+// @version      0.3.1
 // @description  Humble Bundle Steam Integration with robust status checks, review scores, and overlay fixes.
 // @author       gbzret4d
 // @updateURL    https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/main/humble_game_store_enhancer.user.js
@@ -21,18 +21,25 @@
     // --- Configuration ---
     const LOG_PREFIX = '[GSE Humble]';
     const CACHE_URL = 'https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/main/data/steam_apps.min.json';
-    // Broadened selectors to catch more elements
+    // Broadened selectors to catch more elements (Legacy + Modern)
     const TILE_SELECTOR = [
         '.entity-block-container',
-        '[class*="entity-block-container"]',
+        '.entity-Link',
         '.browse-product-grid-item',
         '.tier-item-view',
         '.content-choice',
         '.game-box',
         '.product-item',
-        '[class*="product-item"]',
         '.entity-link',
         '.mosaic-tile',
+        // Legacy v0.1 Selectors (Restored)
+        '.entity',
+        '.game-tile',
+        '.item-details',
+        '.full-tile-view',
+        // Broad Matchers
+        '[class*="entity-block-container"]',
+        '[class*="product-item"]',
         'div[class*="entity-container"]'
     ].join(', ');
 
@@ -338,7 +345,14 @@
             }
 
             attempts++;
-            if (attempts >= 5) clearInterval(interval);
+            if (attempts >= 5) {
+                clearInterval(interval);
+                if (tiles.length === 0) {
+                    console.warn(LOG_PREFIX, "Still 0 tiles after 5s. Dumping DOM sample:");
+                    const sample = Array.from(document.querySelectorAll('div')).slice(0, 20).map(d => d.className).join(' | ');
+                    console.log(LOG_PREFIX, "Div classes found:", sample);
+                }
+            }
         }, 1000);
     }
 
