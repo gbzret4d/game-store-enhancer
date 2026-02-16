@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Humble Bundle Game Store Enhancer
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      0.3.4
+// @version      0.3.5
 // @description  Humble Bundle Steam Integration with robust status checks, review scores, and overlay fixes.
 // @author       gbzret4d
 // @updateURL    https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/main/humble_game_store_enhancer.user.js
@@ -249,7 +249,10 @@
         }
 
         if (!titleEl) {
-            if (activeLog) console.warn(LOG_PREFIX, "No specific Title Element found in tile:", tile.className);
+            if (activeLog) {
+                console.warn(LOG_PREFIX, "No specific Title Element found in tile:", tile.className);
+                console.log(LOG_PREFIX, "HTML Dump:", tile.outerHTML.substring(0, 300) + "...");
+            }
             return;
         }
 
