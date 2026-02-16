@@ -4,7 +4,6 @@
 // @version      2.6.14
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
-// @match        https://www.humblebundle.com/*
 // @match        https://www.fanatical.com/*
 // @match        https://dailyindiegame.com/*
 // @match        https://www.dailyindiegame.com/*
