@@ -1,7 +1,7 @@
-﻿// ==UserScript==
+// ==UserScript==
 // @name         Game Store Enhancer (Launcher)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      3.0.1
+// @version      3.0.2
 // @description  Detects and recommends the correct Game Store Enhancer script for the current store.
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -9,9 +9,10 @@
 // @match        https://dailyindiegame.com/*
 // @match        https://www.dailyindiegame.com/*
 // @match        https://www.gog.com/*
-// @updateURL    https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/game_store_enhancer.user.js
-// @downloadURL  https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/game_store_enhancer.user.js
+// @updateURL    https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/main/game_store_enhancer.user.js
+// @downloadURL  https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/main/game_store_enhancer.user.js
 // @grant        GM_addStyle
+// @grant        unsafeWindow
 // @run-at       document-end
 // ==/UserScript==
 
@@ -19,7 +20,7 @@
     'use strict';
 
     // --- Configuration ---
-    const REPO_BASE = 'https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/';
+    const REPO_BASE = 'https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/main/';
     const SITES = {
         'humblebundle.com': {
             name: 'Humble Bundle',
@@ -55,6 +56,9 @@
     // --- UI ---
     function showBanner(site) {
         if (localStorage.getItem('gse_launcher_dismissed_' + site.script)) return;
+
+        // Double check existence just before showing (in case it loaded VERY late)
+        if (checkStatus()) return;
 
         const banner = document.createElement('div');
         banner.style.cssText = `
@@ -114,21 +118,40 @@
     }
 
     // --- Main ---
-    function checkAndWarn() {
-        const isInstalled = document.documentElement.dataset.gseInstalled === "true";
+    function checkStatus() {
+        const isInstalled =
+            document.documentElement.classList.contains('gse-installed') ||
+            document.documentElement.dataset.gseInstalled === "true" ||
+            (typeof unsafeWindow !== 'undefined' && unsafeWindow.gseInstalled === true);
+
         if (isInstalled) {
             console.log('[GSE Launcher] Specific script is active. Silent mode.');
-            return;
+            return true;
         }
+        return false;
+    }
 
-        const site = getCurrentSite();
-        if (site) {
-            console.log('[GSE Launcher] Specific script missing for', site.name);
-            showBanner(site);
+    // Polling Mechanism (v3.0.2)
+    let attempts = 0;
+    const maxAttempts = 10; // Check for 5 seconds
+
+    function poll() {
+        if (checkStatus()) return; // Found it, exit.
+
+        attempts++;
+        if (attempts < maxAttempts) {
+            setTimeout(poll, 500); // Retry every 500ms
+        } else {
+            // Final check failed
+            const site = getCurrentSite();
+            if (site) {
+                console.log('[GSE Launcher] Specific script missing for', site.name);
+                showBanner(site);
+            }
         }
     }
 
-    // Wait for other scripts to initialize
-    setTimeout(checkAndWarn, 2000);
+    // Start polling
+    setTimeout(poll, 1000);
 
 })();
