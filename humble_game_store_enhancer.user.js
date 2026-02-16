@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Humble Bundle Game Store Enhancer
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      0.2.7
+// @version      0.2.8
 // @description  Humble Bundle Steam Integration with robust status checks, review scores, and overlay fixes.
 // @author       gbzret4d
 // @updateURL    https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/main/humble_game_store_enhancer.user.js
@@ -114,7 +114,8 @@
 
     // --- Helpers ---
     function normalize(str) {
-        return str ? str.toLowerCase().replace(/[^a-z0-9]/g, '') : '';
+        if (typeof str !== 'string') return '';
+        return str.toLowerCase().replace(/[^a-z0-9]/g, '');
     }
 
     // --- API Fetchers ---
