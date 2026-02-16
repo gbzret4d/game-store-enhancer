@@ -3,6 +3,10 @@ All notable changes to the **Game Store Enhancer** userscript will be documented
 
 The `develop` branch has been updated to **v2.0.23**.
 
+## [0.3.8] - 2026-02-16
+### Fixed
+- **Core**: Removed duplicate `userData` property in `state` object.
+
 ## [2.0.23] - 2026-02-07
 ### Fixed
 - **IndieGala**: Fixed "Grayed Out" images by removing the background color from ignored items.
