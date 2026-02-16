@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Humble Bundle Game Store Enhancer
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      0.2.9
+// @version      0.3.0
 // @description  Humble Bundle Steam Integration with robust status checks, review scores, and overlay fixes.
 // @author       gbzret4d
 // @updateURL    https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/main/humble_game_store_enhancer.user.js
@@ -21,16 +21,19 @@
     // --- Configuration ---
     const LOG_PREFIX = '[GSE Humble]';
     const CACHE_URL = 'https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/main/data/steam_apps.min.json';
+    // Broadened selectors to catch more elements
     const TILE_SELECTOR = [
-        '.entity-block-container', // Bundle Games
-        '.browse-product-grid-item', // Store Grid
-        '.tier-item-view', // Bundles (Tiered)
-        '.content-choice', // Choice Games
-        '.game-box', // Choice Extras
-        '.product-item', // Store Product
-        '.entity-link', // Store Search Results / Homepage Stack
-        '.mosaic-tile', // Homepage Mosaic
-        '.product-item' // Store Product Page
+        '.entity-block-container',
+        '[class*="entity-block-container"]',
+        '.browse-product-grid-item',
+        '.tier-item-view',
+        '.content-choice',
+        '.game-box',
+        '.product-item',
+        '[class*="product-item"]',
+        '.entity-link',
+        '.mosaic-tile',
+        'div[class*="entity-container"]'
     ].join(', ');
 
     // --- State ---
@@ -124,7 +127,7 @@
     // 1. User Data (Owned/Wishlist)
     async function fetchUserData() {
         return new Promise(resolve => {
-            // console.log(LOG_PREFIX, "Fetching UserData...");
+            console.log(LOG_PREFIX, "Fetching UserData...");
             GM_xmlhttpRequest({
                 method: "GET",
                 url: "https://store.steampowered.com/dynamicstore/userdata/",
@@ -136,7 +139,7 @@
                             wishlist: new Set(data.rgWishlist || []),
                             ignored: new Set(Object.keys(data.rgIgnoredApps || {}))
                         };
-                        // console.log(LOG_PREFIX, "UserData loaded:", state.userData);
+                        console.log(LOG_PREFIX, "UserData loaded:", state.userData.owned.size, "owned items");
                         resolve(state.userData);
                     } catch (e) {
                         console.error(LOG_PREFIX, "Failed to parse UserData", e);
@@ -151,6 +154,7 @@
     // 2. App Cache (Source of Truth)
     async function fetchAppCache() {
         return new Promise((resolve) => {
+            console.log(LOG_PREFIX, "Fetching AppCache from", CACHE_URL);
             GM_xmlhttpRequest({
                 method: "GET",
                 url: CACHE_URL,
@@ -162,7 +166,7 @@
                             state.steamApps.set(name, appid);
                         }
                         state.cacheLoaded = true;
-                        // console.log(LOG_PREFIX, `Cache loaded: ${state.steamApps.size} apps`);
+                        console.log(LOG_PREFIX, `Cache loaded: ${state.steamApps.size} apps`);
                     } catch (e) {
                         console.error(LOG_PREFIX, 'Failed to parse AppCache', e);
                     }
@@ -223,7 +227,7 @@
 
         // 1. Find Title
         let titleEl = tile.querySelector(
-            '.item-title, .entity-title, .product-title, .content-choice-title, .game-box-title, h2'
+            '.item-title, .entity-title, .product-title, .content-choice-title, .game-box-title, h2, h3, h4, [class*="title"]'
         );
 
         // Fallback for Store Grid
@@ -238,14 +242,16 @@
         // 2. Resolve AppID
         const appid = state.steamApps.get(normName);
         if (!appid) {
+            // Only log if desperate debugging needed
             // console.log(LOG_PREFIX, "No AppID found for:", gameName);
             return;
         }
 
         // 3. Check Status
-        const isOwned = state.userData.owned.has(parseInt(appid));
-        const isWishlist = state.userData.wishlist.has(parseInt(appid));
-        const isIgnored = state.userData.ignored.has(appid);
+        // Safety check: userData might be partial if fetch failed
+        const isOwned = state.userData.owned ? state.userData.owned.has(parseInt(appid)) : false;
+        const isWishlist = state.userData.wishlist ? state.userData.wishlist.has(parseInt(appid)) : false;
+        const isIgnored = state.userData.ignored ? state.userData.ignored.has(appid) : false;
 
         // 4. Create Badge
         createBadge(tile, appid, isOwned, isWishlist, isIgnored);
@@ -283,10 +289,6 @@
 
         // Append to suitable container
         // Note: 'hbsi-pos-abs' positions it absolute top-left.
-        // Ensure parent has relative positioning if needed, or rely on existing layout.
-        // For most tiles, we append directly to the tile container which is usually relative.
-
-        // Special case: Mosaic tiles might need parent adjustment
         const style = window.getComputedStyle(tile);
         if (style.position === 'static') {
             tile.style.position = 'relative';
@@ -307,7 +309,7 @@
     // --- Initialization ---
 
     async function main() {
-        // console.log(LOG_PREFIX, "Starting Init...");
+        console.log(LOG_PREFIX, "v0.3.0 Init...");
 
         const [userData, _] = await Promise.all([
             fetchUserData(),
@@ -318,17 +320,25 @@
 
         // Observer
         const observer = new MutationObserver((mutations) => {
-            // Rate limit observer? Or just run. Browsers are fast.
             const tiles = document.querySelectorAll(TILE_SELECTOR);
-            tiles.forEach(processTile);
+            if (tiles.length > 0) tiles.forEach(processTile);
         });
 
         observer.observe(document.body, { childList: true, subtree: true });
 
-        setTimeout(() => {
+        // Polling Retry Logic (up to 5 seconds)
+        let attempts = 0;
+        const interval = setInterval(() => {
             const tiles = document.querySelectorAll(TILE_SELECTOR);
-            console.log(LOG_PREFIX, `Initial Scan found ${tiles.length} tiles`);
-            tiles.forEach(processTile);
+            console.log(LOG_PREFIX, `Scan #${attempts + 1}: found ${tiles.length} tiles`);
+
+            if (tiles.length > 0) {
+                tiles.forEach(processTile);
+                // Don't clear interval, keep polling for lazy loaded stuff just in case
+            }
+
+            attempts++;
+            if (attempts >= 5) clearInterval(interval);
         }, 1000);
     }
 
