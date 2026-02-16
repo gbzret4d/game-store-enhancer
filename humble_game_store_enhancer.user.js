@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Humble Bundle Game Store Enhancer
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      0.3.3
+// @version      0.3.4
 // @description  Humble Bundle Steam Integration with robust status checks, review scores, and overlay fixes.
 // @author       gbzret4d
 // @updateURL    https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/main/humble_game_store_enhancer.user.js
@@ -47,7 +47,9 @@
     const state = {
         steamApps: new Map(), // name -> appid
         userData: { owned: new Set(), wishlist: new Set(), ignored: new Set() },
+        userData: { owned: new Set(), wishlist: new Set(), ignored: new Set() },
         processed: new WeakSet(),
+        processedCount: 0,
         reviewCache: GM_getValue('review_cache', {})
     };
 
@@ -231,10 +233,10 @@
     async function processTile(tile) {
         if (state.processed.has(tile)) return;
         state.processed.add(tile);
+        state.processedCount++;
 
-        // Debug: Limit logs to first 5 tiles to avoid spam, or log failures
-        // We'll log the first few attempts fully.
-        const activeLog = state.processed.size <= 5;
+        // Debug: Log first 10 tiles or failures
+        const activeLog = state.processedCount <= 10;
 
         // 1. Find Title
         let titleEl = tile.querySelector(
@@ -260,7 +262,6 @@
         const appid = state.steamApps.get(normName);
         if (!appid) {
             // Log missing IDs to help debug normalization/cache issues
-            // console.log(LOG_PREFIX, "No AppID found for:", gameName);
             if (activeLog) console.log(LOG_PREFIX, `-> Miss: No AppID for "${normName}"`);
             return;
         }
