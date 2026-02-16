@@ -3,6 +3,10 @@ All notable changes to the **Game Store Enhancer** userscript will be documented
 
 The `develop` branch has been updated to **v2.0.23**.
 
+## [0.3.13] - 2026-02-16
+### Added
+- **Curator Support**: Now correctly detects games owned via **Curator Connect** (keys provided directly to curators/press) by checking `rgCurations`. This fixes ownership detection for games like *REANIMAL*.
+
 ## [0.3.12] - 2026-02-16
 ### Fixed
 - **Status Detection**: Fixed Logic for "Owned" and "Ignored" status.
