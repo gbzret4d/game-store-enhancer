@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.6.11
+// @version      2.6.12
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -247,7 +247,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.61'; // v2.6.11: Span Click Fix
+    const CACHE_VERSION = '2.62'; // v2.6.12: Universal Fix
 
     // Styles
     const css = `
@@ -2246,70 +2246,59 @@
                                 // v2.5.21: Sibling Injection Strategy for <a> Tiles
                                 // If the tile itself is an <a> tag, we CANNOT append another <a> tag inside it.
                                 // We must find the parent, make it relative, and append the badge as a sibling positioned over the tile.
-                                if (tile.tagName === 'A') {
-                                    const parent = tile.parentElement;
-                                    if (parent) {
-                                        // v2.6.9: Sibling Injection with TRUE <a> tag
-                                        // If we are injecting as a sibling, we are outside the tile's <a> tag.
-                                        // We should use a real <a> tag for the badge to ensure native behavior (middle click, status bar)
-                                        // and to prevent the browser from thinking we are clicking the tile.
+                                // v2.6.12: Universal Sibling Injection
+                                // Find the closest anchor tag (Humble Tile Link)
+                                const parentAnchor = tile.tagName === 'A' ? tile : tile.closest('a');
 
-                                        const siblingLink = document.createElement('a');
-                                        siblingLink.className = linkContainer.className;
-                                        siblingLink.innerHTML = linkContainer.innerHTML;
-                                        siblingLink.title = linkContainer.title;
-                                        siblingLink.href = `https://store.steampowered.com/app/${appId}`;
-                                        siblingLink.target = '_blank';
+                                if (parentAnchor && parentAnchor.parentElement) {
+                                    // Sibling Injection (Preferred)
+                                    // We inject the badge as a sibling to the Humble Link (Anchor), attaching it to the Anchor's parent.
+                                    // This guarantees the badge is NOT inside the Humble Link, preventing click hijacking.
 
-                                        // Copy critical styles
-                                        siblingLink.style.cssText = linkContainer.style.cssText;
-                                        siblingLink.style.position = 'absolute';
-                                        siblingLink.style.bottom = '4px';
-                                        siblingLink.style.left = '4px';
-                                        siblingLink.style.zIndex = '2147483647';
-                                        siblingLink.style.pointerEvents = 'auto';
-                                        siblingLink.style.cursor = 'pointer';
+                                    const parent = parentAnchor.parentElement;
+                                    parent.style.position = 'relative'; // Ensure we can position absolute relative to the wrapper
 
-                                        // Re-attach Nuclear Click Trap (just to be safe against bubbling to body listeners)
-                                        const killEvent = (e) => {
+                                    const siblingLink = document.createElement('a');
+                                    siblingLink.className = linkContainer.className;
+                                    siblingLink.innerHTML = linkContainer.innerHTML;
+                                    siblingLink.title = linkContainer.title;
+                                    siblingLink.href = `https://store.steampowered.com/app/${appId}`;
+                                    siblingLink.target = '_blank';
+
+                                    // Copy critical styles
+                                    siblingLink.style.cssText = linkContainer.style.cssText;
+                                    siblingLink.style.position = 'absolute';
+                                    siblingLink.style.bottom = '4px';
+                                    siblingLink.style.left = '4px';
+                                    siblingLink.style.zIndex = '2147483647';
+                                    siblingLink.style.pointerEvents = 'auto';
+                                    siblingLink.style.cursor = 'pointer';
+
+                                    // Click Handler (Force Open)
+                                    siblingLink.addEventListener('click', (e) => {
+                                        e.stopPropagation();
+                                        e.stopImmediatePropagation();
+                                        e.preventDefault();
+                                        console.log('[Game Store Enhancer] Steam Link Clicked (Sibling)! Opening:', `https://store.steampowered.com/app/${appId}`);
+                                        const win = window.open(`https://store.steampowered.com/app/${appId}`, '_blank');
+                                        if (win) win.focus();
+                                    }, true);
+
+                                    // Kill other events
+                                    ['mousedown', 'mouseup', 'dblclick', 'auxclick'].forEach(evt => {
+                                        siblingLink.addEventListener(evt, (e) => {
                                             e.stopPropagation();
                                             e.stopImmediatePropagation();
-                                            // Don't preventDefault on click, let the <a> work!
-                                            // But wait, if we preventDefault, we stop the link?
-                                            // We want the link to work.
-                                            // We just want to stop propagation to Humble.
-                                        };
-
-                                        // For an <a> tag, we don't need a click listener to window.open.
-                                        // We just need to stop propagation.
-                                        siblingLink.addEventListener('click', (e) => {
-                                            e.stopPropagation();
-                                            e.stopImmediatePropagation();
+                                            if (evt === 'auxclick') e.preventDefault(); // allow middle click default? No, force open in new tab might need manual handling?
+                                            // Actually auxclick default is new tab. But preventing it stops propagation better?
+                                            // Let's just killing propagation.
                                         }, true);
+                                    });
 
-                                        siblingLink.addEventListener('mousedown', killEvent, true);
-                                        siblingLink.addEventListener('mouseup', killEvent, true);
-                                        siblingLink.addEventListener('dblclick', killEvent, true);
-                                        siblingLink.addEventListener('auxclick', (e) => {
-                                            e.stopPropagation();
-                                            e.stopImmediatePropagation();
-                                        }, true);
-
-                                        parent.style.position = 'relative';
-                                        parent.appendChild(siblingLink);
-
-                                        // Update linkContainer reference so post-append logic (if any) works?
-                                        // Actually post-append logic (lines 2281+) checks parentElement.
-                                        // siblingLink has a parent. linkContainer does not.
-                                        // So the 'if (!linkContainer.parentElement ...)' block will run for the OLD linkContainer?
-                                        // We need to ensure that block doesn't do anything bad.
-                                        // It sets styles on linkContainer. 
-                                        // Since linkContainer is not in DOM, it doesn't matter.
-                                        // Perfect.
-                                    } else {
-                                        tile.appendChild(linkContainer);
-                                    }
+                                    parent.appendChild(siblingLink);
                                 } else {
+                                    // Fallback: Append to tile (inside link potentially)
+                                    // This should happen rarely now if tile is inside an anchor
                                     tile.appendChild(linkContainer);
                                 }
                             }
@@ -2329,27 +2318,32 @@
                         console.error('[Game Store Enhancer] Error creating badge:', err);
                     }
 
+                    // v2.6.12: Robust Border Logic using Box-Shadow (Inset)
+                    // We apply this to the TILE (the visual container).
+                    // IF we identified a parentAnchor, maybe we should apply it to the parentAnchor?
+                    // Usually 'tile' is the visual block.
+
                     if (owned) {
                         tile.classList.add('ssl-container-owned');
-                        tile.style.position = 'relative'; // Ensure pseudo-element border works
-                        if (isNewStat) stats.owned++; // Update stats only once per unique game
-                        // v2.4.5: Only dim the image, not the whole tile (so badge stays opaque)
+                        tile.style.position = 'relative';
+                        if (isNewStat) stats.owned++;
+
                         const img = tile.querySelector('img');
                         if (img) img.style.opacity = '0.6';
-                        else tile.style.opacity = '0.6'; // Fallback
+                        else tile.style.opacity = '0.6';
 
-                        // v2.4.14: Use Outline instead of Border to avoid layout shift
-                        tile.style.outline = '4px solid #5cb85c';
-                        tile.style.outlineOffset = '-4px';
-                        tile.style.zIndex = '10'; // Ensure it's above background
+                        // Robust Border
+                        tile.style.boxShadow = 'inset 0 0 0 4px #5cb85c'; // Green
+                        tile.style.zIndex = '10';
+
                     } else if (wishlisted) {
                         tile.classList.add('ssl-container-wishlist');
-                        tile.style.position = 'relative'; // Ensure pseudo-element border works
-                        if (isNewStat) stats.wishlist++; // Update stats only once per unique game
-                        // v2.4.14: Use Outline instead of Border
-                        tile.style.outline = '4px solid #3c9bf0';
-                        tile.style.outlineOffset = '-4px';
-                        tile.style.zIndex = '10'; // Ensure it's above background
+                        tile.style.position = 'relative';
+                        if (isNewStat) stats.wishlist++;
+
+                        tile.style.boxShadow = 'inset 0 0 0 4px #5bc0de'; // Blue
+                        tile.style.zIndex = '10';
+
                     } else if (ignored) {
                         // v2.6.10: Add Ignored Border
                         console.log(`[Game Store Enhancer] Applying IGNORED border to ${title} (ID: ${appId})`);
