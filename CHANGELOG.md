@@ -3,6 +3,12 @@ All notable changes to the **Game Store Enhancer** userscript will be documented
 
 The `develop` branch has been updated to **v2.0.23**.
 
+## [0.3.12] - 2026-02-16
+### Fixed
+- **Status Detection**: Fixed Logic for "Owned" and "Ignored" status.
+  - **Owned**: Now checks against `rgOwnedApps` (actual game library) instead of `rgOwnedPackages`. This fixes detection for games from bundles/keys like *REANIMAL*.
+  - **Ignored**: Fixed type mismatch (String vs Number). Now properly detects ignored games like *High on Life 2*.
+
 ## [0.3.11] - 2026-02-16
 ### Fixed
 - **UI**: Fixed missing colored borders (Owned/Wishlist/Ignored) on Humble Store.

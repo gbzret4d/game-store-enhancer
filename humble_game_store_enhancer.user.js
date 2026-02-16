@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Humble Bundle Game Store Enhancer
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      0.3.11
+// @version      0.3.12
 // @description  Humble Bundle Steam Integration with robust status checks, review scores, and overlay fixes.
 // @author       gbzret4d
 // @updateURL    https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/humble_game_store_enhancer.user.js
@@ -186,12 +186,15 @@
                 onload: (res) => {
                     try {
                         const data = JSON.parse(res.responseText);
+                        // V0.3.12 FIX:
+                        // 1. Owned: Use rgOwnedApps (Actual Games) instead of rgOwnedPackages (Purchase IDs)
+                        // 2. Ignored: Object.keys returns strings, map to Numbers for strict comparison
                         state.userData = {
-                            owned: new Set(data.rgOwnedPackages || []),
+                            owned: new Set(data.rgOwnedApps || []),
                             wishlist: new Set(data.rgWishlist || []),
-                            ignored: new Set(Object.keys(data.rgIgnoredApps || {}))
+                            ignored: new Set(Object.keys(data.rgIgnoredApps || {}).map(id => parseInt(id)))
                         };
-                        console.log(LOG_PREFIX, "UserData loaded:", state.userData.owned.size, "owned items");
+                        console.log(LOG_PREFIX, "UserData loaded:", state.userData.owned.size, "owned apps");
                         resolve(state.userData);
                     } catch (e) {
                         console.error(LOG_PREFIX, "Failed to parse UserData", e);
@@ -332,10 +335,12 @@
         if (activeLog) console.log(LOG_PREFIX, `-> Hit: AppID ${appid} for "${gameName}"`);
 
         // 3. Check Status
-        // Safety check: userData might be partial if fetch failed
-        const isOwned = state.userData.owned ? state.userData.owned.has(parseInt(appid)) : false;
-        const isWishlist = state.userData.wishlist ? state.userData.wishlist.has(parseInt(appid)) : false;
-        const isIgnored = state.userData.ignored ? state.userData.ignored.has(appid) : false;
+        const appidInt = parseInt(appid);
+        const isOwned = state.userData.owned ? state.userData.owned.has(appidInt) : false;
+        // Wishlist IDs come as numbers in rgWishlist, safe to cast appid to int or check both
+        const isWishlist = state.userData.wishlist ? state.userData.wishlist.has(appidInt) : false;
+        // Ignored are now Numbers in our set
+        const isIgnored = state.userData.ignored ? state.userData.ignored.has(appidInt) : false;
 
         // 4. Create Badge
         createBadge(tile, appid, isOwned, isWishlist, isIgnored);
