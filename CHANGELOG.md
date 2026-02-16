@@ -3,6 +3,12 @@ All notable changes to the **Game Store Enhancer** userscript will be documented
 
 The `develop` branch has been updated to **v2.0.23**.
 
+## [0.3.10] - 2026-02-16
+### Added
+- **Core**: Added automatic **Steam Age Check Bypass**.
+  - Script now runs on `store.steampowered.com/agecheck/*`.
+  - Automatically selects year "2000" and clicks "View Page" to seamlessly load mature games.
+
 ## [0.3.9] - 2026-02-16
 ### Fixed
 - **Core**: Removed duplicate `userData` property in `state` object.

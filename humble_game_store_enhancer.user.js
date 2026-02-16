@@ -1,12 +1,13 @@
 // ==UserScript==
 // @name         Humble Bundle Game Store Enhancer
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      0.3.9
+// @version      0.3.10
 // @description  Humble Bundle Steam Integration with robust status checks, review scores, and overlay fixes.
 // @author       gbzret4d
 // @updateURL    https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/humble_game_store_enhancer.user.js
 // @downloadURL  https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/humble_game_store_enhancer.user.js
 // @match        https://www.humblebundle.com/*
+// @match        https://store.steampowered.com/agecheck/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_setValue
 // @grant        GM_getValue
@@ -17,6 +18,22 @@
 
 (function () {
     'use strict';
+
+    // --- Steam Age Check Bypass ---
+    if (location.hostname === 'store.steampowered.com' && location.pathname.startsWith('/agecheck/')) {
+        const yearSelect = document.querySelector('select[name="ageYear"]');
+        const viewPageBtn = document.querySelector('#view_product_page_btn, .btn_medium.btn_green_white_innerfade');
+
+        if (yearSelect && viewPageBtn) {
+            yearSelect.value = "2000";
+            if (yearSelect.value !== "2000") {
+                // Should not happen for standard select, but just in case
+                yearSelect.selectedIndex = yearSelect.options.length - 1;
+            }
+            viewPageBtn.click();
+        }
+        return; // Stop execution for Steam pages
+    }
 
     // --- Configuration ---
     const LOG_PREFIX = '[GSE Humble]';
