@@ -1,11 +1,11 @@
 // ==UserScript==
 // @name         Humble Bundle Game Store Enhancer
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      0.3.5
+// @version      0.3.6
 // @description  Humble Bundle Steam Integration with robust status checks, review scores, and overlay fixes.
 // @author       gbzret4d
-// @updateURL    https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/main/humble_game_store_enhancer.user.js
-// @downloadURL  https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/main/humble_game_store_enhancer.user.js
+// @updateURL    https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/humble_game_store_enhancer.user.js
+// @downloadURL  https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/humble_game_store_enhancer.user.js
 // @match        https://www.humblebundle.com/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_setValue
@@ -248,18 +248,21 @@
             titleEl = tile.querySelector('.entity-title');
         }
 
-        if (!titleEl) {
-            if (activeLog) {
-                console.warn(LOG_PREFIX, "No specific Title Element found in tile:", tile.className);
-                console.log(LOG_PREFIX, "HTML Dump:", tile.outerHTML.substring(0, 300) + "...");
-            }
+        let gameName = '';
+        if (titleEl) {
+            gameName = titleEl.textContent.trim();
+        } else if (tile.hasAttribute('aria-label')) {
+            // Homepage "full-tile-view" uses aria-label for the name
+            gameName = tile.getAttribute('aria-label').trim();
+        }
+
+        if (!gameName) {
+            // console.warn(LOG_PREFIX, "No name found for tile:", tile.className);
             return;
         }
 
-        const gameName = titleEl.textContent.trim();
         const normName = normalize(gameName);
-
-        if (activeLog) console.log(LOG_PREFIX, `Processing: "${gameName}" (norm: ${normName})`);
+        // console.log(LOG_PREFIX, `Processing: "${gameName}"`);
 
         // 2. Resolve AppID
         const appid = state.steamApps.get(normName);
