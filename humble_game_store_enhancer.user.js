@@ -1,11 +1,11 @@
 // ==UserScript==
-// @name         Humble Steam Integration
-// @namespace    https://github.com/gbzret4d/humble-steam-integration
+// @name         Humble Bundle Game Store Enhancer
+// @namespace    https://github.com/gbzret4d/game-store-enhancer
 // @version      0.1.0
 // @description  Humble Bundle Steam Integration with robust status checks and overlay fixes.
 // @author       gbzret4d
-// @updateURL    https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/humble_steam_integration.user.js
-// @downloadURL  https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/humble_steam_integration.user.js
+// @updateURL    https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/humble_game_store_enhancer.user.js
+// @downloadURL  https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/humble_game_store_enhancer.user.js
 // @match        https://www.humblebundle.com/*
 // @connect      store.steampowered.com
 // @connect      cdn.jsdelivr.net
