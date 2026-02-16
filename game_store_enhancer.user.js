@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.6.12
+// @version      2.6.13
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -247,7 +247,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.62'; // v2.6.12: Universal Fix
+    const CACHE_VERSION = '2.63'; // v2.6.13: Emergency Fix
 
     // Styles
     const css = `
@@ -2166,6 +2166,31 @@
                             linkContainer.style.lineHeight = '1';
                             linkContainer.style.boxShadow = '0 2px 4px rgba(0,0,0,0.5)';
 
+                            // v2.6.13: Event Listeners for Fallback/Standard Path
+                            // We attach these to linkContainer so if it's used (non-sibling path), it works.
+                            const openSteamGeneric = (e) => {
+                                console.log('[Game Store Enhancer] Steam Link Clicked (Generic)! Opening:', `https://store.steampowered.com/app/${appId}`);
+                                e.preventDefault();
+                                e.stopPropagation();
+                                e.stopImmediatePropagation();
+                                const win = window.open(`https://store.steampowered.com/app/${appId}`, '_blank');
+                                if (win) win.focus();
+                                return false;
+                            };
+
+                            const killEventGeneric = (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                e.stopImmediatePropagation();
+                            };
+
+                            linkContainer.addEventListener('click', openSteamGeneric, true);
+                            linkContainer.addEventListener('mousedown', killEventGeneric, true);
+                            linkContainer.addEventListener('mouseup', killEventGeneric, true);
+                            linkContainer.addEventListener('dblclick', killEventGeneric, true);
+                            linkContainer.addEventListener('auxclick', openSteamGeneric, true);
+
+
                             // Fix "Text under logo" - Enforce on children
                             // We need to target the inner spans specifically if possible, 
                             // but setting styles on container + generic children helps.
@@ -2191,35 +2216,7 @@
 
                             if (parentIsAnchor) {
                                 linkContainer.style.cursor = 'pointer';
-                                // v2.5.19: Hardcore Click Trap
-                                // v2.6.5: Nuclear Click Trap
-                                // Humble's event delegation is extremely invasive. We must nuke the event.
-                                // v2.6.11: Aligning SPAN logic with Sibling Logic (Force Window Open)
-                                const openSteam = (e) => {
-                                    console.log('[Game Store Enhancer] Steam Link Clicked (SPAN)! Opening:', `https://store.steampowered.com/app/${appId}`);
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    e.stopImmediatePropagation();
-
-                                    const win = window.open(`https://store.steampowered.com/app/${appId}`, '_blank');
-                                    if (win) win.focus();
-                                    else console.warn('[Game Store Enhancer] Popup blocked!');
-
-                                    return false;
-                                };
-
-                                const killEvent = (e) => {
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    e.stopImmediatePropagation();
-                                    return false;
-                                };
-
-                                linkContainer.addEventListener('click', openSteam, true);
-                                linkContainer.addEventListener('mousedown', killEvent, true);
-                                linkContainer.addEventListener('mouseup', killEvent, true);
-                                linkContainer.addEventListener('auxclick', openSteam, true);
-                                linkContainer.addEventListener('dblclick', killEvent, true);
+                                // (Listeners already attached above)
                             } else {
                                 linkContainer.href = `https://store.steampowered.com/app/${appId}`;
                                 linkContainer.target = '_blank';
@@ -2289,9 +2286,7 @@
                                         siblingLink.addEventListener(evt, (e) => {
                                             e.stopPropagation();
                                             e.stopImmediatePropagation();
-                                            if (evt === 'auxclick') e.preventDefault(); // allow middle click default? No, force open in new tab might need manual handling?
-                                            // Actually auxclick default is new tab. But preventing it stops propagation better?
-                                            // Let's just killing propagation.
+                                            if (evt === 'auxclick') e.preventDefault();
                                         }, true);
                                     });
 
@@ -2318,10 +2313,8 @@
                         console.error('[Game Store Enhancer] Error creating badge:', err);
                     }
 
-                    // v2.6.12: Robust Border Logic using Box-Shadow (Inset)
-                    // We apply this to the TILE (the visual container).
-                    // IF we identified a parentAnchor, maybe we should apply it to the parentAnchor?
-                    // Usually 'tile' is the visual block.
+                    // v2.6.13: Restore Outline logic (Box Shadow was invisible/clipped)
+                    // Apply to TILE.
 
                     if (owned) {
                         tile.classList.add('ssl-container-owned');
@@ -2332,8 +2325,10 @@
                         if (img) img.style.opacity = '0.6';
                         else tile.style.opacity = '0.6';
 
-                        // Robust Border
-                        tile.style.boxShadow = 'inset 0 0 0 4px #5cb85c'; // Green
+                        // Revert to Outline
+                        tile.style.outline = '4px solid #5cb85c';
+                        tile.style.outlineOffset = '-4px';
+                        tile.style.boxShadow = 'none'; // Clear v2.6.12
                         tile.style.zIndex = '10';
 
                     } else if (wishlisted) {
@@ -2341,7 +2336,9 @@
                         tile.style.position = 'relative';
                         if (isNewStat) stats.wishlist++;
 
-                        tile.style.boxShadow = 'inset 0 0 0 4px #5bc0de'; // Blue
+                        tile.style.outline = '4px solid #5bc0de';
+                        tile.style.outlineOffset = '-4px';
+                        tile.style.boxShadow = 'none';
                         tile.style.zIndex = '10';
 
                     } else if (ignored) {
@@ -2353,6 +2350,7 @@
 
                         tile.style.outline = '4px solid #d9534f';
                         tile.style.outlineOffset = '-4px';
+                        tile.style.boxShadow = 'none';
                         tile.style.zIndex = '10';
 
                         // Dim ignored games too?
