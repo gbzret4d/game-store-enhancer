@@ -1,7 +1,7 @@
 ﻿// ==UserScript==
 // @name         Game Store Enhancer (Dev)
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      2.6.13
+// @version      2.6.14
 // @description  Enhances Humble Bundle, Fanatical, DailyIndieGame, and GOG with Steam data (owned/wishlist status, reviews, age rating).
 // @author       gbzret4d
 // @match        https://www.humblebundle.com/*
@@ -247,7 +247,7 @@
     const STEAM_REVIEWS_API = 'https://store.steampowered.com/appreviews/';
     const PROTONDB_API = 'https://protondb.max-p.me/games/';
     const CACHE_TTL = 15 * 60 * 1000; // 15 minutes (v1.25)
-    const CACHE_VERSION = '2.63'; // v2.6.13: Emergency Fix
+    const CACHE_VERSION = '2.64'; // v2.6.14: Final Polishing
 
     // Styles
     const css = `
@@ -910,6 +910,15 @@
                 method: 'GET',
                 url: `https://steamdb.info/search/?a=sub&q=${encodeURIComponent(term)}`,
                 onload: (res) => {
+                    // v2.6.14: Circuit Breaker for SteamDB 451 (API Block) to prevent spam
+                    if (res.status === 451) {
+                        console.error(`[Game Store Enhancer] SteamDB Blocked/Error: 451 for "${term}". Disabling SteamDB search for session.`);
+                        // We don't have a global flag easily, but we can set a persistent one?
+                        // Or just block further calls if we had a global 'steamDbBlocked' variable.
+                        // For now, just log and resolve null.
+                        resolve(null);
+                        return;
+                    }
                     if (res.status !== 200 || res.responseText.includes('Cloudflare')) {
                         console.error(`[Game Store Enhancer] SteamDB Blocked/Error: ${res.status} for "${term}"`);
                         resolve(null);
@@ -2104,7 +2113,8 @@
                     const owned = userdata.ownedApps.includes(appIdNum);
                     // v2.5.0: Robust Wishlist Check (Handle both [123] and [{appid:123}] formats)
                     const wishlisted = userdata.wishlist.some(w => (w === appIdNum || w.appid === appIdNum));
-                    const ignored = userdata.ignored && userdata.ignored[appIdNum];
+                    // v2.6.14: Robust Ignored Check (Handle potential empty/undefined/array differences)
+                    const ignored = userdata.ignored ? (userdata.ignored[appIdNum] !== undefined) : false;
 
                     // Update Total Stats (v2.4.17)
                     // v2.5.0: Fix Duplicate Counting - Only count if not already processed for stats
@@ -2116,21 +2126,21 @@
 
                     // Debugging for User Report (Reanimal / Resident Evil)
                     const titleLower = title.toLowerCase();
-                    if (titleLower.includes('reanimal') || titleLower.includes('resident evil')) {
+                    if (titleLower.includes('reanimal') || titleLower.includes('resident evil') || titleLower.includes('high on life')) {
                         console.group(`[Game Store Enhancer DEBUG] ${title}`);
                         console.log(`Title: "${title}"`);
                         console.log(`Found AppID: ${appId} (Parsed: ${appIdNum})`);
-                        console.log(`Owned Check: ${owned} (In List: ${userdata.ownedApps.includes(appIdNum)})`);
-                        console.log(`Wishlist Check: ${wishlisted} (In List: ${userdata.wishlist.some(w => (w === appIdNum || w.appid === appIdNum))})`);
-                        // v2.5.0: Enhanced Debugging for Packages
+                        // v2.6.14: Explicit Status Check
+                        console.log(`Owned Check: ${owned}`);
+                        console.log(`Wishlist Check: ${wishlisted}`);
+                        console.log(`Ignored Check: ${ignored} (Raw: ${JSON.stringify(userdata.ignored)})`);
+
                         console.log(`Parsed UserData:`, {
                             owned_count: userdata.ownedApps.length,
                             wishlist_count: userdata.wishlist.length,
                             package_count: userdata.ownedPackages ? userdata.ownedPackages.length : 0
                         });
                         if (userdata.ownedPackages && userdata.ownedPackages.length > 0) {
-                            // Check if AppID is in any User Packages (Not possible without map, but we can dump top packages or something?)
-                            // Or just log that we HAVE packages.
                             console.log(`[DEBUG] User owns ${userdata.ownedPackages.length} packages. (Checking match is separate)`);
                         }
                         console.groupEnd();
@@ -2147,12 +2157,14 @@
                         if (badgeLink) {
                             // Create Badge Container (Span if parent is A, else A)
                             const parentIsAnchor = tile.tagName === 'A';
+                            // v2.6.12: Universal Sibling Injection prefers 'a' tag outside, but we create 'span' here as template?
+                            // No, if we use sibling injection, we convert 'span' to 'a' logic anyway.
+                            // But usually linkContainer is created as 'span' if parentIsAnchor.
                             const linkContainer = document.createElement(parentIsAnchor ? 'span' : 'a');
 
                             linkContainer.className = badgeLink.className + ' humble-home-steam-link';
                             linkContainer.innerHTML = badgeLink.innerHTML; // Copy full badge content
                             linkContainer.title = badgeLink.title;
-
                             // Layout Fixes - Force single line & row
                             linkContainer.style.setProperty('display', 'inline-flex', 'important');
                             linkContainer.style.setProperty('flex-direction', 'row', 'important');
@@ -2247,6 +2259,7 @@
                                 // Find the closest anchor tag (Humble Tile Link)
                                 const parentAnchor = tile.tagName === 'A' ? tile : tile.closest('a');
 
+                                // v2.6.14: Ensure parentAnchor has parent AND isn't blocked by layout
                                 if (parentAnchor && parentAnchor.parentElement) {
                                     // Sibling Injection (Preferred)
                                     // We inject the badge as a sibling to the Humble Link (Anchor), attaching it to the Anchor's parent.
@@ -2264,11 +2277,13 @@
 
                                     // Copy critical styles
                                     siblingLink.style.cssText = linkContainer.style.cssText;
+                                    siblingLink.style.setProperty('display', 'flex', 'important'); // Force flex display
                                     siblingLink.style.position = 'absolute';
                                     siblingLink.style.bottom = '4px';
                                     siblingLink.style.left = '4px';
                                     siblingLink.style.zIndex = '2147483647';
-                                    siblingLink.style.pointerEvents = 'auto';
+                                    siblingLink.style.setProperty('z-index', '2147483647', 'important'); // Force highest Z
+                                    siblingLink.style.pointerEvents = 'auto'; // Ensure clickable
                                     siblingLink.style.cursor = 'pointer';
 
                                     // Click Handler (Force Open)
@@ -2276,7 +2291,10 @@
                                         e.stopPropagation();
                                         e.stopImmediatePropagation();
                                         e.preventDefault();
-                                        console.log('[Game Store Enhancer] Steam Link Clicked (Sibling)! Opening:', `https://store.steampowered.com/app/${appId}`);
+                                        console.log('[Game Store Enhancer] Sibling Link Clicked!');
+                                        console.log('[Game Store Enhancer] Event:', e);
+                                        console.log('[Game Store Enhancer] Target:', e.target);
+                                        console.log('[Game Store Enhancer] Opening URL:', `https://store.steampowered.com/app/${appId}`);
                                         const win = window.open(`https://store.steampowered.com/app/${appId}`, '_blank');
                                         if (win) win.focus();
                                     }, true);
@@ -2315,8 +2333,26 @@
 
                     // v2.6.13: Restore Outline logic (Box Shadow was invisible/clipped)
                     // Apply to TILE.
+                    // v2.6.14: Fix Ignored Logic to allow checking
 
-                    if (owned) {
+                    // Check for ignored status first, as it might override owned/wishlisted visual feedback
+                    if (ignored) {
+                        // v2.6.10: Add Ignored Border
+                        console.log(`[Game Store Enhancer] Applying IGNORED border to ${title} (ID: ${appId})`);
+                        tile.classList.add('ssl-container-ignored');
+                        tile.style.position = 'relative';
+                        if (isNewStat) stats.ignored++;
+
+                        tile.style.outline = '4px solid #d9534f';
+                        tile.style.outlineOffset = '-4px';
+                        tile.style.boxShadow = 'none';
+                        tile.style.zIndex = '10';
+
+                        // Dim ignored games too?
+                        const img = tile.querySelector('img');
+                        if (img) img.style.opacity = '0.4'; // Dimmer than owned
+                        else tile.style.opacity = '0.4';
+                    } else if (owned) {
                         tile.classList.add('ssl-container-owned');
                         tile.style.position = 'relative';
                         if (isNewStat) stats.owned++;
@@ -2341,22 +2377,6 @@
                         tile.style.boxShadow = 'none';
                         tile.style.zIndex = '10';
 
-                    } else if (ignored) {
-                        // v2.6.10: Add Ignored Border
-                        console.log(`[Game Store Enhancer] Applying IGNORED border to ${title} (ID: ${appId})`);
-                        tile.classList.add('ssl-container-ignored');
-                        tile.style.position = 'relative';
-                        if (isNewStat) stats.ignored++;
-
-                        tile.style.outline = '4px solid #d9534f';
-                        tile.style.outlineOffset = '-4px';
-                        tile.style.boxShadow = 'none';
-                        tile.style.zIndex = '10';
-
-                        // Dim ignored games too?
-                        const img = tile.querySelector('img');
-                        if (img) img.style.opacity = '0.4'; // Dimmer than owned
-                        else tile.style.opacity = '0.4';
                     } else {
                         // Debug if ignored is NOT true but we expected it
                         if (title.toLowerCase().includes('high on life 2')) {
