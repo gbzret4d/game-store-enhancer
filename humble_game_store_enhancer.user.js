@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Humble Bundle Game Store Enhancer
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      0.3.10
+// @version      0.3.11
 // @description  Humble Bundle Steam Integration with robust status checks, review scores, and overlay fixes.
 // @author       gbzret4d
 // @updateURL    https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/humble_game_store_enhancer.user.js
@@ -126,13 +126,39 @@
             opacity: 0.9;
             margin-left: 2px;
         }
-        .hbsi-tile-owned { box-shadow: inset 0 0 0 3px #5cb85c !important; }
-        .hbsi-tile-wishlist { box-shadow: inset 0 0 0 3px #5bc0de !important; }
-        .hbsi-tile-ignored {
-            box-shadow: inset 0 0 0 3px #d9534f !important;
-            opacity: 0.6;
-            filter: grayscale(80%);
+        
+        /* 
+           V0.3.11 Fix: Borders obscured by images.
+           Solution: Use ::after pseudo-element to overlay the border on top of everything.
+        */
+        .hbsi-tile-owned::after,
+        .hbsi-tile-wishlist::after,
+        .hbsi-tile-ignored::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* Let clicks pass through */
+            z-index: 20; /* Above images, below badge (badge is z-index 2147483647) */
+            box-sizing: border-box;
+            box-shadow: inset 0 0 0 4px; /* Default thickness */
+            border-radius: inherit; /* Follow container radius */
         }
+
+        .hbsi-tile-owned::after { box-shadow: inset 0 0 0 4px #a4d007; }
+        .hbsi-tile-wishlist::after { box-shadow: inset 0 0 0 4px #66c0f4; }
+        .hbsi-tile-ignored::after { 
+            box-shadow: inset 0 0 0 4px #d9534f;
+            background: rgba(0,0,0,0.4); /* Slight dim for ignored */
+        }
+
+        /* Legacy support for direct class usage if needed */
+        .hbsi-tile-owned { position: relative; }
+        .hbsi-tile-wishlist { position: relative; }
+        .hbsi-tile-ignored { position: relative; }
+
         .hbsi-pos-abs {
             position: absolute !important;
             top: 6px !important;
@@ -206,8 +232,6 @@
         });
     }
 
-    // 3. Review Score (Steam Store API)
-    // We use a simple cache to avoid spamming calls for the same game in grid views
     // 3. Review Score (Steam Store API)
     // We use a simple cache to avoid spamming calls for the same game in grid views
     async function fetchReviewScore(appid) {
@@ -317,22 +341,19 @@
         createBadge(tile, appid, isOwned, isWishlist, isIgnored);
 
         // 5. Visual Feedback on Tile (Border/Opacity)
-        // Ensure relative positioning for inset shadow to work in some contexts
+        // Ensure relative positioning for ::after absolute positioning to work
         if (getComputedStyle(tile).position === 'static') {
             tile.style.position = 'relative';
         }
 
         if (isOwned) {
             tile.classList.add('hbsi-tile-owned');
-            tile.dataset.hbsiStatus = 'owned'; // Helper for debug CSS
         }
         if (isWishlist) {
             tile.classList.add('hbsi-tile-wishlist');
-            tile.dataset.hbsiStatus = 'wishlist';
         }
         if (isIgnored) {
             tile.classList.add('hbsi-tile-ignored');
-            tile.dataset.hbsiStatus = 'ignored';
         }
     }
 

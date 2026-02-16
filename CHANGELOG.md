@@ -3,6 +3,12 @@ All notable changes to the **Game Store Enhancer** userscript will be documented
 
 The `develop` branch has been updated to **v2.0.23**.
 
+## [0.3.11] - 2026-02-16
+### Fixed
+- **UI**: Fixed missing colored borders (Owned/Wishlist/Ignored) on Humble Store.
+  - Switched from simple `box-shadow` on the container to an **Overlay Pseudo-element** (`::after`) with `pointer-events: none`.
+  - Ensures borders appear *on top* of game images and are not obscured.
+
 ## [0.3.10] - 2026-02-16
 ### Added
 - **Core**: Added automatic **Steam Age Check Bypass**.
