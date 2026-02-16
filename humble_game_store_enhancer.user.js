@@ -47,7 +47,7 @@
     const state = {
         steamApps: new Map(), // name -> appid
         userData: { owned: new Set(), wishlist: new Set(), ignored: new Set() },
-        userData: { owned: new Set(), wishlist: new Set(), ignored: new Set() },
+
         processed: new WeakSet(),
         processedCount: 0,
         reviewCache: GM_getValue('review_cache', {})
