@@ -129,9 +129,11 @@
                 onload: (res) => {
                     try {
                         const data = JSON.parse(res.responseText);
-                        state.userData.owned = new Set(data.rgOwnedPackages || []);
-                        state.userData.wishlist = new Set(data.rgWishlist || []);
-                        state.userData.ignored = new Set(Object.keys(data.rgIgnoredApps || {}));
+                        state.userData = {
+                            owned: new Set(data.rgOwnedPackages || []),
+                            wishlist: new Set(data.rgWishlist || []),
+                            ignored: new Set(Object.keys(data.rgIgnoredApps || {}))
+                        };
                         // console.log(LOG_PREFIX, "UserData loaded:", state.userData);
                         resolve(state.userData);
                     } catch (e) {
@@ -146,28 +148,28 @@
 
     // 2. App Cache (Source of Truth)
     async function fetchAppCache() {
-        return new Promise(resolve => {
-            // Cache buster to ensure we get fresh data
-            const url = `https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/main/data/steam_apps.min.json?t=${Date.now()}`;
-            // console.log(LOG_PREFIX, "Fetching AppCache from", url);
+        return new Promise((resolve) => {
             GM_xmlhttpRequest({
                 method: "GET",
-                url: url,
-                onload: (res) => {
+                url: CACHE_URL,
+                onload: function (res) {
                     try {
                         const data = JSON.parse(res.responseText);
-                        // Data format: { "app_id": "Game Name" } -> Invert to Map
-                        for (const [appid, name] of Object.entries(data)) {
-                            state.steamApps.set(normalize(name), appid);
+                        // Data format: { "normalized_name": app_id } -> Load directly
+                        for (const [name, appid] of Object.entries(data)) {
+                            state.steamApps.set(name, appid);
                         }
-                        // console.log(LOG_PREFIX, "AppCache loaded. Items:", state.steamApps.size);
-                        resolve();
+                        state.cacheLoaded = true;
+                        // console.log(LOG_PREFIX, `Cache loaded: ${state.steamApps.size} apps`);
                     } catch (e) {
-                        console.error(LOG_PREFIX, "Failed to parse AppCache", e);
-                        resolve();
+                        console.error(LOG_PREFIX, 'Failed to parse AppCache', e);
                     }
+                    resolve();
                 },
-                onerror: () => resolve()
+                onerror: function (e) {
+                    console.error(LOG_PREFIX, 'Failed to fetch AppCache', e);
+                    resolve();
+                }
             });
         });
     }
