@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Humble Bundle Game Store Enhancer
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      0.3.0
+// @version      0.3.2
 // @description  Humble Bundle Steam Integration with robust status checks, review scores, and overlay fixes.
 // @author       gbzret4d
 // @updateURL    https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/main/humble_game_store_enhancer.user.js
@@ -225,6 +225,10 @@
         if (state.processed.has(tile)) return;
         state.processed.add(tile);
 
+        // Debug: Limit logs to first 5 tiles to avoid spam, or log failures
+        // We'll log the first few attempts fully.
+        const activeLog = state.processed.size <= 5;
+
         // 1. Find Title
         let titleEl = tile.querySelector(
             '.item-title, .entity-title, .product-title, .content-choice-title, .game-box-title, h2, h3, h4, [class*="title"]'
@@ -235,17 +239,26 @@
             titleEl = tile.querySelector('.entity-title');
         }
 
-        if (!titleEl) return;
+        if (!titleEl) {
+            if (activeLog) console.warn(LOG_PREFIX, "No specific Title Element found in tile:", tile.className);
+            return;
+        }
+
         const gameName = titleEl.textContent.trim();
         const normName = normalize(gameName);
+
+        if (activeLog) console.log(LOG_PREFIX, `Processing: "${gameName}" (norm: ${normName})`);
 
         // 2. Resolve AppID
         const appid = state.steamApps.get(normName);
         if (!appid) {
-            // Only log if desperate debugging needed
+            // Log missing IDs to help debug normalization/cache issues
             // console.log(LOG_PREFIX, "No AppID found for:", gameName);
+            if (activeLog) console.log(LOG_PREFIX, `-> Miss: No AppID for "${normName}"`);
             return;
         }
+
+        if (activeLog) console.log(LOG_PREFIX, `-> Hit: AppID ${appid} for "${gameName}"`);
 
         // 3. Check Status
         // Safety check: userData might be partial if fetch failed
