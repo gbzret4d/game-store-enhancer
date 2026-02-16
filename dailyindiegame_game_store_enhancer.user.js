@@ -34,6 +34,7 @@
     };
 
     // --- Styles ---
+    document.documentElement.dataset.gseInstalled = "true";
     GM_addStyle(`
         .dig-badge {
             display: inline-block;

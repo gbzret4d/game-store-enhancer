@@ -36,6 +36,7 @@
     };
 
     // --- Styles ---
+    document.documentElement.dataset.gseInstalled = "true"; // Flag for Game Store Enhancer (Launcher)
     GM_addStyle(`
         /* Badge Container */
         .hbsi-badge {

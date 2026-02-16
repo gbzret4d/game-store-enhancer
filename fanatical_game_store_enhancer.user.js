@@ -93,6 +93,7 @@
     setupInterceptor();
 
     // --- Styles ---
+    document.documentElement.dataset.gseInstalled = "true";
     GM_addStyle(`
         .fgse-badge {
             display: inline-flex;

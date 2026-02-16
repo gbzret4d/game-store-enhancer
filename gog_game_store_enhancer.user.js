@@ -36,6 +36,7 @@
     };
 
     // --- Styles ---
+    document.documentElement.dataset.gseInstalled = "true";
     GM_addStyle(`
         .gog-badge {
             display: inline-flex;
