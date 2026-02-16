@@ -186,15 +186,20 @@
                 onload: (res) => {
                     try {
                         const data = JSON.parse(res.responseText);
-                        // V0.3.12 FIX:
-                        // 1. Owned: Use rgOwnedApps (Actual Games) instead of rgOwnedPackages (Purchase IDs)
-                        // 2. Ignored: Object.keys returns strings, map to Numbers for strict comparison
+                        // V0.3.13 FIX:
+                        // 1. Owned: Combine rgOwnedApps (Purchases) + rgCurations (Curator/Press Keys)
+                        //    NOTE: We strictly exclude rgOwnedPackages (SubIDs) to avoid ID collisions with AppIDs.
+                        const ownedApps = new Set(data.rgOwnedApps || []);
+                        if (data.rgCurations && typeof data.rgCurations === 'object') {
+                            Object.keys(data.rgCurations).forEach(id => ownedApps.add(parseInt(id)));
+                        }
+
                         state.userData = {
-                            owned: new Set(data.rgOwnedApps || []),
+                            owned: ownedApps,
                             wishlist: new Set(data.rgWishlist || []),
                             ignored: new Set(Object.keys(data.rgIgnoredApps || {}).map(id => parseInt(id)))
                         };
-                        console.log(LOG_PREFIX, "UserData loaded:", state.userData.owned.size, "owned apps");
+                        console.log(LOG_PREFIX, "UserData loaded:", state.userData.owned.size, "owned apps (inc. Curations)");
                         resolve(state.userData);
                     } catch (e) {
                         console.error(LOG_PREFIX, "Failed to parse UserData", e);
