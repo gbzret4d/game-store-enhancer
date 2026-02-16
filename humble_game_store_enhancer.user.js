@@ -2,11 +2,11 @@
 // ==UserScript==
 // @name         Humble Bundle Game Store Enhancer
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      0.2.5
+// @version      0.2.6
 // @description  Humble Bundle Steam Integration with robust status checks, review scores, and overlay fixes.
 // @author       gbzret4d
-// @updateURL    https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/humble_game_store_enhancer.user.js
-// @downloadURL  https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/humble_game_store_enhancer.user.js
+// @updateURL    https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/main/humble_game_store_enhancer.user.js
+// @downloadURL  https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/main/humble_game_store_enhancer.user.js
 // @match        https://www.humblebundle.com/*
 // @icon         https://www.google.com/s2/favicons?domain=humblebundle.com
 // @connect      store.steampowered.com
@@ -15,6 +15,7 @@
 // @grant        GM_addStyle
 // @grant        GM_setValue
 // @grant        GM_getValue
+// @grant        unsafeWindow
 // @run-at       document-end
 // ==/UserScript==
 
@@ -51,6 +52,9 @@
 
     // --- Styles ---
     document.documentElement.dataset.gseInstalled = "true";
+    document.documentElement.classList.add('gse-installed');
+    try { if (typeof unsafeWindow !== 'undefined') unsafeWindow.gseInstalled = true; } catch(e) {}
+    
     GM_addStyle(`
     .hbsi - badge {
     display: inline - flex;
