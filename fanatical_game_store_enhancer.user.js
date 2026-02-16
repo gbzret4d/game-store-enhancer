@@ -19,7 +19,7 @@
     'use strict';
 
     // --- Configuration ---
-    const STEAM_APPS_CACHE_URL = 'https://cdn.jsdelivr.net/gh/gbzret4d/game-store-enhancer@develop/data/steam_apps.min.json';
+    const STEAM_APPS_CACHE_URL = 'https://cdn.jsdelivr.net/gh/gbzret4d/game-store-enhancer@main/data/steam_apps.min.json';
     const LOG_PREFIX = '[Fanatical Enhancer]';
 
     // --- Selectors ---
