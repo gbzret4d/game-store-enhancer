@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Humble Bundle Game Store Enhancer
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      0.3.8
+// @version      0.3.9
 // @description  Humble Bundle Steam Integration with robust status checks, review scores, and overlay fixes.
 // @author       gbzret4d
 // @updateURL    https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/humble_game_store_enhancer.user.js
@@ -191,6 +191,8 @@
 
     // 3. Review Score (Steam Store API)
     // We use a simple cache to avoid spamming calls for the same game in grid views
+    // 3. Review Score (Steam Store API)
+    // We use a simple cache to avoid spamming calls for the same game in grid views
     async function fetchReviewScore(appid) {
         if (state.reviewCache[appid]) return state.reviewCache[appid];
 
@@ -202,15 +204,29 @@
                     try {
                         const data = JSON.parse(res.responseText);
                         if (data && data.strReviewSummary) {
-                            // Extract simple status (e.g. "Very Positive")
-                            // Format is usually <span class="...">Very Positive</span>
-                            const match = data.strReviewSummary.match(/>([^<]+)</);
-                            const score = match ? match[1] : "?";
-
-                            // Determine class based on score text
+                            // Target: "95% of the 1,234 user reviews..."
+                            // strReviewDescription usually contains the percentage
+                            let score = "?";
                             let scoreClass = 'hbsi-review-mixed';
-                            if (/positive/i.test(score)) scoreClass = 'hbsi-review-positive';
-                            if (/negative/i.test(score)) scoreClass = 'hbsi-review-negative';
+
+                            // Try to extract percentage from description
+                            if (data.strReviewDescription) {
+                                const pctMatch = data.strReviewDescription.match(/(\d+)%/);
+                                if (pctMatch) {
+                                    score = pctMatch[1] + '%';
+                                    const pctVal = parseInt(pctMatch[1], 10);
+                                    if (pctVal >= 70) scoreClass = 'hbsi-review-positive';
+                                    else if (pctVal < 40) scoreClass = 'hbsi-review-negative';
+                                }
+                            }
+
+                            // Fallback to text summary if percentage not found
+                            if (score === "?") {
+                                const match = data.strReviewSummary.match(/>([^<]+)</);
+                                if (match) score = match[1];
+                                if (/positive/i.test(score)) scoreClass = 'hbsi-review-positive';
+                                if (/negative/i.test(score)) scoreClass = 'hbsi-review-negative';
+                            }
 
                             const result = { score, scoreClass };
                             state.reviewCache[appid] = result;
@@ -284,9 +300,23 @@
         createBadge(tile, appid, isOwned, isWishlist, isIgnored);
 
         // 5. Visual Feedback on Tile (Border/Opacity)
-        if (isOwned) tile.classList.add('hbsi-tile-owned');
-        if (isWishlist) tile.classList.add('hbsi-tile-wishlist');
-        if (isIgnored) tile.classList.add('hbsi-tile-ignored');
+        // Ensure relative positioning for inset shadow to work in some contexts
+        if (getComputedStyle(tile).position === 'static') {
+            tile.style.position = 'relative';
+        }
+
+        if (isOwned) {
+            tile.classList.add('hbsi-tile-owned');
+            tile.dataset.hbsiStatus = 'owned'; // Helper for debug CSS
+        }
+        if (isWishlist) {
+            tile.classList.add('hbsi-tile-wishlist');
+            tile.dataset.hbsiStatus = 'wishlist';
+        }
+        if (isIgnored) {
+            tile.classList.add('hbsi-tile-ignored');
+            tile.dataset.hbsiStatus = 'ignored';
+        }
     }
 
     async function createBadge(tile, appid, isOwned, isWishlist, isIgnored) {
@@ -299,20 +329,27 @@
         badge.target = '_blank';
         badge.title = 'View on Steam';
 
-        // Icon
-        badge.innerHTML = `<svg viewBox="0 0 24 24"><path d="M12 0C5.373 0 0 5.373 0 12c0 3.167 1.22 6.046 3.235 8.197L2.4 24l3.803-.835A11.95 11.95 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm5.65 16.5c-.3 0-.585-.11-.795-.315l-3.26-3.15c-.445-.43-.46-1.125-.03-1.555.42-.42 1.105-.415 1.54.02l2.365 2.29 4.96-5.73c.4-4.63.495-1.155-.065-1.635-.455-.38-1.135-.33-1.57.17l-5.61 6.48 c-.215.25-.525.395-.855.395z"/></svg>`;
+        // Base Icon
+        let iconHtml = `<svg viewBox="0 0 24 24"><path d="M12 0C5.373 0 0 5.373 0 12c0 3.167 1.22 6.046 3.235 8.197L2.4 24l3.803-.835A11.95 11.95 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm5.65 16.5c-.3 0-.585-.11-.795-.315l-3.26-3.15c-.445-.43-.46-1.125-.03-1.555.42-.42 1.105-.415 1.54.02l2.365 2.29 4.96-5.73c.4-4.63.495-1.155-.065-1.635-.455-.38-1.135-.33-1.57.17l-5.61 6.48 c-.215.25-.525.395-.855.395z"/></svg>`;
 
-        // Status Colors
+        // Status Colors & Text
+        let statusText = "";
+
         if (isOwned) {
             badge.classList.add('hbsi-status-owned');
             badge.title = 'Owned on Steam';
+            statusText = '<span style="margin-left:4px; font-weight:800;">OWNED</span>';
         } else if (isWishlist) {
             badge.classList.add('hbsi-status-wishlist');
             badge.title = 'On Steam Wishlist';
+            statusText = '<span style="margin-left:4px; font-weight:800;">WISHLIST</span>';
         } else if (isIgnored) {
             badge.classList.add('hbsi-status-ignored');
             badge.title = 'Ignored on Steam';
+            statusText = '<span style="margin-left:4px; font-weight:800;">IGNORED</span>';
         }
+
+        badge.innerHTML = iconHtml + statusText;
 
         // Append to suitable container
         // Note: 'hbsi-pos-abs' positions it absolute top-left.
@@ -329,6 +366,12 @@
             const scoreSpan = document.createElement('span');
             scoreSpan.className = `hbsi-review-score ${reviewData.scoreClass}`;
             scoreSpan.textContent = reviewData.score;
+            // Add a separator if we have status text
+            if (statusText) {
+                scoreSpan.style.borderLeft = "1px solid rgba(255,255,255,0.2)";
+                scoreSpan.style.paddingLeft = "4px";
+                scoreSpan.style.marginLeft = "4px";
+            }
             badge.appendChild(scoreSpan);
         }
     }

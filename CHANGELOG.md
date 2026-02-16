@@ -3,6 +3,13 @@ All notable changes to the **Game Store Enhancer** userscript will be documented
 
 The `develop` branch has been updated to **v2.0.23**.
 
+## [0.3.9] - 2026-02-16
+### Fixed
+- **Core**: Removed duplicate `userData` property in `state` object.
+- **UI**: Added explicit text labels ("OWNED", "WISHLIST", "IGNORED") next to the Steam logo.
+- **UI**: Switched Review Score from simple text (e.g. "Very Positive") to **Percentage** (e.g. "95%") where available.
+- **UI**: Improved `processTile` to ensure `position: relative` is applied for correct border visibility.
+
 ## [0.3.8] - 2026-02-16
 ### Fixed
 - **Core**: Removed duplicate `userData` property in `state` object.
