@@ -3,6 +3,11 @@ All notable changes to the **Game Store Enhancer** userscript will be documented
 
 The `develop` branch has been updated to **v2.0.23**.
 
+## [0.3.18] - 2026-02-17
+### Fixed
+- **REANIMAL Detection**: Improved name normalization to strip "Digital Deluxe Edition", allowing the script to correctly identify deluxe editions as the base game.
+- **Review Score Cache**: Added validation to the review score cache. Corrupted or incomplete cache entries (e.g. from previous buggy versions) are now ignored and refreshed automatically.
+
 ## [0.3.17] - 2026-02-17
 ### Fixed
 - **Syntax Error**: Fixed a critical syntax error ("Missing catch or finally after try") in `fetchReviewScore` introduced in the previous version, restoring script functionality.
