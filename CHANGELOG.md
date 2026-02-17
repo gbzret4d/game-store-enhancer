@@ -3,6 +3,10 @@ All notable changes to the **Game Store Enhancer** userscript will be documented
 
 The `develop` branch has been updated to **v2.0.23**.
 
+## [0.3.16] - 2026-02-17
+### Fixed
+- **Review Scores**: Updated `fetchReviewScore` to handle the new Steam API JSON structure (`ReviewSummary` object), ensuring review percentages are correctly calculated and displayed again.
+
 ## [0.3.15] - 2026-02-17
 ### Reverted
 - **Curator Support**: Removed `rgCurations` check entirely. Analysis revealed that values (0, 1, 2) likely represent review scores (Info, Recommended, Not Recommended) rather than ownership. This fixes false positives where negatively reviewed games (Value 2) were marked as owned. *REANIMAL* will temporarily appear as Not Owned again.

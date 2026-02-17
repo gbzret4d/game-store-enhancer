@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Humble Bundle Game Store Enhancer
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      0.3.15
+// @version      0.3.16
 // @description  Humble Bundle Steam Integration with robust status checks, review scores, and overlay fixes.
 // @author       gbzret4d
 // @updateURL    https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/humble_game_store_enhancer.user.js
@@ -253,7 +253,31 @@
                 onload: (res) => {
                     try {
                         const data = JSON.parse(res.responseText);
-                        if (data && data.strReviewSummary) {
+                        const summary = data.ReviewSummary; // New format check
+
+                        if (summary) {
+                            let score = "?";
+                            let scoreClass = 'hbsi-review-mixed';
+
+                            // Calculate percentage if numbers represent
+                            if (summary.cReviews && summary.cReviews > 0) {
+                                const pct = Math.round((summary.cRecommendationsPositive / summary.cReviews) * 100);
+                                score = pct + '%';
+                                if (pct >= 70) scoreClass = 'hbsi-review-positive';
+                                else if (pct < 40) scoreClass = 'hbsi-review-negative';
+                            } else if (summary.strReviewSummary) {
+                                // Fallback to text summary
+                                score = summary.strReviewSummary;
+                                if (/positive/i.test(score)) scoreClass = 'hbsi-review-positive';
+                                if (/negative/i.test(score)) scoreClass = 'hbsi-review-negative';
+                            }
+
+                            const result = { score, scoreClass };
+                            state.reviewCache[appid] = result;
+                            GM_setValue('review_cache', state.reviewCache);
+                            resolve(result);
+                        } else if (data && data.strReviewSummary) {
+                            // Legacy/Fallback format
                             // Target: "95% of the 1,234 user reviews..."
                             // strReviewDescription usually contains the percentage
                             let score = "?";
@@ -274,6 +298,8 @@
                             if (score === "?") {
                                 const match = data.strReviewSummary.match(/>([^<]+)</);
                                 if (match) score = match[1];
+                                else score = data.strReviewSummary; // Plain text fallback
+
                                 if (/positive/i.test(score)) scoreClass = 'hbsi-review-positive';
                                 if (/negative/i.test(score)) scoreClass = 'hbsi-review-negative';
                             }
@@ -285,183 +311,184 @@
                         } else {
                             resolve(null);
                         }
-                    } catch (e) {
-                        resolve(null);
                     }
-                },
+                    } catch(e) {
+                    resolve(null);
+                }
+            },
                 onerror: () => resolve(null)
             });
-        });
-    }
+    });
+}
 
     // --- Core Logic ---
 
     async function processTile(tile) {
-        if (state.processed.has(tile)) return;
-        state.processed.add(tile);
-        state.processedCount++;
+    if (state.processed.has(tile)) return;
+    state.processed.add(tile);
+    state.processedCount++;
 
-        // Debug: Log first 10 tiles or failures
-        const activeLog = state.processedCount <= 10;
+    // Debug: Log first 10 tiles or failures
+    const activeLog = state.processedCount <= 10;
 
-        // 1. Find Title
-        let titleEl = tile.querySelector(
-            '.item-title, .entity-title, .product-title, .content-choice-title, .game-box-title, h2, h3, h4, [class*="title"]'
-        );
+    // 1. Find Title
+    let titleEl = tile.querySelector(
+        '.item-title, .entity-title, .product-title, .content-choice-title, .game-box-title, h2, h3, h4, [class*="title"]'
+    );
 
-        // Fallback for Store Grid
-        if (!titleEl && tile.classList.contains('browse-product-grid-item')) {
-            titleEl = tile.querySelector('.entity-title');
-        }
-
-        let gameName = '';
-        if (titleEl) {
-            gameName = titleEl.textContent.trim();
-        } else if (tile.hasAttribute('aria-label')) {
-            // Homepage "full-tile-view" uses aria-label for the name
-            gameName = tile.getAttribute('aria-label').trim();
-        }
-
-        if (!gameName) {
-            // console.warn(LOG_PREFIX, "No name found for tile:", tile.className);
-            return;
-        }
-
-        const normName = normalize(gameName);
-        // console.log(LOG_PREFIX, `Processing: "${gameName}"`);
-
-        // 2. Resolve AppID
-        const appid = state.steamApps.get(normName);
-        if (!appid) {
-            // Log missing IDs to help debug normalization/cache issues
-            if (activeLog) console.log(LOG_PREFIX, `-> Miss: No AppID for "${normName}"`);
-            return;
-        }
-
-        if (activeLog) console.log(LOG_PREFIX, `-> Hit: AppID ${appid} for "${gameName}"`);
-
-        // 3. Check Status
-        const appidInt = parseInt(appid);
-        const isOwned = state.userData.owned ? state.userData.owned.has(appidInt) : false;
-        // Wishlist IDs come as numbers in rgWishlist, safe to cast appid to int or check both
-        const isWishlist = state.userData.wishlist ? state.userData.wishlist.has(appidInt) : false;
-        // Ignored are now Numbers in our set
-        const isIgnored = state.userData.ignored ? state.userData.ignored.has(appidInt) : false;
-
-        // 4. Create Badge
-        createBadge(tile, appid, isOwned, isWishlist, isIgnored);
-
-        // 5. Visual Feedback on Tile (Border/Opacity)
-        // Ensure relative positioning for ::after absolute positioning to work
-        if (getComputedStyle(tile).position === 'static') {
-            tile.style.position = 'relative';
-        }
-
-        if (isOwned) {
-            tile.classList.add('hbsi-tile-owned');
-        }
-        if (isWishlist) {
-            tile.classList.add('hbsi-tile-wishlist');
-        }
-        if (isIgnored) {
-            tile.classList.add('hbsi-tile-ignored');
-        }
+    // Fallback for Store Grid
+    if (!titleEl && tile.classList.contains('browse-product-grid-item')) {
+        titleEl = tile.querySelector('.entity-title');
     }
 
-    async function createBadge(tile, appid, isOwned, isWishlist, isIgnored) {
-        // Validation: Don't double badge
-        if (tile.querySelector('.hbsi-badge')) return;
-
-        const badge = document.createElement('a');
-        badge.className = 'hbsi-badge hbsi-pos-abs';
-        badge.href = `https://store.steampowered.com/app/${appid}`;
-        badge.target = '_blank';
-        badge.title = 'View on Steam';
-
-        // Base Icon
-        let iconHtml = `<svg viewBox="0 0 24 24"><path d="M12 0C5.373 0 0 5.373 0 12c0 3.167 1.22 6.046 3.235 8.197L2.4 24l3.803-.835A11.95 11.95 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm5.65 16.5c-.3 0-.585-.11-.795-.315l-3.26-3.15c-.445-.43-.46-1.125-.03-1.555.42-.42 1.105-.415 1.54.02l2.365 2.29 4.96-5.73c.4-4.63.495-1.155-.065-1.635-.455-.38-1.135-.33-1.57.17l-5.61 6.48 c-.215.25-.525.395-.855.395z"/></svg>`;
-
-        // Status Colors & Text
-        let statusText = "";
-
-        if (isOwned) {
-            badge.classList.add('hbsi-status-owned');
-            badge.title = 'Owned on Steam';
-            statusText = '<span style="margin-left:4px; font-weight:800;">OWNED</span>';
-        } else if (isWishlist) {
-            badge.classList.add('hbsi-status-wishlist');
-            badge.title = 'On Steam Wishlist';
-            statusText = '<span style="margin-left:4px; font-weight:800;">WISHLIST</span>';
-        } else if (isIgnored) {
-            badge.classList.add('hbsi-status-ignored');
-            badge.title = 'Ignored on Steam';
-            statusText = '<span style="margin-left:4px; font-weight:800;">IGNORED</span>';
-        }
-
-        badge.innerHTML = iconHtml + statusText;
-
-        // Append to suitable container
-        // Note: 'hbsi-pos-abs' positions it absolute top-left.
-        const style = window.getComputedStyle(tile);
-        if (style.position === 'static') {
-            tile.style.position = 'relative';
-        }
-
-        tile.appendChild(badge);
-
-        // Fetch Review Score (Async)
-        const reviewData = await fetchReviewScore(appid);
-        if (reviewData) {
-            const scoreSpan = document.createElement('span');
-            scoreSpan.className = `hbsi-review-score ${reviewData.scoreClass}`;
-            scoreSpan.textContent = reviewData.score;
-            // Add a separator if we have status text
-            if (statusText) {
-                scoreSpan.style.borderLeft = "1px solid rgba(255,255,255,0.2)";
-                scoreSpan.style.paddingLeft = "4px";
-                scoreSpan.style.marginLeft = "4px";
-            }
-            badge.appendChild(scoreSpan);
-        }
+    let gameName = '';
+    if (titleEl) {
+        gameName = titleEl.textContent.trim();
+    } else if (tile.hasAttribute('aria-label')) {
+        // Homepage "full-tile-view" uses aria-label for the name
+        gameName = tile.getAttribute('aria-label').trim();
     }
 
-    // --- Initialization ---
-
-    async function main() {
-        console.log(LOG_PREFIX, "v0.3.0 Init...");
-
-        const [userData, _] = await Promise.all([
-            fetchUserData(),
-            fetchAppCache()
-        ]);
-
-        state.userData = userData;
-
-        // Observer
-        const observer = new MutationObserver((mutations) => {
-            const tiles = document.querySelectorAll(TILE_SELECTOR);
-            if (tiles.length > 0) tiles.forEach(processTile);
-        });
-
-        observer.observe(document.body, { childList: true, subtree: true });
-
-        // Polling Retry Logic (up to 5 seconds)
-        let attempts = 0;
-        const interval = setInterval(() => {
-            const tiles = document.querySelectorAll(TILE_SELECTOR);
-            console.log(LOG_PREFIX, `Scan #${attempts + 1}: found ${tiles.length} tiles`);
-
-            if (tiles.length > 0) {
-                tiles.forEach(processTile);
-                // Don't clear interval, keep polling for lazy loaded stuff just in case
-            }
-
-            attempts++;
-            if (attempts >= 5) clearInterval(interval);
-        }, 1000);
+    if (!gameName) {
+        // console.warn(LOG_PREFIX, "No name found for tile:", tile.className);
+        return;
     }
 
-    // Start
-    main();
+    const normName = normalize(gameName);
+    // console.log(LOG_PREFIX, `Processing: "${gameName}"`);
 
-})();
+    // 2. Resolve AppID
+    const appid = state.steamApps.get(normName);
+    if (!appid) {
+        // Log missing IDs to help debug normalization/cache issues
+        if (activeLog) console.log(LOG_PREFIX, `-> Miss: No AppID for "${normName}"`);
+        return;
+    }
+
+    if (activeLog) console.log(LOG_PREFIX, `-> Hit: AppID ${appid} for "${gameName}"`);
+
+    // 3. Check Status
+    const appidInt = parseInt(appid);
+    const isOwned = state.userData.owned ? state.userData.owned.has(appidInt) : false;
+    // Wishlist IDs come as numbers in rgWishlist, safe to cast appid to int or check both
+    const isWishlist = state.userData.wishlist ? state.userData.wishlist.has(appidInt) : false;
+    // Ignored are now Numbers in our set
+    const isIgnored = state.userData.ignored ? state.userData.ignored.has(appidInt) : false;
+
+    // 4. Create Badge
+    createBadge(tile, appid, isOwned, isWishlist, isIgnored);
+
+    // 5. Visual Feedback on Tile (Border/Opacity)
+    // Ensure relative positioning for ::after absolute positioning to work
+    if (getComputedStyle(tile).position === 'static') {
+        tile.style.position = 'relative';
+    }
+
+    if (isOwned) {
+        tile.classList.add('hbsi-tile-owned');
+    }
+    if (isWishlist) {
+        tile.classList.add('hbsi-tile-wishlist');
+    }
+    if (isIgnored) {
+        tile.classList.add('hbsi-tile-ignored');
+    }
+}
+
+async function createBadge(tile, appid, isOwned, isWishlist, isIgnored) {
+    // Validation: Don't double badge
+    if (tile.querySelector('.hbsi-badge')) return;
+
+    const badge = document.createElement('a');
+    badge.className = 'hbsi-badge hbsi-pos-abs';
+    badge.href = `https://store.steampowered.com/app/${appid}`;
+    badge.target = '_blank';
+    badge.title = 'View on Steam';
+
+    // Base Icon
+    let iconHtml = `<svg viewBox="0 0 24 24"><path d="M12 0C5.373 0 0 5.373 0 12c0 3.167 1.22 6.046 3.235 8.197L2.4 24l3.803-.835A11.95 11.95 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm5.65 16.5c-.3 0-.585-.11-.795-.315l-3.26-3.15c-.445-.43-.46-1.125-.03-1.555.42-.42 1.105-.415 1.54.02l2.365 2.29 4.96-5.73c.4-4.63.495-1.155-.065-1.635-.455-.38-1.135-.33-1.57.17l-5.61 6.48 c-.215.25-.525.395-.855.395z"/></svg>`;
+
+    // Status Colors & Text
+    let statusText = "";
+
+    if (isOwned) {
+        badge.classList.add('hbsi-status-owned');
+        badge.title = 'Owned on Steam';
+        statusText = '<span style="margin-left:4px; font-weight:800;">OWNED</span>';
+    } else if (isWishlist) {
+        badge.classList.add('hbsi-status-wishlist');
+        badge.title = 'On Steam Wishlist';
+        statusText = '<span style="margin-left:4px; font-weight:800;">WISHLIST</span>';
+    } else if (isIgnored) {
+        badge.classList.add('hbsi-status-ignored');
+        badge.title = 'Ignored on Steam';
+        statusText = '<span style="margin-left:4px; font-weight:800;">IGNORED</span>';
+    }
+
+    badge.innerHTML = iconHtml + statusText;
+
+    // Append to suitable container
+    // Note: 'hbsi-pos-abs' positions it absolute top-left.
+    const style = window.getComputedStyle(tile);
+    if (style.position === 'static') {
+        tile.style.position = 'relative';
+    }
+
+    tile.appendChild(badge);
+
+    // Fetch Review Score (Async)
+    const reviewData = await fetchReviewScore(appid);
+    if (reviewData) {
+        const scoreSpan = document.createElement('span');
+        scoreSpan.className = `hbsi-review-score ${reviewData.scoreClass}`;
+        scoreSpan.textContent = reviewData.score;
+        // Add a separator if we have status text
+        if (statusText) {
+            scoreSpan.style.borderLeft = "1px solid rgba(255,255,255,0.2)";
+            scoreSpan.style.paddingLeft = "4px";
+            scoreSpan.style.marginLeft = "4px";
+        }
+        badge.appendChild(scoreSpan);
+    }
+}
+
+// --- Initialization ---
+
+async function main() {
+    console.log(LOG_PREFIX, "v0.3.0 Init...");
+
+    const [userData, _] = await Promise.all([
+        fetchUserData(),
+        fetchAppCache()
+    ]);
+
+    state.userData = userData;
+
+    // Observer
+    const observer = new MutationObserver((mutations) => {
+        const tiles = document.querySelectorAll(TILE_SELECTOR);
+        if (tiles.length > 0) tiles.forEach(processTile);
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    // Polling Retry Logic (up to 5 seconds)
+    let attempts = 0;
+    const interval = setInterval(() => {
+        const tiles = document.querySelectorAll(TILE_SELECTOR);
+        console.log(LOG_PREFIX, `Scan #${attempts + 1}: found ${tiles.length} tiles`);
+
+        if (tiles.length > 0) {
+            tiles.forEach(processTile);
+            // Don't clear interval, keep polling for lazy loaded stuff just in case
+        }
+
+        attempts++;
+        if (attempts >= 5) clearInterval(interval);
+    }, 1000);
+}
+
+// Start
+main();
+
+}) ();
