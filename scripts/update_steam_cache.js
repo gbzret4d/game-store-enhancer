@@ -99,9 +99,31 @@ fetchApps().then(apps => {
 
     console.log(`[Steam Cache] Processed ${count} valid apps.`);
 
+    console.log(`[Steam Cache] Processed ${count} valid apps.`);
+
+    // 1. Write Legacy Flat Format (steam_apps.min.json)
     fs.writeFileSync(OUT_FILE, JSON.stringify(appMap));
-    console.log(`[Steam Cache] Successfully wrote to ${OUT_FILE}`);
-    console.log(`[Steam Cache] File size: ${(fs.statSync(OUT_FILE).size / 1024 / 1024).toFixed(2)} MB`);
+    console.log(`[Steam Cache] Successfully wrote Legacy Format to ${OUT_FILE}`);
+
+    // 2. Write New Structured Format (steam_data.json)
+    const SAFE_SUFFIXES = [
+        'edition', 'deluxe', 'premium', 'ultimate', 'gold', 'silver', 'bronze',
+        'goty', 'remastered', 'definitive', 'director\'s', 'directors', 'collector\'s', 'collectors',
+        'complete', 'bundle', 'pack', 'package', 'season', 'pass', 'expansion', 'dlc'
+    ];
+
+    const structuredData = {
+        apps: appMap,
+        suffixes: SAFE_SUFFIXES,
+        generated_at: new Date().toISOString()
+    };
+
+    const OUT_FILE_NEW = path.join(DATA_DIR, 'steam_data.json');
+    fs.writeFileSync(OUT_FILE_NEW, JSON.stringify(structuredData));
+    console.log(`[Steam Cache] Successfully wrote New Format to ${OUT_FILE_NEW}`);
+
+    console.log(`[Steam Cache] File size (Legacy): ${(fs.statSync(OUT_FILE).size / 1024 / 1024).toFixed(2)} MB`);
+    console.log(`[Steam Cache] File size (New): ${(fs.statSync(OUT_FILE_NEW).size / 1024 / 1024).toFixed(2)} MB`);
 
 }).catch(err => {
     console.error('[Steam Cache] Fatal Error:', err.message);

@@ -3,6 +3,11 @@ All notable changes to the **Game Store Enhancer** userscript will be documented
 
 The `develop` branch has been updated to **v2.0.23**.
 
+## [0.3.21] - 2026-02-17
+### Added
+- **External Configuration**: Moved the "Safe Suffix Whitelist" to an external JSON file (`steam_data.json`) hosted in the repository. This allows for updating the list of supported edition suffixes without requiring a userscript update.
+- **Improved Caching**: The script now uses the new `steam_data.json` format which includes both the app cache and the configuration.
+
 ## [0.3.20] - 2026-02-17
 ### Security
 - **Smart Search Safety**: Refined the "Smart Iterative Search" to use a **Safe Suffix Whitelist** (e.g., "Edition", "Deluxe", "GOTY"). The script now STOPS removing words if it encounters a word not in the whitelist (e.g., "4" in "Uncharted 4"), preventing false positives for sequels or distinct titles.
