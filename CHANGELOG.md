@@ -3,6 +3,10 @@ All notable changes to the **Game Store Enhancer** userscript will be documented
 
 The `develop` branch has been updated to **v2.0.23**.
 
+## [0.3.15] - 2026-02-17
+### Reverted
+- **Curator Support**: Removed `rgCurations` check entirely. Analysis revealed that values (0, 1, 2) likely represent review scores (Info, Recommended, Not Recommended) rather than ownership. This fixes false positives where negatively reviewed games (Value 2) were marked as owned. *REANIMAL* will temporarily appear as Not Owned again.
+
 ## [0.3.14] - 2026-02-17
 ### Fixed
 - **Ownership Detection**: Refined `rgCurations` logic to prevent false positives. Now only marks a game as "Owned" if it has the specific status value `2` (Curator Connect Key), effectively ignoring mere recommendations (Values 0/1). Fixing issues with games like *Undertale* and *Cairn*.
