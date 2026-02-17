@@ -171,7 +171,10 @@
     // --- Helpers ---
     function normalize(str) {
         if (typeof str !== 'string') return '';
-        return str.toLowerCase().replace(/[^a-z0-9]/g, '');
+        // Remove "Digital Deluxe Edition", "Deluxe Edition", "GOTY" etc. for better matching
+        let clean = str.toLowerCase();
+        clean = clean.replace(/digital deluxe edition|deluxe edition|game of the year edition|goty/g, '');
+        return clean.replace(/[^a-z0-9]/g, '');
     }
 
     // --- API Fetchers ---
@@ -244,7 +247,9 @@
     // 3. Review Score (Steam Store API)
     // We use a simple cache to avoid spamming calls for the same game in grid views
     async function fetchReviewScore(appid) {
-        if (state.reviewCache[appid]) return state.reviewCache[appid];
+        if (state.reviewCache[appid] && state.reviewCache[appid].score && state.reviewCache[appid].scoreClass) {
+            return state.reviewCache[appid];
+        }
 
         return new Promise(resolve => {
             GM_xmlhttpRequest({
