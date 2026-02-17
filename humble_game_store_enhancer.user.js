@@ -188,20 +188,12 @@
                         const data = JSON.parse(res.responseText);
                         // V0.3.13 FIX:
                         // 1. Owned: Combine rgOwnedApps (Purchases) + rgCurations (Curator/Press Keys)
-                        //    NOTE: We strictly exclude rgOwnedPackages (SubIDs) to avoid ID collisions with AppIDs.
+                        // V0.3.15 FIX:
+                        // Reverted rgCurations check.
+                        // Analysis showed that rgCurations values (0, 1, 2) are review scores (Info, Rec, Not Rec),
+                        // NOT ownership indicators. Using value '2' caused false positives for negatively reviewed games.
+                        // We strictly go back to rgOwnedApps for now.
                         const ownedApps = new Set(data.rgOwnedApps || []);
-                        if (data.rgCurations && typeof data.rgCurations === 'object') {
-                            // V0.3.14 FIX:
-                            // rgCurations contains BOTH owned keys (Value 2) AND recommendations (Value 0/1).
-                            // We must strictly filter for value 2 to avoid false positives (e.g. Undertale, Cairn).
-                            Object.entries(data.rgCurations).forEach(([appid, curators]) => {
-                                // curators is an object like { "curatorID": value, ... }
-                                // We check if ANY curator has set the status to 2 (Owned via Connect)
-                                if (Object.values(curators).some(val => val === 2)) {
-                                    ownedApps.add(parseInt(appid));
-                                }
-                            });
-                        }
 
                         state.userData = {
                             owned: ownedApps,
