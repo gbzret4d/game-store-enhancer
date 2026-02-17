@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Humble Bundle Game Store Enhancer
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      0.3.13
+// @version      0.3.14
 // @description  Humble Bundle Steam Integration with robust status checks, review scores, and overlay fixes.
 // @author       gbzret4d
 // @updateURL    https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/humble_game_store_enhancer.user.js
@@ -191,7 +191,16 @@
                         //    NOTE: We strictly exclude rgOwnedPackages (SubIDs) to avoid ID collisions with AppIDs.
                         const ownedApps = new Set(data.rgOwnedApps || []);
                         if (data.rgCurations && typeof data.rgCurations === 'object') {
-                            Object.keys(data.rgCurations).forEach(id => ownedApps.add(parseInt(id)));
+                            // V0.3.14 FIX:
+                            // rgCurations contains BOTH owned keys (Value 2) AND recommendations (Value 0/1).
+                            // We must strictly filter for value 2 to avoid false positives (e.g. Undertale, Cairn).
+                            Object.entries(data.rgCurations).forEach(([appid, curators]) => {
+                                // curators is an object like { "curatorID": value, ... }
+                                // We check if ANY curator has set the status to 2 (Owned via Connect)
+                                if (Object.values(curators).some(val => val === 2)) {
+                                    ownedApps.add(parseInt(appid));
+                                }
+                            });
                         }
 
                         state.userData = {
