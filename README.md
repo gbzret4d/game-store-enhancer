@@ -39,6 +39,9 @@ It displays your **Ownership Status**, **Wishlist**, **Steam User Reviews**, **D
     - **Smart Exclusion**: Detects non-game pages (like "Book Bundles" or "Software Bundles" on Fanatical) and automatically disables itself to avoid errors.
 - **Stats Panel**: A floating panel shows a summary of the current page (Total, Owned, Missing, etc.).
 - **Smart Tooltips**: Hover over the Steam icon to see the game's **Cover Art** and full title.
+- **Smart Search & Matching**:
+    - **Iterative Search**: Automatically detects base games from complex edition titles (e.g., handles "Monster Hunter Stories 3: Standard Edition" -> "Monster Hunter Stories 3").
+    - **External Configuration**: Uses a dynamic `steam_data.json` whitelist to safely strip suffixes like "Deluxe", "Premium", "GOTY" without breaking game names.
 
 ## Installation
 
@@ -68,8 +71,9 @@ You can also manually update by clicking the installation link again or checking
 
 - **Site Adapters**: Uses modular adapters to find game titles on different websites.
 - **Data Sources**:
-    - **Steam UserData**: Fetches your owned/wishlisted games from Steam's dynamic store API.
+    - **Steam UserData**: Fetches your owned/wishlisted/curator games from Steam's dynamic store API.
     - **Steam Search**: Finds the correct Steam App ID by game name.
+    - **External Database**: Uses a self-hosted `steam_data.json` (updated every 6 hours) to map game names and edition suffixes to Steam AppIDs instantly, bypassing slow API searches.
     - **Steam AppDetails**: Fetches secondary info like Trading Cards and DLC type.
     - **ProtonDB API**: Fetches the current Linux/Deck compatibility tier.
 
