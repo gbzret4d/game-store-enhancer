@@ -3,6 +3,10 @@ All notable changes to the **Game Store Enhancer** userscript will be documented
 
 The `develop` branch has been updated to **v2.0.23**.
 
+## [0.3.20] - 2026-02-17
+### Security
+- **Smart Search Safety**: Refined the "Smart Iterative Search" to use a **Safe Suffix Whitelist** (e.g., "Edition", "Deluxe", "GOTY"). The script now STOPS removing words if it encounters a word not in the whitelist (e.g., "4" in "Uncharted 4"), preventing false positives for sequels or distinct titles.
+
 ## [0.3.19] - 2026-02-17
 ### Added
 - **Smart Iterative Search**: Added logic to automatically detect base games from complex edition titles (e.g., "Monster Hunter Stories 3: Twisted Reflection Premium Deluxe Edition" -> "Monster Hunter Stories 3: Twisted Reflection") by checking the local cache for shortened name variations.
