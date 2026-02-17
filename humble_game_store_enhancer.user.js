@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Humble Bundle Game Store Enhancer
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      0.3.18
+// @version      0.3.19
 // @description  Humble Bundle Steam Integration with robust status checks, review scores, and overlay fixes.
 // @author       gbzret4d
 // @updateURL    https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/humble_game_store_enhancer.user.js
@@ -359,15 +359,39 @@
         const normName = normalize(gameName);
         // console.log(LOG_PREFIX, `Processing: "${gameName}"`);
 
-        // 2. Resolve AppID
-        const appid = state.steamApps.get(normName);
+        // 2. Resolve AppID (Smart Iterative Search)
+        // If exact match fails, try stripping words from the end to find base game (e.g. "Game Name Deluxe Edition" -> "Game Name")
+        let appid = state.steamApps.get(normName);
+
+        if (!appid) {
+            // Iterative fallback: Remove last word and try again
+            // Limit to reasonable depth to avoid false positives (e.g. "The" -> "The Witcher")
+            const words = gameName.split(' ');
+            if (words.length > 1) {
+                // Try removing up to 4 words from the end (e.g. "Twisted Reflection Premium Deluxe Edition")
+                for (let i = 1; i <= 4; i++) {
+                    if (words.length - i < 1) break;
+                    const truncatedName = words.slice(0, words.length - i).join(' ');
+                    const truncatedNorm = normalize(truncatedName);
+                    if (activeLog) console.log(LOG_PREFIX, `-> Trying fallback: "${truncatedName}" (${truncatedNorm})`);
+
+                    const fallbackId = state.steamApps.get(truncatedNorm);
+                    if (fallbackId) {
+                        appid = fallbackId;
+                        if (activeLog) console.log(LOG_PREFIX, `-> Hit (Fallback): AppID ${appid} for "${truncatedName}"`);
+                        break;
+                    }
+                }
+            }
+        }
+
         if (!appid) {
             // Log missing IDs to help debug normalization/cache issues
             if (activeLog) console.log(LOG_PREFIX, `-> Miss: No AppID for "${normName}"`);
             return;
         }
 
-        if (activeLog) console.log(LOG_PREFIX, `-> Hit: AppID ${appid} for "${gameName}"`);
+        if (activeLog && !appid) console.log(LOG_PREFIX, `-> Hit: AppID ${appid} for "${gameName}"`);
 
         // 3. Check Status
         const appidInt = parseInt(appid);

@@ -3,6 +3,10 @@ All notable changes to the **Game Store Enhancer** userscript will be documented
 
 The `develop` branch has been updated to **v2.0.23**.
 
+## [0.3.19] - 2026-02-17
+### Added
+- **Smart Iterative Search**: Added logic to automatically detect base games from complex edition titles (e.g., "Monster Hunter Stories 3: Twisted Reflection Premium Deluxe Edition" -> "Monster Hunter Stories 3: Twisted Reflection") by checking the local cache for shortened name variations.
+
 ## [0.3.18] - 2026-02-17
 ### Fixed
 - **REANIMAL Detection**: Improved name normalization to strip "Digital Deluxe Edition", allowing the script to correctly identify deluxe editions as the base game.
