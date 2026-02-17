@@ -3,6 +3,10 @@ All notable changes to the **Game Store Enhancer** userscript will be documented
 
 The `develop` branch has been updated to **v2.0.23**.
 
+## [0.3.17] - 2026-02-17
+### Fixed
+- **Syntax Error**: Fixed a critical syntax error ("Missing catch or finally after try") in `fetchReviewScore` introduced in the previous version, restoring script functionality.
+
 ## [0.3.16] - 2026-02-17
 ### Fixed
 - **Review Scores**: Updated `fetchReviewScore` to handle the new Steam API JSON structure (`ReviewSummary` object), ensuring review percentages are correctly calculated and displayed again.
