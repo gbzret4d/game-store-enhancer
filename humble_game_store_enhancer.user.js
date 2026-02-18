@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Humble Bundle Game Store Enhancer
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      0.3.22
+// @version      0.3.23
 // @description  Humble Bundle Steam Integration with robust status checks, review scores, and overlay fixes.
 // @author       gbzret4d
 // @updateURL    https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/humble_game_store_enhancer.user.js
@@ -40,7 +40,7 @@
 
     // --- Configuration ---
     const LOG_PREFIX = '[GSE Humble]';
-    const CACHE_URL = 'https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/main/data/steam_apps.min.json';
+    const CACHE_URL = 'https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/data/steam_data.json';
     // Broadened selectors to catch more elements (Legacy + Modern)
     const TILE_SELECTOR = [
         '.entity-block-container',
@@ -226,21 +226,30 @@
     }
 
     // 2. App Cache (Source of Truth)
+    // 2. App Cache (Source of Truth)
     async function fetchAppCache() {
         return new Promise((resolve) => {
             console.log(LOG_PREFIX, "Fetching AppCache from", CACHE_URL);
             GM_xmlhttpRequest({
-                method: "GET",
+                method: "GET", // CHANGED: steam_apps.min.json -> steam_data.json
                 url: CACHE_URL,
                 onload: function (res) {
                     try {
                         const data = JSON.parse(res.responseText);
-                        // Data format: { "normalized_name": app_id } -> Load directly
-                        for (const [name, appid] of Object.entries(data)) {
-                            state.steamApps.set(name, appid);
+
+                        // Handle new structured format (v0.3.21+) vs old flat format
+                        if (data.apps && data.suffixes) {
+                            state.steamApps = new Map(Object.entries(data.apps));
+                            state.safeSuffixes = new Set(data.suffixes); // Load suffixes from JSON
+                            console.log(LOG_PREFIX, `Cache Loaded: ${state.steamApps.size} apps, ${state.safeSuffixes.size} suffixes.`);
+                        } else {
+                            // Fallback for old format (if user somehow gets old file)
+                            state.steamApps = new Map(Object.entries(data));
+                            state.safeSuffixes = new Set(['edition', 'deluxe', 'premium', 'ultimate', 'goty']); // Default fallback
+                            console.log(LOG_PREFIX, `Legacy Cache Loaded: ${state.steamApps.size} apps.`);
                         }
+
                         state.cacheLoaded = true;
-                        console.log(LOG_PREFIX, `Cache loaded: ${state.steamApps.size} apps`);
                     } catch (e) {
                         console.error(LOG_PREFIX, 'Failed to parse AppCache', e);
                     }
@@ -374,13 +383,30 @@
         let appid = state.steamApps.get(normName);
 
         if (!appid) {
-            // Iterative fallback: Remove last word and try again
-            // Limit to reasonable depth to avoid false positives (e.g. "The" -> "The Witcher")
-            const words = gameName.split(' ');
+            // Smart Iterative Search with Suffix Whitelist
+            // 1. We split the name into words
+            // 2. We allow removing words ONLY if the word we are removing is in our "Safe Suffix Whitelist"
+            //    (e.g. "Deluxe", "Edition"). If we encounter a real word (e.g. "Stories" in "Monster Hunter Stories"), we STOP.
+
+            const words = gameName.split(/\s+/);
+            const MAX_DEPTH = 4; // Check at most 4 suffixes deep
+
+            // Use loaded suffixes or default fallback
+            const SAFE_SUFFIXES = state.safeSuffixes || new Set(['edition', 'deluxe', 'premium', 'ultimate', 'goty']);
+
             if (words.length > 1) {
-                // Try removing up to 4 words from the end (e.g. "Twisted Reflection Premium Deluxe Edition")
-                for (let i = 1; i <= 4; i++) {
+                // Try removing last words one by one
+                for (let i = 1; i <= MAX_DEPTH; i++) {
                     if (words.length - i < 1) break;
+
+                    const wordToRemove = words[words.length - i].toLowerCase().replace(/[^a-z0-9]/g, '');
+
+                    // SECURITY CHECK: Matches whitelist?
+                    if (!SAFE_SUFFIXES.has(wordToRemove)) {
+                        if (activeLog) console.log(LOG_PREFIX, `-> Abort search: Suffix "${wordToRemove}" not in whitelist.`);
+                        break; // Stop stripping words immediately if unsafe
+                    }
+
                     const truncatedName = words.slice(0, words.length - i).join(' ');
                     const truncatedNorm = normalize(truncatedName);
                     if (activeLog) console.log(LOG_PREFIX, `-> Trying fallback: "${truncatedName}" (${truncatedNorm})`);

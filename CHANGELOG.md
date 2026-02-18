@@ -3,6 +3,11 @@ All notable changes to the **Game Store Enhancer** userscript will be documented
 
 The `develop` branch has been updated to **v2.0.23**.
 
+## [0.3.23] - 2026-02-18
+### Fixed
+- **Config Loading**: Fixed an issue where the userscript was still looking for the legacy `steam_apps.min.json` instead of the new `steam_data.json`.
+- **Branch Target**: The script on the `develop` branch now correctly fetches data from the `develop` branch (required for the new data format).
+
 ## [0.3.22] - 2026-02-18
 ### Fixed
 - **Connection Issues**: Added explicit `@connect` directives for Steam, GitHub, and ProtonDB to the metadata. This ensures Tampermonkey correctly handles cross-origin requests and cookies (fixes "0 owned apps" issue).
