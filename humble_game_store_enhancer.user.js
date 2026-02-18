@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Humble Bundle Game Store Enhancer
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      0.3.21
+// @version      0.3.22
 // @description  Humble Bundle Steam Integration with robust status checks, review scores, and overlay fixes.
 // @author       gbzret4d
 // @updateURL    https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/humble_game_store_enhancer.user.js
@@ -13,6 +13,9 @@
 // @grant        GM_getValue
 // @grant        GM_addStyle
 // @grant        unsafeWindow
+// @connect      store.steampowered.com
+// @connect      raw.githubusercontent.com
+// @connect      www.protondb.com
 // @run-at       document-end
 // ==/UserScript==
 
@@ -203,7 +206,14 @@
                             wishlist: new Set(data.rgWishlist || []),
                             ignored: new Set(Object.keys(data.rgIgnoredApps || {}).map(id => parseInt(id)))
                         };
-                        console.log(LOG_PREFIX, "UserData loaded:", state.userData.owned.size, "owned apps (inc. Curations)");
+
+                        if (state.userData.owned.size === 0) {
+                            console.warn(LOG_PREFIX, "UserData loaded, but 0 owned apps found. Are you logged into Steam in this browser context?");
+                            console.log(LOG_PREFIX, "Raw Data Preview:", JSON.stringify(data).substring(0, 100));
+                        } else {
+                            console.log(LOG_PREFIX, "UserData loaded:", state.userData.owned.size, "owned apps");
+                        }
+
                         resolve(state.userData);
                     } catch (e) {
                         console.error(LOG_PREFIX, "Failed to parse UserData", e);
