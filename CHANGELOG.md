@@ -3,6 +3,10 @@ All notable changes to the **Game Store Enhancer** userscript will be documented
 
 The `develop` branch has been updated to **v2.0.23**.
 
+## [0.3.24] - 2026-02-18
+- **Fixed:** Robust parsing for huge Steam UserData responses (35k+ games).
+- **Added:** Detailed debug logging for JSON parsing errors and response length.
+
 ## [0.3.23] - 2026-02-18
 ### Fixed
 - **Config Loading**: Fixed an issue where the userscript was still looking for the legacy `steam_apps.min.json` instead of the new `steam_data.json`.

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Humble Bundle Game Store Enhancer
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      0.3.23
+// @version      0.3.24
 // @description  Humble Bundle Steam Integration with robust status checks, review scores, and overlay fixes.
 // @author       gbzret4d
 // @updateURL    https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/humble_game_store_enhancer.user.js
@@ -183,6 +183,7 @@
     // --- API Fetchers ---
 
     // 1. User Data (Owned/Wishlist)
+    // 1. User Data (Owned/Wishlist)
     async function fetchUserData() {
         return new Promise(resolve => {
             console.log(LOG_PREFIX, "Fetching UserData...");
@@ -191,7 +192,9 @@
                 url: "https://store.steampowered.com/dynamicstore/userdata/",
                 onload: (res) => {
                     try {
+                        console.log(LOG_PREFIX, "UserData response length:", res.responseText.length);
                         const data = JSON.parse(res.responseText);
+
                         // V0.3.13 FIX:
                         // 1. Owned: Combine rgOwnedApps (Purchases) + rgCurations (Curator/Press Keys)
                         // V0.3.15 FIX:
@@ -199,7 +202,11 @@
                         // Analysis showed that rgCurations values (0, 1, 2) are review scores (Info, Rec, Not Rec),
                         // NOT ownership indicators. Using value '2' caused false positives for negatively reviewed games.
                         // We strictly go back to rgOwnedApps for now.
-                        const ownedApps = new Set(data.rgOwnedApps || []);
+
+                        const ownedAppsList = data.rgOwnedApps || [];
+                        console.log(LOG_PREFIX, "UserData parsed. Owned Apps Count:", ownedAppsList.length);
+
+                        const ownedApps = new Set(ownedAppsList);
 
                         state.userData = {
                             owned: ownedApps,
@@ -209,18 +216,27 @@
 
                         if (state.userData.owned.size === 0) {
                             console.warn(LOG_PREFIX, "UserData loaded, but 0 owned apps found. Are you logged into Steam in this browser context?");
-                            console.log(LOG_PREFIX, "Raw Data Preview:", JSON.stringify(data).substring(0, 100));
+                            if (data.rgOwnedApps) {
+                                console.warn(LOG_PREFIX, "rgOwnedApps exists but is empty.");
+                            } else {
+                                console.warn(LOG_PREFIX, "rgOwnedApps is undefined/null in response.");
+                            }
                         } else {
-                            console.log(LOG_PREFIX, "UserData loaded:", state.userData.owned.size, "owned apps");
+                            console.log(LOG_PREFIX, "UserData successfully loaded:", state.userData.owned.size, "owned apps");
                         }
 
                         resolve(state.userData);
                     } catch (e) {
-                        console.error(LOG_PREFIX, "Failed to parse UserData", e);
+                        console.error(LOG_PREFIX, "Failed to parse UserData response:", e);
+                        // Log a snippet of the response to see if it's HTML (login page) or truncated JSON
+                        console.log(LOG_PREFIX, "Response snippet:", res.responseText.substring(0, 100));
                         resolve(state.userData); // Return empty on fail
                     }
                 },
-                onerror: () => resolve(state.userData)
+                onerror: (e) => {
+                    console.error(LOG_PREFIX, "XHR Error fetching UserData:", e);
+                    resolve(state.userData);
+                }
             });
         });
     }
@@ -517,7 +533,7 @@
     // --- Initialization ---
 
     async function main() {
-        console.log(LOG_PREFIX, "v0.3.0 Init...");
+        console.log(LOG_PREFIX, "v0.3.24 Init...");
 
         const [userData, _] = await Promise.all([
             fetchUserData(),
