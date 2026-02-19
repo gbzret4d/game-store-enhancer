@@ -14,6 +14,9 @@ It is used to maintain the selectors in the `Game Store Enhancer` userscript.
 - **Title Selector**: `.item-title` or `.product-title`
 - **Image Selector**: `img` inside the item container (often has specific alignment classes).
 - **Notes**: Games are often grouped in `div.tier-item-view`. The userscript processes these individual items.
+- **Status**: ✅ Verified active on `humblebundle.com/bundles` (See `humble_games_badges_test` screenshot).
+- **Selectors**: `.tier-item-view .product-item` correctly identified.
+![Bundle Page Test](/C:/Users/mmueh/.gemini/antigravity/brain/e4259fcf-ebf5-4d69-be1f-47889e0a682f/humble_games_badges_test.png)
 
 ### 2. Store / Search Results
 *Grid view of games in the Humble Store.*
@@ -25,6 +28,9 @@ It is used to maintain the selectors in the `Game Store Enhancer` userscript.
 - **Notes**: 
   - Layout is consistent across `sort=bestselling`, `filter=onsale`, and other search variations.
   - The userscript correctly detects these cards and injects `ssl-link` elements.
+  - **Status**: ✅ Verified active on `humblebundle.com/store/search`.
+- **Selectors**: `.entity-block-container` identified.
+![Store Search Test](/C:/Users/mmueh/.gemini/antigravity/brain/e4259fcf-ebf5-4d69-be1f-47889e0a682f/humble_games_bundle_more_badges.png)
 
 ### 3. Single Product Page
 *Detail page for a specific game.*
