@@ -3,6 +3,11 @@ All notable changes to the **Game Store Enhancer** userscript will be documented
 
 The `develop` branch has been updated to **v2.0.23**.
 
+## [0.4.2] - 2026-02-19
+- **Fixed:** Robust layout fix for Store sidebar lists (Popular, New, Top Selling).
+  - Now wraps game title text nodes in a `<span>` to correctly enforce `text-overflow: ellipsis`.
+  - Switched from Flexbox to `display: grid` for sidebar items to guarantee 1-line horizontal alignment of Title and Price.
+
 ## [0.4.1] - 2026-02-19
 - **Fixed:** Visual regression on Humble Store "Popular" and "Top Selling" lists where game titles were shifted upwards.
   - Forced `flex-row` layout on `.entity-link` items in sidebars to keep Title and Price horizontally aligned.

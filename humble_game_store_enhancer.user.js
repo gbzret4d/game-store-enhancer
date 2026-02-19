@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Humble Bundle Game Store Enhancer
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      0.4.1
+// @version      0.4.2
 // @description  Humble Bundle Steam Integration with robust status checks, review scores, and overlay fixes.
 // @author       gbzret4d
 // @updateURL    https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/humble_game_store_enhancer.user.js
@@ -170,12 +170,43 @@
             right: auto !important;
         }
 
+
         /* 
-           V0.4.1 Fix: Popular/Vertical List Layout Alignment
-           Forces horizontal flex layout to prevent title from stacking above price.
+           V0.4.2 Fix: Robust Sidebar Layout
+           Uses Grid to handle text nodes and complex children cleanly.
         */
-        .popular-view .entity-link,
-        .entity-list-view .entity-link {
+        .enhancer-sidebar-item {
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) auto !important;
+            align-items: center !important;
+            gap: 8px !important;
+            width: 100% !important;
+            padding: 4px 0 !important;
+        }
+
+        .enhancer-title-wrapper {
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            min-width: 0 !important;
+            text-align: left !important;
+            display: block !important;
+        }
+        
+        /* Ensure price container doesn't shrink or wrap oddly */
+        .enhancer-sidebar-item > div:not(.enhancer-title-wrapper) {
+            display: flex !important;
+            align-items: center !important;
+            flex-shrink: 0 !important;
+            justify-content: flex-end !important;
+        }
+
+        /* 
+           Legacy/Backup: Popular/Vertical List Layout Alignment
+           Forces horizontal flex layout if grid class isn't applied yet.
+        */
+        .popular-view .entity-link:not(.enhancer-sidebar-item),
+        .entity-list-view .entity-link:not(.enhancer-sidebar-item) {
             display: flex !important;
             flex-direction: row !important;
             flex-wrap: nowrap !important;
@@ -393,7 +424,51 @@
 
     // --- Core Logic ---
 
+    function standardizeSidebarLayout(tile) {
+        // Only apply to sidebar items (New, Popular, Top Selling in lists)
+        // We detect this by checking parents or specific class combinations
+        const isSidebar = tile.closest('.sidebar-bottom-section') || tile.closest('.popular-view') || tile.closest('.entity-list-view');
+
+        if (!isSidebar) return;
+
+        // 1. Wrap Title Text Node if needed
+        // Many Humble sidebar items have [Text Node] [Price Div] as children.
+        // We need to wrap the text node in a span to apply ellipsis.
+
+        let titleSpan = tile.querySelector('.enhancer-title-wrapper');
+
+        if (!titleSpan) {
+            // Look for a direct text node
+            const textNode = Array.from(tile.childNodes).find(n =>
+                n.nodeType === 3 && n.textContent.trim().length > 0
+            );
+
+            if (textNode) {
+                titleSpan = document.createElement('span');
+                titleSpan.className = 'enhancer-title-wrapper';
+                // Insert before text node
+                tile.insertBefore(titleSpan, textNode);
+                // Move text node into span
+                titleSpan.appendChild(textNode);
+            } else {
+                // Sometimes the title is already in a span (not our badge)
+                const existingSpan = tile.querySelector('span:not(.hbsi-badge)');
+                if (existingSpan) {
+                    existingSpan.classList.add('enhancer-title-wrapper');
+                }
+            }
+        }
+
+        // 2. Apply Grid Class
+        if (!tile.classList.contains('enhancer-sidebar-item')) {
+            tile.classList.add('enhancer-sidebar-item');
+        }
+    }
+
     async function processTile(tile) {
+        // v0.4.2: Standardize Layout for Sidebar Items
+        standardizeSidebarLayout(tile);
+
         if (state.processed.has(tile)) return;
         state.processed.add(tile);
         state.processedCount++;
