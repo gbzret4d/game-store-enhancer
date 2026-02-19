@@ -3,7 +3,7 @@ All notable changes to the **Game Store Enhancer** userscript will be documented
 
 The `develop` branch has been updated to **v2.0.23**.
 
-## [0.3.3] - 2026-02-19
+## [0.4.0] - 2026-02-19
 - **Verified:** Extensive testing on Humble Bundle standard bundles and store/search pages confirmed full functionality.
 - **Confirmed:** *REANIMAL (Friend's Pass)* and other hidden licenses cannot be detected via standard Steam APIs. This is a known limitation, not a bug.
 - **Maintenance:** Routine selector verification and test harness creation.
