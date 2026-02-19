@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Humble Bundle Game Store Enhancer
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      0.4.2
+// @version      0.4.3
 // @description  Humble Bundle Steam Integration with robust status checks, review scores, and overlay fixes.
 // @author       gbzret4d
 // @updateURL    https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/humble_game_store_enhancer.user.js
@@ -254,6 +254,11 @@
             GM_xmlhttpRequest({
                 method: "GET",
                 url: "https://store.steampowered.com/dynamicstore/userdata/",
+                anonymous: false, // Force cookies
+                headers: {
+                    "Origin": "https://store.steampowered.com",
+                    "Referer": "https://store.steampowered.com/"
+                },
                 onload: (res) => {
                     try {
                         console.log(LOG_PREFIX, "UserData response length:", res.responseText.length);
@@ -282,6 +287,7 @@
                             console.warn(LOG_PREFIX, "UserData loaded, but 0 owned apps found. Are you logged into Steam in this browser context?");
                             if (data.rgOwnedApps) {
                                 console.warn(LOG_PREFIX, "rgOwnedApps exists but is empty.");
+                                console.warn(LOG_PREFIX, "Possible Fix: Check if your browser blocks Third-Party Cookies for Humble Bundle.");
                             } else {
                                 console.warn(LOG_PREFIX, "rgOwnedApps is undefined/null in response.");
                             }

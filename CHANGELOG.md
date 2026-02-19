@@ -3,6 +3,11 @@ All notable changes to the **Game Store Enhancer** userscript will be documented
 
 The `develop` branch has been updated to **v2.0.23**.
 
+## [0.4.3] - 2026-02-19
+- **Fixed:** Steam UserData (Owned/Wishlist) checks failing for some users.
+  - Added strict `anonymous: false` and `Referer` headers to `GM_xmlhttpRequest` to ensure Steam Session Cookies are sent.
+  - Added console warning suggesting "Third-Party Cookies" check if `rgOwnedApps` remains empty.
+
 ## [0.4.2] - 2026-02-19
 - **Fixed:** Robust layout fix for Store sidebar lists (Popular, New, Top Selling).
   - Now wraps game title text nodes in a `<span>` to correctly enforce `text-overflow: ellipsis`.
