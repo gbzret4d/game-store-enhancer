@@ -3,6 +3,10 @@ All notable changes to the **Game Store Enhancer** userscript will be documented
 
 The `develop` branch has been updated to **v2.0.23**.
 
+## [0.4.1] - 2026-02-19
+- **Fixed:** Visual regression on Humble Store "Popular" and "Top Selling" lists where game titles were shifted upwards.
+  - Forced `flex-row` layout on `.entity-link` items in sidebars to keep Title and Price horizontally aligned.
+
 ## [0.4.0] - 2026-02-19
 - **Verified:** Extensive testing on Humble Bundle standard bundles and store/search pages confirmed full functionality.
 - **Confirmed:** *REANIMAL (Friend's Pass)* and other hidden licenses cannot be detected via standard Steam APIs. This is a known limitation, not a bug.

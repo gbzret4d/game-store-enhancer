@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Humble Bundle Game Store Enhancer
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      0.4.0
+// @version      0.4.1
 // @description  Humble Bundle Steam Integration with robust status checks, review scores, and overlay fixes.
 // @author       gbzret4d
 // @updateURL    https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/humble_game_store_enhancer.user.js
@@ -168,6 +168,39 @@
             left: 6px !important;
             bottom: auto !important;
             right: auto !important;
+        }
+
+        /* 
+           V0.4.1 Fix: Popular/Vertical List Layout Alignment
+           Forces horizontal flex layout to prevent title from stacking above price.
+        */
+        .popular-view .entity-link,
+        .entity-list-view .entity-link {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            width: 100% !important;
+            padding-top: 4px !important;
+            padding-bottom: 4px !important;
+        }
+
+        .popular-view .entity-link > span,
+        .entity-list-view .entity-link > span {
+            flex: 1 1 auto !important;
+            margin-right: 10px !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+        }
+
+        /* Ensure the price container and icons stay grouped on the right */
+        .popular-view .entity-link > div,
+        .entity-list-view .entity-link > div {
+            display: flex !important;
+            align-items: center !important;
+            flex-shrink: 0 !important;
         }
     `);
 
