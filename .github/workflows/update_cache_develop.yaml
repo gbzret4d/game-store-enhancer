@@ -2,7 +2,7 @@ name: Update Steam App Cache (Develop)
 
 on:
     schedule:
-        - cron: "0 */2 * * *" # Run every 2 hours
+        - cron: "0 */12 * * *" # Run every 2 hours
     workflow_dispatch: # Allow manual trigger
 
 permissions:
