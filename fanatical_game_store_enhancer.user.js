@@ -236,9 +236,38 @@
         target.appendChild(badge);
     }
 
+    // Steam ownership comes from the store session in this browser. When it is missing
+    // (logged out, expired session, blocked third-party cookies) every badge silently shows
+    // "not owned", so say so on the page instead of only in the console.
+    function showSteamNotice() {
+        if (document.querySelector('.fgse-steam-notice')) return;
+        GM_addStyle(`
+            .fgse-steam-notice {
+                position: fixed; left: 12px; bottom: 12px; z-index: 100000; max-width: 340px;
+                padding: 8px 10px; border-radius: 4px; border: 1px solid #6d2e2e;
+                background: #171a21; color: #c7d5e0 !important; font: 12px/1.4 sans-serif;
+                text-decoration: none !important; box-shadow: 0 2px 8px rgba(0,0,0,.5);
+            }
+            .fgse-steam-notice:hover { border-color: #66c0f4; }
+        `);
+        const notice = document.createElement('a');
+        notice.className = 'fgse-steam-notice';
+        notice.href = 'https://store.steampowered.com/login/';
+        notice.target = '_blank';
+        notice.title = 'Dismiss with the x; log in to Steam in this browser, then reload this page.';
+        notice.textContent = 'Game Store Enhancer: Steam ownership could not be loaded, so OWNED/WISHLIST badges are missing. Log in to Steam in this browser, then reload.';
+        const close = document.createElement('span');
+        close.textContent = ' \u00d7';
+        close.style.cssText = 'cursor:pointer;margin-left:6px;font-weight:bold;';
+        close.addEventListener('click', (e) => { e.preventDefault(); e.stopPropagation(); notice.remove(); });
+        notice.appendChild(close);
+        document.body.appendChild(notice);
+    }
+
     async function main() {
         const [userData] = await Promise.all([fetchUserData(), fetchAppCache()]);
         state.userData = userData;
+        if (!userData || !userData.owned || userData.owned.size === 0) showSteamNotice();
 
         const observer = new MutationObserver(() => {
             document.querySelectorAll(TILE_Selector).forEach(processTile);
