@@ -653,7 +653,7 @@
         if (document.querySelector('.hbsi-steam-notice')) return;
         GM_addStyle(`
             .hbsi-steam-notice {
-                position: fixed; left: 12px; bottom: 12px; z-index: 100000; max-width: 340px;
+                position: fixed; left: 12px; bottom: 12px; z-index: 2147483000; max-width: 340px;
                 padding: 8px 10px; border-radius: 4px; border: 1px solid #6d2e2e;
                 background: #171a21; color: #c7d5e0 !important; font: 12px/1.4 sans-serif;
                 text-decoration: none !important; box-shadow: 0 2px 8px rgba(0,0,0,.5);
