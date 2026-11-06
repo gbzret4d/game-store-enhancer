@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Fanatical Game Store Enhancer
 // @namespace    https://github.com/gbzret4d/game-store-enhancer
-// @version      0.1.0
+// @version      0.1.1
 // @description  Fanatical Steam Integration with API Interceptor and Breadcrumb Filtering.
 // @author       gbzret4d
 // @updateURL    https://raw.githubusercontent.com/gbzret4d/game-store-enhancer/develop/fanatical_game_store_enhancer.user.js
@@ -39,8 +39,14 @@
         steamApps: new Map(), // name -> appid
         userData: { owned: new Set(), wishlist: new Set(), ignored: new Set() },
         coverMap: new Map(), // image_filename -> {id: 123} (From API Interceptor)
+        bundleMap: new Map(), // image_filename -> [{name, slug}] for bundles whose own steam.id is null
+        slugCache: new Map(), // slug -> Promise<steam appid | null>
         processed: new WeakSet()
     };
+
+    function coverFilename(url) {
+        return url.split('/').pop().split('?')[0];
+    }
 
     // --- API Interceptor (Run Immediately) ---
     // Fanatical loads via fetch calls. To get 100% accurate IDs (especially for bundles), 
@@ -60,14 +66,18 @@
                 if (!json) return;
 
                 const processGame = (game) => {
-                    if (game && game.cover && game.steam && game.steam.id) {
-                        try {
-                            // Extract filename from cover URL: ".../abc.jpg?v=1" -> "abc.jpg"
-                            let filename = game.cover.split('/').pop().split('?')[0];
+                    if (!game || !game.cover) return;
+                    try {
+                        // Extract filename from cover URL: ".../abc.jpg?v=1" -> "abc.jpg"
+                        let filename = coverFilename(game.cover);
+                        if (game.steam && game.steam.id) {
                             state.coverMap.set(filename, game.steam);
-                            // console.log(LOG_PREFIX, `Mapped ${filename} -> SteamID ${game.steam.id}`);
-                        } catch (e) { /* Safe ignore */ }
-                    }
+                        } else if (Array.isArray(game.bundleGames) && game.bundleGames.length) {
+                            // Bundle product (e.g. Pick & Mix "Double-Pack"): no Steam id of its own,
+                            // only {name, slug} per contained game. Resolved lazily in processBundleTile.
+                            state.bundleMap.set(filename, game.bundleGames.map(g => ({ name: g.name.trim(), slug: g.slug })));
+                        }
+                    } catch (e) { /* Safe ignore */ }
                 };
 
                 // Traverse JSON structure (common Fanatical patterns)
@@ -122,6 +132,8 @@
         .fgse-ignored { color: #d9534f !important; border-color: #6d2e2e !important; }
         
         .fgse-pos-abs { position: absolute !important; top: 10px; left: 10px; }
+        .fgse-stack { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; z-index: 1000; }
+        .fgse-name { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     `);
 
     // --- Core Logic ---
@@ -165,6 +177,19 @@
         });
     }
 
+    // Steam appid for a bundled game: Fanatical's own product API by slug, falling back to name lookup.
+    function resolveBundleGame(game) {
+        if (!state.slugCache.has(game.slug)) {
+            state.slugCache.set(game.slug,
+                fetch(`/api/products/${encodeURIComponent(game.slug)}/en`)
+                    .then(r => r.ok ? r.json() : null)
+                    .then(j => (j && j.steam && j.steam.id) || null)
+                    .catch(() => null)
+                    .then(id => id || state.steamApps.get(normalize(game.name)) || null));
+        }
+        return state.slugCache.get(game.slug);
+    }
+
     function isExcludedPage() {
         // Exclude Book/Software bundles based on Breadcrumbs
         const breadcrumbs = Array.from(document.querySelectorAll('.breadcrumb-item, nav li, ol li'));
@@ -172,12 +197,20 @@
         return breadcrumbs.some(b => keywords.some(k => b.innerText.trim() === k));
     }
 
-    function createBadge(appId, statusClass, statusText) {
+    function createBadge(appId, statusClass, statusText, gameName) {
         const badge = document.createElement('a');
         badge.className = `fgse-badge ${statusClass || ''}`;
         badge.href = `https://store.steampowered.com/app/${appId}`;
         badge.target = '_blank';
         badge.innerHTML = `<svg viewBox="0 0 24 24"><path d="M12 0C5.372 0 0 5.372 0 12c0 5.176 3.255 9.584 7.848 11.25.106-2.086 1.154-3.926 2.768-5.064L9.124 12.98C8.1 12.834 7.33 11.96 7.33 10.9c0-1.215.985-2.2 2.2-2.2s2.2.985 2.2 2.2c0 .248-.046.486-.124.71l2.97 2.97c1.373-.39 2.87.16 3.73 1.25l2.4-1.2c-.08-.344-.136-.7-.136-1.07 0-2.43 1.97-4.4 4.4-4.4 2.43 0 4.4 1.97 4.4 4.4 0 2.43-1.97 4.4-4.4 4.4-.73 0-1.42-.18-2.03-.5l-2.4 1.2c.07.33.12.67.12 1.02 0 2.43-1.97 4.4-4.4 4.4s-4.4-1.97-4.4-4.4c0-1.09.39-2.09 1.05-2.88l-1.07-5.55C3.39 12.015 3.1 12.44 2.88 12.91 3.25 7.8 8.13 4 14 4c5.19 0 9.47 3.91 9.94 8.9-.4-5.38-4.87-9.6-10.27-9.6z"/></svg><span>STEAM</span>` + (statusText ? `<span style="border-left:1px solid #fff;height:10px;margin:0 4px;opacity:0.5"></span><span>${statusText}</span>` : '');
+        if (gameName) {
+            // Bundle tiles get one badge per game, so label which game this is.
+            const name = document.createElement('span');
+            name.className = 'fgse-name';
+            name.textContent = gameName;
+            badge.appendChild(name);
+            badge.title = gameName;
+        }
 
         badge.addEventListener('click', (e) => {
             e.stopPropagation(); e.preventDefault();
@@ -186,19 +219,55 @@
         return badge;
     }
 
+    function statusFor(appId) {
+        if (state.userData.owned.has(appId)) return ['fgse-owned', 'OWNED'];
+        if (state.userData.wishlist.has(appId)) return ['fgse-wishlist', 'WISHLIST'];
+        if (state.userData.ignored.has(appId)) return ['fgse-ignored', 'IGNORED'];
+        return ['', ''];
+    }
+
+    function badgeTarget(tile) {
+        // Fanatical Layout Tweaks:
+        // Position absolute usually works best on image containers.
+        // .card-overlay itself is opacity:0 until hover, so attach to its (visible) parent instead.
+        const overlay = tile.querySelector('.card-overlay');
+        let target = (overlay && overlay.parentElement) || tile.querySelector('.hitCardStripe__image') || tile;
+        if (getComputedStyle(target).position === 'static') {
+            target.style.position = 'relative';
+        }
+        return target;
+    }
+
+    async function processBundleTile(tile, games) {
+        const ids = await Promise.all(games.map(resolveBundleGame));
+        const stack = document.createElement('div');
+        stack.className = 'fgse-stack fgse-pos-abs';
+        games.forEach((game, i) => {
+            if (!ids[i]) return;
+            const [statusClass, statusText] = statusFor(ids[i]);
+            stack.appendChild(createBadge(ids[i], statusClass, statusText, game.name));
+        });
+        if (stack.children.length) badgeTarget(tile).appendChild(stack);
+    }
+
     function processTile(tile) {
         if (state.processed.has(tile)) return;
-        state.processed.add(tile);
-
         if (isExcludedPage()) return; // Skip non-game pages
 
         // 1. Try Inteceptor Map (Most Accurate)
         let appId = null;
         let img = tile.querySelector('img');
-        if (img && img.src) {
-            let filename = img.src.split('/').pop().split('?')[0];
+        let filename = img && img.src ? coverFilename(img.src) : null;
+        if (filename) {
             let mapped = state.coverMap.get(filename);
             if (mapped) appId = mapped.id;
+
+            let bundleGames = state.bundleMap.get(filename);
+            if (!appId && bundleGames) {
+                state.processed.add(tile);
+                processBundleTile(tile, bundleGames);
+                return;
+            }
         }
 
         // 2. Fallback: Name Search
@@ -209,31 +278,16 @@
             }
         }
 
+        // Not matched yet: leave unprocessed so a later DOM mutation retries
+        // (the interceptor's JSON may land after the tile renders).
         if (!appId) return;
+        state.processed.add(tile);
 
-        // 3. Status
-        let isOwned = state.userData.owned.has(appId);
-        let isWishlist = state.userData.wishlist.has(appId);
-        let isIgnored = state.userData.ignored.has(appId);
-
-        let statusClass = '';
-        let statusText = '';
-
-        if (isOwned) { statusClass = 'fgse-owned'; statusText = 'OWNED'; }
-        else if (isWishlist) { statusClass = 'fgse-wishlist'; statusText = 'WISHLIST'; }
-        else if (isIgnored) { statusClass = 'fgse-ignored'; statusText = 'IGNORED'; }
-
-        // 4. Inject
+        // 3. Status + 4. Inject
+        const [statusClass, statusText] = statusFor(appId);
         const badge = createBadge(appId, statusClass, statusText);
         badge.classList.add('fgse-pos-abs');
-
-        // Fanatical Layout Tweaks:
-        // Position absolute usually works best on image containers
-        let target = tile.querySelector('.card-overlay') || tile.querySelector('.hitCardStripe__image') || tile;
-        if (target.style.position !== 'absolute' && target.style.position !== 'relative') {
-            target.style.position = 'relative';
-        }
-        target.appendChild(badge);
+        badgeTarget(tile).appendChild(badge);
     }
 
     async function main() {
