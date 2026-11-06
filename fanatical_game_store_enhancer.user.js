@@ -122,6 +122,9 @@
         .fgse-ignored { color: #d9534f !important; border-color: #6d2e2e !important; }
         
         .fgse-pos-abs { position: absolute !important; top: 10px; left: 10px; }
+        /* Fanatical's own card labels (New To Bundle, In Library, Recommended, Star Deal...) sit in the
+           same top-left corner; drop the badge below them instead of underneath. */
+        :is(.PickAndMixCard, .HitCard):has(.card-label, .hitCardLabel) .fgse-pos-abs { top: 34px !important; }
     `);
 
     // --- Core Logic ---
